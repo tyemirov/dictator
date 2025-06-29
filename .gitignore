@@ -1,0 +1,5 @@
+.idea/
+.venv/
+*.wav
+*.mp3
+*.flac
