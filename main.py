@@ -8,8 +8,8 @@ XTTS-v2 long-form voice cloning (GPU preferred)
   ⇒ typically 6-10 sentences per chunk, no “light.” orphans, and never hits
   XTTS’ ≈ 250-code-point truncation limit
 • --length NN[s|m|h] trims on the last *complete* sentence that fits
+• --language CODE selects the TTS language (e.g. en, ru)
 """
-
 from __future__ import annotations
 
 import argparse
@@ -31,7 +31,6 @@ BYTE_BUDGET = 800  # safe for XTTS-v2  (≈ 25-30 s of English speech)
 CTRL_REMOVE = {c: None for c in range(32)} | {127: None}  # strip ASCII control chars
 
 
-# ────────────────────────── text helpers ────────────────────────────────────
 def clean(text: str) -> str:
     """Unicode-normalise, strip controls, collapse whitespace."""
     text = unicodedata.normalize("NFKC", text.translate(CTRL_REMOVE))
@@ -67,11 +66,10 @@ def build_chunks(text: str, budget: int = BYTE_BUDGET) -> List[str]:
         else:
             if buf:
                 chunks.append(buf)
-            buf = sent if fits_xtts(sent, budget) else sent[:budget]  # fallback, very rare
+            buf = sent if fits_xtts(sent, budget) else sent[:budget]
     if buf:
         chunks.append(buf)
 
-    # merge tiny tails
     merged: List[str] = []
     for chunk in chunks:
         if merged and len(chunk.encode("utf-8")) < 80 and fits_xtts(
@@ -94,7 +92,6 @@ def parse_length(spec: Optional[str]) -> Optional[float]:
     return float(value) * {"s": 1, "m": 60, "h": 3600}[unit.lower()]
 
 
-# ───────────────────────── ffmpeg helpers ───────────────────────────────────
 def mp3_to_wav(src: Path, dst: Path) -> None:
     (
         ffmpeg.input(str(src))
@@ -122,9 +119,11 @@ def concat_normalise(inputs: List[Path], dst: Path, cap: Optional[float]) -> Non
     )
 
 
-# ───────────────────────── synthesis ────────────────────────────────────────
 def synthesise(
-        speaker_wav: Path, chunks: List[str], cap: Optional[float]
+        speaker_wav: Path,
+        chunks: List[str],
+        cap: Optional[float],
+        language_code: str,
 ) -> List[Path]:
     """Generate WAV chunks until `cap` seconds have been produced."""
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -143,7 +142,7 @@ def synthesise(
         tts.tts_to_file(
             text=chunk,
             speaker_wav=str(speaker_wav),
-            language="en",
+            language=language_code,
             file_path=str(path),
         )
 
@@ -168,13 +167,17 @@ def synthesise(
     return wav_paths
 
 
-# ───────────────────────── CLI ──────────────────────────────────────────────
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--sample", required=True, help="reference WAV/MP3")
     parser.add_argument("--text", required=True, help="UTF-8 plain-text file")
     parser.add_argument("--output", required=True, help="destination WAV")
     parser.add_argument("--length", help="max duration (e.g. 3m or 180s)")
+    parser.add_argument(
+        "--language",
+        default="en",
+        help="TTS language code (e.g. 'en', 'ru')",
+    )
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
 
@@ -183,6 +186,8 @@ def main() -> None:
         format="%(asctime)s │ %(levelname)-8s │ %(message)s",
         datefmt="%H:%M:%S",
     )
+
+    language_code = args.language
 
     out_path = Path(args.output)
     if out_path.exists() and not args.force:
@@ -202,7 +207,7 @@ def main() -> None:
     logging.info("XTTS calls: %d  (≤%d UTF-8 bytes each)", len(text_chunks), BYTE_BUDGET)
 
     cap_seconds = parse_length(args.length)
-    wav_chunks = synthesise(ref_wav, text_chunks, cap_seconds)
+    wav_chunks = synthesise(ref_wav, text_chunks, cap_seconds, language_code)
     if not wav_chunks:
         return
 
