@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-XTTS-v2 long-form voice cloning
+XTTS-v2 long-form voice cloning (GPU preferred)
 
-• 24 kHz mono output, peak-normalised (dynaudnorm → –1 dBFS)
-• ffmpeg-python only – no subprocess()
-• smart text splitting (≤ 240 chars so XTTS never truncates)
-• optional --length NN[s|m|h] => stop at the last full sentence that fits
+• 24 kHz mono output, peak-normalised to -1 dBFS
+• ffmpeg-python only – never spawns subprocesses
+• Smart byte-budget splitter: ≤ 800 UTF-8 bytes.
+  ⇒ typically 6-10 sentences per chunk, no “light.” orphans, and never hits
+  XTTS’ ≈ 250-code-point truncation limit
+• --length NN[s|m|h] trims on the last *complete* sentence that fits
 """
 
 from __future__ import annotations
@@ -24,178 +26,194 @@ from TTS.api import TTS
 
 MODEL_ID = "tts_models/multilingual/multi-dataset/xtts_v2"
 TARGET_SR = 24_000
-MAX_CHARS = 240  # safe per-chunk limit for XTTS
+BYTE_BUDGET = 800  # safe for XTTS-v2  (≈ 25-30 s of English speech)
 
-CTRL_REMOVE = {c: None for c in range(32)} | {127: None}  # strip ASCII control
+CTRL_REMOVE = {c: None for c in range(32)} | {127: None}  # strip ASCII control chars
 
 
-# ───────────── text helpers ──────────────────────────────────────────────
+# ────────────────────────── text helpers ────────────────────────────────────
 def clean(text: str) -> str:
-    """Unicode-normalise + collapse whitespace + strip controls."""
-    cleaned = unicodedata.normalize("NFKC", text.translate(CTRL_REMOVE))
-    return " ".join(cleaned.split())
+    """Unicode-normalise, strip controls, collapse whitespace."""
+    text = unicodedata.normalize("NFKC", text.translate(CTRL_REMOVE))
+    return " ".join(text.split())
 
 
-def smart_split(text: str, limit: int = MAX_CHARS) -> List[str]:
+def split_into_sentences(text: str) -> List[str]:
+    """Return sentences *with* their terminal punctuation."""
+    return re.split(r"(?<=[.!?])\s+", text)
+
+
+def fits_xtts(chunk: str, budget: int = BYTE_BUDGET) -> bool:
+    """True if `chunk` is within the UTF-8 byte budget accepted by XTTS."""
+    return len(chunk.encode("utf-8")) <= budget
+
+
+def build_chunks(text: str, budget: int = BYTE_BUDGET) -> List[str]:
     """
-    Split text ≤ `limit` characters but only on:
-      1. sentence breaks [.?!]⎵
-      2. phrase breaks [,;:–]⎵
-      3. word breaks (fallback)
+    Greedy byte-budget splitter.
 
-    Returned list has no empty strings and no part exceeds `limit`.
+    • Add sentences until the next would overflow `budget`.
+    • Never output empty chunks.
+    • Final pass merges very short tails (< 80 bytes) into the previous chunk.
     """
-    sentence_re = re.compile(r"([.!?])\s+")
-    phrase_re = re.compile(r"([,;:–])\s+")
-
+    sentences = split_into_sentences(text)
     chunks: List[str] = []
-    buffer = ""
+    buf = ""
 
-    def flush() -> None:
-        nonlocal buffer
-        if buffer:
-            chunks.append(buffer.strip())
-            buffer = ""
-
-    for segment in sentence_re.split(text):
-        if not segment:
-            continue
-        if len(buffer) + len(segment) <= limit:
-            buffer += segment
+    for sent in sentences:
+        candidate = f"{buf} {sent}".strip() if buf else sent
+        if fits_xtts(candidate, budget):
+            buf = candidate
         else:
-            for phrase in phrase_re.split(segment):
-                if not phrase:
-                    continue
-                if len(buffer) + len(phrase) <= limit:
-                    buffer += phrase
-                else:
-                    for word in phrase.split():
-                        if len(buffer) + len(word) + 1 <= limit:
-                            buffer = f"{buffer} {word}".strip()
-                        else:
-                            flush()
-                            buffer = word
-    flush()
-    return chunks
+            if buf:
+                chunks.append(buf)
+            buf = sent if fits_xtts(sent, budget) else sent[:budget]  # fallback, very rare
+    if buf:
+        chunks.append(buf)
+
+    # merge tiny tails
+    merged: List[str] = []
+    for chunk in chunks:
+        if merged and len(chunk.encode("utf-8")) < 80 and fits_xtts(
+                f"{merged[-1]} {chunk}", budget
+        ):
+            merged[-1] = f"{merged[-1]} {chunk}"
+        else:
+            merged.append(chunk)
+    return merged
 
 
 def parse_length(spec: Optional[str]) -> Optional[float]:
     """'90s' → 90.0, '2m' → 120.0, '1.5h' → 5400.0."""
     if not spec:
         return None
-    match = re.fullmatch(r"\s*([\d.]+)\s*([smhSMH])\s*", spec)
-    if not match:
+    m = re.fullmatch(r"\s*([\d.]+)\s*([smhSMH])\s*", spec)
+    if not m:
         raise ValueError("--length must look like '90s', '2m' or '1.5h'")
-    value, unit = match.groups()
+    value, unit = m.groups()
     return float(value) * {"s": 1, "m": 60, "h": 3600}[unit.lower()]
 
 
-# ───────────── ffmpeg helpers ────────────────────────────────────────────
-def mp3_to_wav(src_mp3: Path, dst_wav: Path) -> None:
-    (ffmpeg
-     .input(str(src_mp3))
-     .output(str(dst_wav), ar=TARGET_SR, ac=1, acodec="pcm_s16le")
-     .overwrite_output()
-     .run(quiet=True))
+# ───────────────────────── ffmpeg helpers ───────────────────────────────────
+def mp3_to_wav(src: Path, dst: Path) -> None:
+    (
+        ffmpeg.input(str(src))
+        .output(str(dst), ar=TARGET_SR, ac=1, acodec="pcm_s16le")
+        .overwrite_output()
+        .run(quiet=True)
+    )
 
 
-def concat_normalise(src_wavs: List[Path], dst: Path,
-                     cap: Optional[float]) -> None:
-    """Concat → dynaudnorm → –1 dBFS → 24 kHz mono."""
-    streams = [ffmpeg.input(str(w)) for w in src_wavs]
+def concat_normalise(inputs: List[Path], dst: Path, cap: Optional[float]) -> None:
+    """Concat → dynaudnorm → −1 dBFS → 24 kHz mono WAV."""
+    streams = [ffmpeg.input(str(f)) for f in inputs]
     audio = ffmpeg.concat(*[s.audio for s in streams], v=0, a=1)
     audio = audio.filter("dynaudnorm").filter("volume", 0.891250938)
-    out = audio.output(str(dst), ar=TARGET_SR, ac=1, acodec="pcm_s16le",
-                       t=str(cap) if cap else None
-                       ).overwrite_output()
-    out.run(quiet=True)
+    (
+        audio.output(
+            str(dst),
+            ar=TARGET_SR,
+            ac=1,
+            acodec="pcm_s16le",
+            t=str(cap) if cap else None,
+        )
+        .overwrite_output()
+        .run(quiet=True)
+    )
 
 
-# ───────────── synthesis ────────────────────────────────────────────────
-def synthesise(speaker: Path, pieces: List[str],
-               cap: Optional[float]) -> List[Path]:
-    """Generate WAV chunks until `cap` seconds is reached (or all text)."""
+# ───────────────────────── synthesis ────────────────────────────────────────
+def synthesise(
+        speaker_wav: Path, chunks: List[str], cap: Optional[float]
+) -> List[Path]:
+    """Generate WAV chunks until `cap` seconds have been produced."""
     device = "cuda" if torch.cuda.is_available() else "cpu"
     tts = TTS(MODEL_ID).to(device)
 
     tmp_dir = Path("_tts_chunks")
     tmp_dir.mkdir(exist_ok=True)
-    wavs: List[Path] = []
+    wav_paths: List[Path] = []
 
     elapsed = 0.0
-    for idx, text in enumerate(pieces):
+    for idx, chunk in enumerate(chunks):
         if cap and elapsed >= cap:
             break
-        wav_path = tmp_dir / f"{idx:04d}.wav"
-        tts.tts_to_file(text=text, speaker_wav=str(speaker),
-                        language="en", file_path=str(wav_path))
 
-        info = sf.info(wav_path)
-        duration = info.frames / info.samplerate
+        path = tmp_dir / f"{idx:04d}.wav"
+        tts.tts_to_file(
+            text=chunk,
+            speaker_wav=str(speaker_wav),
+            language="en",
+            file_path=str(path),
+        )
 
-        # if adding this chunk would exceed --length, discard it and stop
-        if cap and elapsed + duration > cap:
-            wav_path.unlink()
-            logging.warning("sentence %.1fs is longer than remaining cap "
-                            "(%.1fs) – skipped", duration, cap - elapsed)
+        info = sf.info(path)
+        dur = info.frames / info.samplerate
+
+        if cap and elapsed + dur > cap:
+            path.unlink()
+            logging.warning(
+                "Sentence %.1fs longer than remaining cap (%.1fs) – skipped",
+                dur,
+                cap - elapsed,
+            )
             break
 
-        wavs.append(wav_path)
-        elapsed += duration
-        logging.info("chunk %03d   %.1fs   cumulative %.1fs",
-                     idx, duration, elapsed)
+        wav_paths.append(path)
+        elapsed += dur
+        logging.info("chunk %03d  %.1f s  (cumulative %.1f s)", idx, dur, elapsed)
 
-    if cap and not wavs:
-        logging.error("first sentence (%.1fs) exceeds --length – nothing done",
-                      duration)
-        return []
-
-    return wavs
+    if cap and not wav_paths:
+        logging.error("First sentence (%.1fs) exceeds --length – nothing generated", dur)
+    return wav_paths
 
 
-# ───────────── CLI ───────────────────────────────────────────────────────
+# ───────────────────────── CLI ──────────────────────────────────────────────
 def main() -> None:
-    p = argparse.ArgumentParser()
-    p.add_argument("--sample", required=True, help="reference WAV / MP3")
-    p.add_argument("--text", required=True, help="UTF-8 plain-text file")
-    p.add_argument("--output", required=True, help="destination WAV")
-    p.add_argument("--length", help="limit final duration, e.g. 3m or 180s")
-    p.add_argument("--force", action="store_true")
-    args = p.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--sample", required=True, help="reference WAV/MP3")
+    parser.add_argument("--text", required=True, help="UTF-8 plain-text file")
+    parser.add_argument("--output", required=True, help="destination WAV")
+    parser.add_argument("--length", help="max duration (e.g. 3m or 180s)")
+    parser.add_argument("--force", action="store_true")
+    args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO,
-                        format="%(asctime)s │ %(levelname)-8s │ %(message)s",
-                        datefmt="%H:%M:%S")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s │ %(levelname)-8s │ %(message)s",
+        datefmt="%H:%M:%S",
+    )
 
-    out = Path(args.output)
-    if out.exists() and not args.force:
-        if input(f"{out} exists – overwrite? [y/N] ").lower() != "y":
+    out_path = Path(args.output)
+    if out_path.exists() and not args.force:
+        if input(f"{out_path} exists – overwrite? [y/N] ").lower() != "y":
             return
 
-    sample = Path(args.sample)
-    ref_wav = sample
-    if sample.suffix.lower() == ".mp3":
-        ref_wav = sample.with_suffix(".wav")
-        mp3_to_wav(sample, ref_wav)
+    sample_path = Path(args.sample)
+    ref_wav = sample_path
+    if sample_path.suffix.lower() == ".mp3":
+        ref_wav = sample_path.with_suffix(".wav")
+        mp3_to_wav(sample_path, ref_wav)
         logging.info("converted MP3 → WAV: %s", ref_wav)
 
     raw_text = Path(args.text).read_text(encoding="utf-8")
-    pieces = smart_split(clean(raw_text))
-    logging.info("XTTS calls: %d (≤%d chars each)", len(pieces), MAX_CHARS)
+    clean_text = clean(raw_text)
+    text_chunks = build_chunks(clean_text)
+    logging.info("XTTS calls: %d  (≤%d UTF-8 bytes each)", len(text_chunks), BYTE_BUDGET)
 
-    cap = parse_length(args.length)
-    wav_chunks = synthesise(ref_wav, pieces, cap)
+    cap_seconds = parse_length(args.length)
+    wav_chunks = synthesise(ref_wav, text_chunks, cap_seconds)
     if not wav_chunks:
         return
 
-    concat_normalise(wav_chunks, out, cap)
+    concat_normalise(wav_chunks, out_path, cap_seconds)
 
     # tidy up
-    for w in wav_chunks:
-        w.unlink()
+    for f in wav_chunks:
+        f.unlink()
     Path("_tts_chunks").rmdir()
 
-    logging.info("✓ saved → %s", out)
+    logging.info("✓ saved → %s", out_path)
 
 
 if __name__ == "__main__":

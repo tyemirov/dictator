@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """
-Whisper GPU speech-clip extractor
+Whisper GPU speech-clip extractor, limited to the single dominant speaker.
 • Outputs 24 kHz mono WAV, peak-normalised to –1 dBFS.
-• Picks the window (default 10 s) with the largest number of confidently
-  recognised words; ties resolved by avg_conf × SNR.
-• Works on GPU even if cuDNN is absent (PyTorch fallback kernels).
+• Picks the window (default 20 s) where the dominant speaker speaks most.
+• Uses pyannote.audio’s pretrained speaker-diarization pipeline on GPU if available.
 """
 
 from __future__ import annotations
@@ -13,7 +12,9 @@ import argparse
 import logging
 import signal
 import sys
+import tempfile
 import time
+from collections import Counter
 from contextlib import contextmanager
 from datetime import timedelta
 from pathlib import Path
@@ -23,16 +24,17 @@ import ffmpeg
 import numpy as np
 import torch
 import whisper
+from pyannote.audio import Pipeline
 
-# ───────── configuration ────────────────────────────────────────────────────
 SAMPLE_RATE = 16_000
 TARGET_SR = 24_000
-WIN_SEC = 20.0          # user-requested window length
+WIN_SEC = 20.0
 STRIDE_SEC = 1.0
 CENTROID_HZ = 4_000
 PUBLIC_SIZES = {"tiny", "base", "small", "medium", "large-v2", "large-v3"}
+DIARIZATION_MODEL = "pyannote/speaker-diarization@2.1"
 
-# ───────── utility wrappers ─────────────────────────────────────────────────
+
 @contextmanager
 def timed(tag: str) -> Iterator[None]:
     t0 = time.perf_counter()
@@ -42,30 +44,30 @@ def timed(tag: str) -> Iterator[None]:
 
 
 @contextmanager
-def timeout(sec: int, task: str) -> Iterator[None]:
-    if sec <= 0:
+def timeout(seconds: int, task_name: str) -> Iterator[None]:
+    if seconds <= 0:
         yield
         return
 
-    def _handler(_s, _f):
-        raise TimeoutError(f"{task} exceeded {sec}s")
+    def _timeout_handler(_sig, _frame):
+        raise TimeoutError(f"{task_name} exceeded {seconds}s")
 
-    prev = signal.signal(signal.SIGALRM, _handler)
-    signal.alarm(sec)
+    previous_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+    signal.alarm(seconds)
     try:
         yield
     finally:
         signal.alarm(0)
-        signal.signal(signal.SIGALRM, prev)
+        signal.signal(signal.SIGALRM, previous_handler)
 
-# ───────── low-level audio helpers ─────────────────────────────────────────-
-def decode_pcm(src: Path) -> np.ndarray:
-    buf, _ = (
-        ffmpeg.input(str(src))
+
+def decode_pcm(source_path: Path) -> np.ndarray:
+    buffer, _ = (
+        ffmpeg.input(str(source_path))
         .output("pipe:", format="s16le", ac=1, ar=SAMPLE_RATE)
         .run(quiet=True, capture_stdout=True, capture_stderr=True)
     )
-    return np.frombuffer(buf, dtype=np.int16)
+    return np.frombuffer(buffer, dtype=np.int16)
 
 
 def spectral_centroid(samples: np.ndarray) -> float:
@@ -77,94 +79,136 @@ def spectral_centroid(samples: np.ndarray) -> float:
 
 
 def snr(samples: np.ndarray) -> float:
-    samples_f = samples.astype(float)
-    noise = np.percentile(np.abs(samples_f), 20)
-    return samples_f.std() / (noise + 1e-6)
+    samples_float = samples.astype(float)
+    noise_floor = np.percentile(np.abs(samples_float), 20)
+    return samples_float.std() / (noise_floor + 1e-6)
 
-# ───────── Whisper helpers ──────────────────────────────────────────────────
-def load_whisper(size: str) -> whisper.Whisper:
-    if size not in PUBLIC_SIZES:
+
+def load_whisper_model(model_size: str) -> whisper.Whisper:
+    if model_size not in PUBLIC_SIZES:
         raise ValueError(f"--model must be one of {sorted(PUBLIC_SIZES)}")
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    with timed(f"load_model {size} ({device})"):
+    with timed(f"load_whisper_model {model_size} ({device})"):
         return whisper.load_model(
-            size,
+            model_size,
             device=device,
             download_root=str(Path.home() / ".cache" / "whisper"),
         )
 
 
-def transcribe(
-        pcm: np.ndarray,
-        size: str,
-        min_conf: float,
-        total_sec: float,
+def transcribe_with_whisper(
+        pcm_array: np.ndarray,
+        model_size: str,
+        minimum_confidence: float,
+        total_duration: float,
 ) -> List[Dict]:
-    model = load_whisper(size)
-    words: List[Dict] = []
+    model = load_whisper_model(model_size)
+    word_list: List[Dict] = []
 
-    def heartbeat(seg_end: float) -> None:
-        pct = int(100 * seg_end / total_sec)
-        if pct - heartbeat.last >= 5:
-            logging.info("  progress %d %%", pct)
-            heartbeat.last = pct
-    heartbeat.last = 0    # type: ignore[attr-defined]
+    def log_progress(segment_end: float) -> None:
+        percent = int(100 * segment_end / total_duration)
+        if percent - log_progress.last_logged >= 5:
+            logging.info("  progress %d %%", percent)
+            log_progress.last_logged = percent
 
+    log_progress.last_logged = 0
     with timed("transcribe"):
         result = model.transcribe(
-            pcm.astype(np.float32) / 32768,
+            pcm_array.astype(np.float32) / 32768,
             word_timestamps=True,
             verbose=False,
-            )
-        for seg in result["segments"]:
-            words.extend(seg["words"])
-            heartbeat(seg["end"])
-
-    confident = [w for w in words if w["probability"] >= min_conf]
-    if not confident:
+        )
+        for segment in result["segments"]:
+            word_list.extend(segment["words"])
+            log_progress(segment["end"])
+    confident_words = [w for w in word_list if w["probability"] >= minimum_confidence]
+    if not confident_words:
         raise RuntimeError("no words above confidence threshold")
-    return confident
+    return confident_words
 
-# ───────── window search ────────────────────────────────────────────────────
-def choose_window(
-        pcm: np.ndarray,
+
+def perform_speaker_diarization(_: Path) -> Pipeline:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    with timed("load_diarization_pipeline"):
+        pipeline = Pipeline.from_pretrained(DIARIZATION_MODEL)
+        pipeline.to(device)
+        return pipeline
+
+
+def apply_diarization_filter(
         words: List[Dict],
+        diarization_pipeline: Pipeline,
+        audio_file: Path,
+) -> List[Dict]:
+    with timed("prepare_diarization_audio"):
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
+            temp_wav_path = Path(tmp_file.name)
+        ffmpeg.input(str(audio_file)) \
+            .output(str(temp_wav_path), ac=1, ar=SAMPLE_RATE, format="wav") \
+            .overwrite_output() \
+            .run(quiet=True)
+    with timed("diarization"):
+        diarization_result = diarization_pipeline({
+            "uri": temp_wav_path.stem,
+            "audio": str(temp_wav_path)
+        })
+    speaker_durations = Counter()
+    for turn, _, speaker_label in diarization_result.itertracks(yield_label=True):
+        speaker_durations[speaker_label] += (turn.end - turn.start)
+    dominant_speaker = speaker_durations.most_common(1)[0][0]
+    logging.info("dominant speaker: %s", dominant_speaker)
+    filtered_words: List[Dict] = []
+    for word in words:
+        word_start = word["start"]
+        for turn, _, speaker_label in diarization_result.itertracks(yield_label=True):
+            if turn.start <= word_start < turn.end:
+                if speaker_label == dominant_speaker:
+                    word["speaker"] = speaker_label
+                    filtered_words.append(word)
+                break
+    try:
+        temp_wav_path.unlink()
+    except Exception:
+        pass
+    if not filtered_words:
+        raise RuntimeError("no words from dominant speaker")
+    return filtered_words
+
+
+def choose_window(
+        pcm_array: np.ndarray,
+        speaker_words: List[Dict],
         duration: float,
-        min_centroid: float = CENTROID_HZ,
+        minimum_centroid: float = CENTROID_HZ,
 ) -> float:
-    best_count, best_quality, best_start = -1, -1.0, 0.0
-    track_len = len(pcm) / SAMPLE_RATE
-
+    best_word_count, best_quality_score, best_window_start = -1, -1.0, 0.0
+    track_length = len(pcm_array) / SAMPLE_RATE
     with timed("window_search"):
-        pos = 0.0
-        while pos + duration <= track_len:
-            chunk = pcm[int(pos * SAMPLE_RATE) : int((pos + duration) * SAMPLE_RATE)]
-            if spectral_centroid(chunk) > min_centroid:
-                pos += STRIDE_SEC
+        position = 0.0
+        while position + duration <= track_length:
+            chunk = pcm_array[int(position * SAMPLE_RATE):int((position + duration) * SAMPLE_RATE)]
+            if spectral_centroid(chunk) > minimum_centroid:
+                position += STRIDE_SEC
                 continue
-
-            cnt = sum(pos <= w["start"] < pos + duration for w in words)
-            if cnt == 0:
-                pos += STRIDE_SEC
+            word_count = sum(position <= w["start"] < position + duration for w in speaker_words)
+            if word_count == 0:
+                position += STRIDE_SEC
                 continue
-
-            avg_conf = (
-                    sum(w["probability"] for w in words if pos <= w["start"] < pos + duration)
-                    / cnt
-            )
-            quality = avg_conf * snr(chunk)
-
-            if (cnt > best_count) or (cnt == best_count and quality > best_quality):
-                best_count, best_quality, best_start = cnt, quality, pos
-            pos += STRIDE_SEC
-
-    if best_count < 0:
+            average_confidence = sum(
+                w["probability"] for w in speaker_words if position <= w["start"] < position + duration
+            ) / word_count
+            quality_score = average_confidence * snr(chunk)
+            if (word_count > best_word_count) or (
+                    word_count == best_word_count and quality_score > best_quality_score
+            ):
+                best_word_count, best_quality_score, best_window_start = word_count, quality_score, position
+            position += STRIDE_SEC
+    if best_word_count < 0:
         raise RuntimeError("no suitable window found")
+    logging.info("chosen window: %d words, quality %.2f", best_word_count, best_quality_score)
+    return best_window_start
 
-    logging.info("chosen window: %d words, quality %.2f", best_count, best_quality)
-    return best_start
 
-# ───────── CLI ──────────────────────────────────────────────────────────────
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True, type=Path)
@@ -181,46 +225,33 @@ def main() -> None:
     )
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
-
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s │ %(levelname)-8s │ %(message)s",
         datefmt="%H:%M:%S",
     )
-
     if args.output.exists() and not args.force:
         if input(f"{args.output} exists. Overwrite? [y/N]: ").lower() != "y":
             sys.exit(0)
-
-    # ---------- decode ------------------------------------------------------
     with timeout(args.timeouts[0], "decode"):
         pcm = decode_pcm(args.input)
-    total_sec = len(pcm) / SAMPLE_RATE
-    logging.info("Track length %s", timedelta(seconds=int(total_sec)))
-
-    # ---------- transcribe --------------------------------------------------
+    total_track_seconds = len(pcm) / SAMPLE_RATE
+    logging.info("Track length %s", timedelta(seconds=int(total_track_seconds)))
+    diarization_pipeline = perform_speaker_diarization(args.input)
     with timeout(args.timeouts[1], "transcription"):
-        words = transcribe(pcm, args.model, args.min_confidence, total_sec)
-
-    # ---------- pick window -------------------------------------------------
-    start = choose_window(pcm, words, args.duration)
+        raw_words = transcribe_with_whisper(pcm, args.model, args.min_confidence, total_track_seconds)
+    dominant_speaker_words = apply_diarization_filter(raw_words, diarization_pipeline, args.input)
+    window_start = choose_window(pcm, dominant_speaker_words, args.duration)
     logging.info(
         "window %s → %s",
-        timedelta(seconds=round(start)),
-        timedelta(seconds=round(start + args.duration)),
+        timedelta(seconds=round(window_start)),
+        timedelta(seconds=round(window_start + args.duration)),
     )
-
-    # ---------- trim & normalise -------------------------------------------
     with timeout(args.timeouts[2], "trim"), timed("trim"):
         (
-            ffmpeg.input(str(args.input), ss=start, t=args.duration)
-            .filter("volume", 0.891250938)         # static –1 dBFS peak
-            .output(
-                str(args.output),
-                acodec="pcm_s16le",
-                ac=1,
-                ar=str(TARGET_SR),
-            )
+            ffmpeg.input(str(args.input), ss=window_start, t=args.duration)
+            .filter("volume", 0.891250938)
+            .output(str(args.output), acodec="pcm_s16le", ac=1, ar=str(TARGET_SR))
             .overwrite_output()
             .run(quiet=True)
         )
