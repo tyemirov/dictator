@@ -2,7 +2,7 @@
 """
 XTTS-v2 long-form voice cloning (GPU preferred)
 
-• 24 kHz mono output, peak-normalised to -1 dBFS
+• 24 kHz mono output, peak-normalised to −1 dBFS
 • ffmpeg-python only – never spawns subprocesses
 • Smart byte-budget splitter: ≤ 800 UTF-8 bytes.
   ⇒ typically 6-10 sentences per chunk, no “light.” orphans, and never hits
@@ -106,24 +106,18 @@ def concat_normalise(inputs: List[Path], dst: Path, cap: Optional[float]) -> Non
     streams = [ffmpeg.input(str(f)) for f in inputs]
     audio = ffmpeg.concat(*[s.audio for s in streams], v=0, a=1)
     audio = audio.filter("dynaudnorm").filter("volume", 0.891250938)
+    out_kwargs = dict(ar=TARGET_SR, ac=1, acodec="pcm_s16le")
+    if cap is not None:
+        out_kwargs["t"] = str(cap)
     (
-        audio.output(
-            str(dst),
-            ar=TARGET_SR,
-            ac=1,
-            acodec="pcm_s16le",
-            t=str(cap) if cap else None,
-        )
+        audio.output(str(dst), **out_kwargs)
         .overwrite_output()
         .run(quiet=True)
     )
 
 
 def synthesise(
-        speaker_wav: Path,
-        chunks: List[str],
-        cap: Optional[float],
-        language_code: str,
+        speaker_wav: Path, chunks: List[str], cap: Optional[float], language_code: str
 ) -> List[Path]:
     """Generate WAV chunks until `cap` seconds have been produced."""
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -155,7 +149,7 @@ def synthesise(
                 "Sentence %.1fs longer than remaining cap (%.1fs) – skipped",
                 dur,
                 cap - elapsed,
-            )
+                )
             break
 
         wav_paths.append(path)
@@ -174,9 +168,7 @@ def main() -> None:
     parser.add_argument("--output", required=True, help="destination WAV")
     parser.add_argument("--length", help="max duration (e.g. 3m or 180s)")
     parser.add_argument(
-        "--language",
-        default="en",
-        help="TTS language code (e.g. 'en', 'ru')",
+        "--language", default="en", help="TTS language code (e.g. 'en', 'ru')"
     )
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
