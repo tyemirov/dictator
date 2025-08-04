@@ -126,16 +126,6 @@ optional arguments
 
 ---
 
-## 5 Troubleshooting
-
-| Symptom                             | Fix                                                                                                                                                                                                                                                                           |
-|-------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| *Model download stuck at 0 %*       | Some networks block **Git LFS**. Run `curl -L https://huggingface.co/Systran/faster-whisper-large-v3/resolve/main/model.bin -o /dev/null` – if that stalls, pre-download models on another connection and copy them to `~/.cache/whisper` (Whisper) or `~/.cache/tts` (XTTS). |
-| `cudnn*.so not found`               | CUDA works fine – `extract.py`/Whisper can run with Torch’s fallback kernels. Ignore unless you need peak GPU speed.                                                                                                                                                          |
-| `WARNING text length exceeds … 250` | Our splitter honours 800 bytes (≈ 240 chars), so you shouldn’t see this anymore.                                                                                                                                                                                              |
-
----
-
 ## 6 Dependencies
 
 * **Python 3.11.8** (via pyenv; see “0 Prerequisites”)
@@ -155,6 +145,6 @@ optional arguments
 ## 7 License
 
 Everything in this repo is released under the **MIT License**.
-XTTS-v2 and Whisper licences apply to their respective models.
+XTTS-v2 and Whisper licenses apply to their respective models.
 
 Happy experimenting!
