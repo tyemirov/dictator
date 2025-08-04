@@ -91,6 +91,7 @@ usage: main.py --sample WAV/MP3 --text TXT --output WAV [options]
 
 optional arguments
   --length 10s|3m|1.5h   cap final audio; stops on last full sentence
+  --language CODE       TTS language code (default: en)
   --force                overwrite existing output
 ```
 
