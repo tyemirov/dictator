@@ -1,9 +1,12 @@
-torch           # CUDA build (11.8/12.1) matching your GPU
-torchaudio
-pyannote-audio
-faster-whisper
+# PyTorch (pick the right CUDA build)
+torch
+
+# audio/video handling
 ffmpeg-python
-numpy
-webrtcvad
 soundfile
-silero-vad==5.1.2
+
+# array + model dependencies
+numpy
+openai-whisper
+pyannote.audio
+coqui-tts

@@ -1,4 +1,5 @@
 # Dictator
+
 ## Archival-voice extraction and long-form voice-cloning
 
 Two small, self-contained Python utilities:
@@ -10,35 +11,40 @@ Two small, self-contained Python utilities:
 
 ---
 
-## 1 Folder layout
+## 0 Prerequisites
 
-```
+You **must** run this project under **Python 3.11.8**, as some dependencies (pyannote.audio, Coqui-TTS) don’t ship
+wheels for newer interpreters. We recommend installing via **pyenv**:
 
-dictator/
-├── assets/
-│   ├── sources/
-│   │   ├── voices/      # original long recordings
-│   │   └── texts/       # .txt books / speeches / etc.
-│   └── samples/         # reference clips cut by extract.py
-├── output/              # final generated audio
-├── extract.py
-├── main.py
-├── requirements.txt
-└── README.md            # ← you are here
+```bash
+# 1) Install pyenv (if needed)
+curl https://pyenv.run | bash
+# Add these to your shell startup (~/.bashrc or similar):
+export PATH="$HOME/.pyenv/bin:$PATH"
+eval "$(pyenv init --path)"
+eval "$(pyenv init -)"
 
+# 2) Install Python 3.11.8
+pyenv install 3.11.8
+
+# 3) Use 3.11.8 in this project directory
+cd /path/to/dictator
+pyenv local 3.11.8
+
+# 4) Create & activate your venv
+python3.11 -m venv .venv
+source .venv/bin/activate
+
+# 5) Install dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
 ````
-
-Feel free to change folders – the scripts just take full paths.
 
 ---
 
-## 2 Quick start (GPU)
+## 1 Quick start (GPU)
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt        # Torch CUDA 11.8/12.1 wheels
-
 # 🔈 1) cut a 20-second Churchill clip
 python extract.py \
        --input  assets/sources/voices/churchill_disc1side2.flac \
@@ -50,12 +56,31 @@ python main.py \
        --text   assets/sources/texts/genesis.txt \
        --output output/genesis_by_churchill.wav \
        --length 3m
-````
+```
 
 ### CPU-only?
 
-Both scripts automatically fall back to `"cpu"` if CUDA is missing.
-`main.py` on CPU will be **slow** – consider shorter texts.
+Both scripts fall back to `"cpu"` if CUDA is missing. `main.py` on CPU will be **slow** – consider shorter texts.
+
+---
+
+## 2 Folder layout
+
+```text
+dictator/
+├── assets/
+│   ├── sources/
+│   │   ├── voices/      # original long recordings
+│   │   └── texts/       # .txt books / speeches / etc.
+│   └── samples/         # reference clips cut by extract.py
+├── output/              # final generated audio
+├── extract.py
+├── main.py
+├── requirements.txt
+└── README.md            # ← you are here
+```
+
+Feel free to change folders – the scripts just take full paths.
 
 ---
 
@@ -68,12 +93,12 @@ optional arguments
   --model {tiny,base,small,medium,large-v2,large-v3}
                         Whisper size (default: medium)
   --duration SECONDS    window length (default: 20)
-  --min-confidence P    keep words whose P >= threshold (default: 0.80)
+  --min-confidence P    keep words whose P ≥ threshold (default: 0.80)
   --timeouts D T R      seconds for decode / transcribe / trim
   --force               overwrite existing output
 ```
 
-Algorithm
+**Algorithm**
 
 1. FFmpeg → mono 16 kHz PCM
 2. Whisper full-track transcription (progress heartbeat every 5 %)
@@ -95,38 +120,32 @@ optional arguments
   --force                overwrite existing output
 ```
 
-* The input text is **cleaned** (Unicode NFKC, whitespace collapsed).
-* It’s **smart-split** into ≤ 240-char chunks so XTTS never truncates mid-chunk.
+* Input text is **cleaned** (Unicode NFKC, whitespace collapsed).
+* **Smart-split** into ≤ 800 bytes so XTTS never truncates mid-chunk.
 * Synthesis stops when the next sentence would exceed `--length`.
-* All chunks are concatenated with FFmpeg, `dynaudnorm` + –1 dBFS, 24 kHz mono.
-
----
-
-## 5 Troubleshooting
-
-| Symptom                             | Fix                                                                                                                                                                                                                                                                                             |
-|-------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| *Model download looks stuck at 0 %* | Some networks block **Git LFS**. </br>Run `curl -L https://huggingface.co/Systran/faster-whisper-large-v3/resolve/main/model.bin -o /dev/null` – if that stalls, use a VPN or pre-download models on another connection and copy them to `~/.cache/whisper` (Whisper) or `~/.cache/tts` (XTTS). |
-| `cudnn*.so not found`               | CUDA works fine – `extract.py`/Whisper can run with Torch’s fallback kernels. Ignore unless you need peak GPU speed.                                                                                                                                                                            |
-| `WARNING text length exceeds … 250` | Our splitter honours 240 chars, so you shouldn’t see this anymore.                                                                                                                                                                                                                              |
+* All chunks concatenated with FFmpeg, `dynaudnorm` + –1 dBFS, 24 kHz mono.
 
 ---
 
 ## 6 Dependencies
 
-* Python 3.10 – 3.12
-* **FFmpeg** (build with `dynaudnorm` filter) – `sudo apt install ffmpeg`
-* The Python libs in `requirements.txt`
+* **Python 3.11.8** (via pyenv; see “0 Prerequisites”)
+* **FFmpeg** (with `dynaudnorm` filter) – e.g. `sudo apt install ffmpeg`
+* Python libraries in `requirements.txt`
 
-    * Torch wheel must match your CUDA version (see [PyTorch hub](https://pytorch.org/get-started/locally/))
+    * Torch wheels matching your CUDA version (see the [PyTorch site](https://pytorch.org/get-started/locally/))
+    * ffmpeg-python
+    * soundfile
+    * numpy
+    * openai-whisper
+    * pyannote.audio
+    * coqui-tts
 
 ---
 
 ## 7 License
 
 Everything in this repo is released under the **MIT License**.
-XTTS-v2 and Whisper licences apply to their respective models.
+XTTS-v2 and Whisper licenses apply to their respective models.
 
 Happy experimenting!
-
-
