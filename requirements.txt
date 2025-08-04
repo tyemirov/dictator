@@ -1,7 +1,8 @@
 torch           # CUDA build (11.8/12.1) matching your GPU
 torchaudio
 pyannote-audio
-faster-whisper
+whisper
+TTS
 ffmpeg-python
 numpy
 webrtcvad
