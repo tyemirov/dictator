@@ -94,6 +94,7 @@ optional arguments
                         Whisper size (default: medium)
   --duration SECONDS    window length (default: 20)
   --min-confidence P    keep words whose P ≥ threshold (default: 0.80)
+  --language CODE       Whisper language (e.g. 'en'); auto-detect if omitted
   --timeouts D T R      seconds for decode / transcribe / trim
   --force               overwrite existing output
 ```
