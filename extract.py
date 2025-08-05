@@ -24,6 +24,7 @@ import ffmpeg
 import numpy as np
 import torch
 import whisper
+import librosa
 from pyannote.audio import Pipeline
 
 SAMPLE_RATE = 16_000
@@ -82,6 +83,17 @@ def snr(samples: np.ndarray) -> float:
     samples_float = samples.astype(float)
     noise_floor = np.percentile(np.abs(samples_float), 20)
     return samples_float.std() / (noise_floor + 1e-6)
+
+
+def pitch_variation(samples: np.ndarray) -> float:
+    """Estimate RMS energy spread for a window.
+
+    Uses librosa to compute frame-wise RMS and returns the standard
+    deviation, which serves as a proxy for dynamic range.
+    """
+    y = samples.astype(float) / 32768.0
+    rms = librosa.feature.rms(y=y)
+    return float(rms.std())
 
 
 def load_whisper_model(model_size: str) -> whisper.Whisper:
@@ -197,7 +209,8 @@ def choose_window(
             average_confidence = sum(
                 w["probability"] for w in speaker_words if position <= w["start"] < position + duration
             ) / word_count
-            quality_score = average_confidence * snr(chunk)
+            variation = pitch_variation(chunk)
+            quality_score = average_confidence * snr(chunk) * (1.0 + variation)
             if (word_count > best_word_count) or (
                     word_count == best_word_count and quality_score > best_quality_score
             ):
