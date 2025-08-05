@@ -18,7 +18,7 @@ from collections import Counter
 from contextlib import contextmanager
 from datetime import timedelta
 from pathlib import Path
-from typing import Iterator, List, Dict
+from typing import Iterator, List, Dict, Optional
 
 import ffmpeg
 import numpy as np
@@ -101,6 +101,7 @@ def transcribe_with_whisper(
         model_size: str,
         minimum_confidence: float,
         total_duration: float,
+        language: Optional[str] = None,
 ) -> List[Dict]:
     model = load_whisper_model(model_size)
     word_list: List[Dict] = []
@@ -113,10 +114,12 @@ def transcribe_with_whisper(
 
     log_progress.last_logged = 0
     with timed("transcribe"):
+        transcribe_kwargs = {"word_timestamps": True, "verbose": False}
+        if language is not None:
+            transcribe_kwargs["language"] = language
         result = model.transcribe(
             pcm_array.astype(np.float32) / 32768,
-            word_timestamps=True,
-            verbose=False,
+            **transcribe_kwargs,
         )
         for segment in result["segments"]:
             word_list.extend(segment["words"])
@@ -216,6 +219,7 @@ def main() -> None:
     parser.add_argument("--model", default="medium", choices=sorted(PUBLIC_SIZES))
     parser.add_argument("--duration", type=float, default=WIN_SEC)
     parser.add_argument("--min-confidence", type=float, default=0.80)
+    parser.add_argument("--language", help="ISO language code (e.g. 'en')")
     parser.add_argument(
         "--timeouts",
         nargs=3,
@@ -239,7 +243,9 @@ def main() -> None:
     logging.info("Track length %s", timedelta(seconds=int(total_track_seconds)))
     diarization_pipeline = perform_speaker_diarization(args.input)
     with timeout(args.timeouts[1], "transcription"):
-        raw_words = transcribe_with_whisper(pcm, args.model, args.min_confidence, total_track_seconds)
+        raw_words = transcribe_with_whisper(
+            pcm, args.model, args.min_confidence, total_track_seconds, args.language
+        )
     dominant_speaker_words = apply_diarization_filter(raw_words, diarization_pipeline, args.input)
     window_start = choose_window(pcm, dominant_speaker_words, args.duration)
     logging.info(
