@@ -14,6 +14,7 @@ import signal
 import sys
 import tempfile
 import time
+import re
 from collections import Counter
 from contextlib import contextmanager
 from datetime import timedelta
@@ -254,9 +255,28 @@ def main() -> None:
         timedelta(seconds=round(window_start + args.duration)),
     )
     with timeout(args.timeouts[2], "trim"), timed("trim"):
+        _, err = (
+            ffmpeg.input(str(args.input), ss=window_start, t=args.duration)
+            .filter("aresample", str(TARGET_SR))
+            .filter("aformat", channel_layouts="mono")
+            .filter("volumedetect")
+            .output("-", f="null")
+            .run(capture_stdout=True, capture_stderr=True)
+        )
+        match = re.search(r"max_volume:\s*(-?\d+(?:\.\d+)?)\s*dB", err.decode())
+        if not match:
+            raise RuntimeError("volumedetect failed to find max_volume")
+        max_volume_db = float(match.group(1))
+        gain_db = -1.0 - max_volume_db
+        volume_factor = 10 ** (gain_db / 20)
+        logging.info(
+            "peak %+0.1f dBFS, applying %+0.1f dB gain",
+            max_volume_db,
+            gain_db,
+        )
         (
             ffmpeg.input(str(args.input), ss=window_start, t=args.duration)
-            .filter("volume", 0.891250938)
+            .filter("volume", volume_factor)
             .output(str(args.output), acodec="pcm_s16le", ac=1, ar=str(TARGET_SR))
             .overwrite_output()
             .run(quiet=True)
