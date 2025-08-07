@@ -31,6 +31,7 @@ TARGET_SR = 24_000
 WIN_SEC = 20.0
 STRIDE_SEC = 1.0
 CENTROID_HZ = 4_000
+MAX_SPEECH_RATE = 4.0
 PUBLIC_SIZES = {"tiny", "base", "small", "medium", "large-v2", "large-v3"}
 DIARIZATION_MODEL = "pyannote/speaker-diarization@2.1"
 
@@ -183,6 +184,7 @@ def choose_window(
         speaker_words: List[Dict],
         duration: float,
         minimum_centroid: float = CENTROID_HZ,
+        max_speech_rate: float = MAX_SPEECH_RATE,
 ) -> float:
     best_word_count, best_quality_score, best_window_start = -1, -1.0, 0.0
     track_length = len(pcm_array) / SAMPLE_RATE
@@ -193,13 +195,19 @@ def choose_window(
             if spectral_centroid(chunk) > minimum_centroid:
                 position += STRIDE_SEC
                 continue
-            word_count = sum(position <= w["start"] < position + duration for w in speaker_words)
+            words_in_window = [w for w in speaker_words if position <= w["start"] < position + duration]
+            word_count = len(words_in_window)
             if word_count == 0:
                 position += STRIDE_SEC
                 continue
-            average_confidence = sum(
-                w["probability"] for w in speaker_words if position <= w["start"] < position + duration
-            ) / word_count
+            first_start = min(w["start"] for w in words_in_window)
+            last_end = max(w.get("end", w["start"]) for w in words_in_window)
+            active_duration = max(last_end - first_start, 1e-3)
+            words_per_second = word_count / active_duration
+            if words_per_second > max_speech_rate:
+                position += STRIDE_SEC
+                continue
+            average_confidence = sum(w["probability"] for w in words_in_window) / word_count
             quality_score = average_confidence * snr(chunk)
             if (word_count > best_word_count) or (
                     word_count == best_word_count and quality_score > best_quality_score
@@ -220,6 +228,12 @@ def main() -> None:
     parser.add_argument("--duration", type=float, default=WIN_SEC)
     parser.add_argument("--min-confidence", type=float, default=0.80)
     parser.add_argument("--language", help="ISO language code (e.g. 'en')")
+    parser.add_argument(
+        "--max-speech-rate",
+        type=float,
+        default=MAX_SPEECH_RATE,
+        help="discard windows faster than this many words/s",
+    )
     parser.add_argument(
         "--timeouts",
         nargs=3,
@@ -247,7 +261,7 @@ def main() -> None:
             pcm, args.model, args.min_confidence, total_track_seconds, args.language
         )
     dominant_speaker_words = apply_diarization_filter(raw_words, diarization_pipeline, args.input)
-    window_start = choose_window(pcm, dominant_speaker_words, args.duration)
+    window_start = choose_window(pcm, dominant_speaker_words, args.duration, max_speech_rate=args.max_speech_rate)
     logging.info(
         "window %s → %s",
         timedelta(seconds=round(window_start)),

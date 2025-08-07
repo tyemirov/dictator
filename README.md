@@ -95,6 +95,7 @@ optional arguments
   --duration SECONDS    window length (default: 20)
   --min-confidence P    keep words whose P ≥ threshold (default: 0.80)
   --language CODE       Whisper language (e.g. 'en'); auto-detect if omitted
+  --max-speech-rate R   discard windows faster than R words/s (default: 4)
   --timeouts D T R      seconds for decode / transcribe / trim
   --force               overwrite existing output
 ```
@@ -103,7 +104,8 @@ optional arguments
 
 1. FFmpeg → mono 16 kHz PCM
 2. Whisper full-track transcription (progress heartbeat every 5 %)
-3. Slide a fixed window; rank by **max words** then *(avg confidence × SNR)*
+3. Slide a fixed window; rank by **max words** then *(avg confidence × SNR)*;
+   skip windows with speech > `--max-speech-rate`
 4. FFmpeg lossless trim + peak-normalise to –1 dBFS, resample 24 kHz
 
 Typical runtime on an RTX 3060 for a 30-minute 44 kHz FLAC is \~70 s.
