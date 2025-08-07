@@ -104,8 +104,9 @@ optional arguments
 
 1. FFmpeg → mono 16 kHz PCM
 2. Whisper full-track transcription (progress heartbeat every 5 %)
-3. Slide a fixed window; rank by **max words** then *(avg confidence × SNR)*;
-   skip windows with speech > `--max-speech-rate`
+3. Slide a fixed window; discard windows with spectral centroids outside
+   `[500, 4_000]` Hz (`MIN_CENTROID_HZ`, `MAX_CENTROID_HZ`), then rank by
+   **max words** and *(avg confidence × SNR)*
 4. FFmpeg lossless trim + peak-normalise to –1 dBFS, resample 24 kHz
 
 Typical runtime on an RTX 3060 for a 30-minute 44 kHz FLAC is \~70 s.
