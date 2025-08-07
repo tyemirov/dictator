@@ -9,4 +9,5 @@ soundfile
 numpy
 openai-whisper
 pyannote.audio
+librosa
 coqui-tts
