@@ -14,11 +14,12 @@ import signal
 import sys
 import tempfile
 import time
+import re
 from collections import Counter
 from contextlib import contextmanager
 from datetime import timedelta
 from pathlib import Path
-from typing import Iterator, List, Dict
+from typing import Iterator, List, Dict, Optional
 
 import ffmpeg
 import numpy as np
@@ -113,6 +114,7 @@ def transcribe_with_whisper(
         model_size: str,
         minimum_confidence: float,
         total_duration: float,
+        language: Optional[str] = None,
 ) -> List[Dict]:
     model = load_whisper_model(model_size)
     word_list: List[Dict] = []
@@ -125,10 +127,12 @@ def transcribe_with_whisper(
 
     log_progress.last_logged = 0
     with timed("transcribe"):
+        transcribe_kwargs = {"word_timestamps": True, "verbose": False}
+        if language is not None:
+            transcribe_kwargs["language"] = language
         result = model.transcribe(
             pcm_array.astype(np.float32) / 32768,
-            word_timestamps=True,
-            verbose=False,
+            **transcribe_kwargs,
         )
         for segment in result["segments"]:
             word_list.extend(segment["words"])
@@ -229,6 +233,7 @@ def main() -> None:
     parser.add_argument("--model", default="medium", choices=sorted(PUBLIC_SIZES))
     parser.add_argument("--duration", type=float, default=WIN_SEC)
     parser.add_argument("--min-confidence", type=float, default=0.80)
+    parser.add_argument("--language", help="ISO language code (e.g. 'en')")
     parser.add_argument(
         "--timeouts",
         nargs=3,
@@ -252,7 +257,9 @@ def main() -> None:
     logging.info("Track length %s", timedelta(seconds=int(total_track_seconds)))
     diarization_pipeline = perform_speaker_diarization(args.input)
     with timeout(args.timeouts[1], "transcription"):
-        raw_words = transcribe_with_whisper(pcm, args.model, args.min_confidence, total_track_seconds)
+        raw_words = transcribe_with_whisper(
+            pcm, args.model, args.min_confidence, total_track_seconds, args.language
+        )
     dominant_speaker_words = apply_diarization_filter(raw_words, diarization_pipeline, args.input)
     window_start = choose_window(pcm, dominant_speaker_words, args.duration)
     logging.info(
@@ -261,9 +268,28 @@ def main() -> None:
         timedelta(seconds=round(window_start + args.duration)),
     )
     with timeout(args.timeouts[2], "trim"), timed("trim"):
+        _, err = (
+            ffmpeg.input(str(args.input), ss=window_start, t=args.duration)
+            .filter("aresample", str(TARGET_SR))
+            .filter("aformat", channel_layouts="mono")
+            .filter("volumedetect")
+            .output("-", f="null")
+            .run(capture_stdout=True, capture_stderr=True)
+        )
+        match = re.search(r"max_volume:\s*(-?\d+(?:\.\d+)?)\s*dB", err.decode())
+        if not match:
+            raise RuntimeError("volumedetect failed to find max_volume")
+        max_volume_db = float(match.group(1))
+        gain_db = -1.0 - max_volume_db
+        volume_factor = 10 ** (gain_db / 20)
+        logging.info(
+            "peak %+0.1f dBFS, applying %+0.1f dB gain",
+            max_volume_db,
+            gain_db,
+        )
         (
             ffmpeg.input(str(args.input), ss=window_start, t=args.duration)
-            .filter("volume", 0.891250938)
+            .filter("volume", volume_factor)
             .output(str(args.output), acodec="pcm_s16le", ac=1, ar=str(TARGET_SR))
             .overwrite_output()
             .run(quiet=True)
