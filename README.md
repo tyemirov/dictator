@@ -96,6 +96,10 @@ optional arguments
   --min-confidence P    keep words whose P ≥ threshold (default: 0.80)
   --language CODE       Whisper language (e.g. 'en'); auto-detect if omitted
   --max-speech-rate R   discard windows faster than R words/s (default: 4)
+  --min-centroid HZ     discard windows below this spectral centroid
+                         (default: 500)
+  --max-centroid HZ     discard windows above this spectral centroid
+                         (default: 4000)
   --timeouts D T R      seconds for decode / transcribe / trim
   --force               overwrite existing output
 ```
@@ -105,8 +109,8 @@ optional arguments
 1. FFmpeg → mono 16 kHz PCM
 2. Whisper full-track transcription (progress heartbeat every 5 %)
 3. Slide a fixed window; discard windows with spectral centroids outside
-   `[500, 4_000]` Hz (`MIN_CENTROID_HZ`, `MAX_CENTROID_HZ`), then rank by
-   **max words** and *(avg confidence × SNR)*
+   `[MIN_CENTROID_HZ, MAX_CENTROID_HZ]`, then rank by
+   *(word count × avg confidence × SNR × (1 + variation))*
 4. FFmpeg lossless trim + peak-normalise to –1 dBFS, resample 24 kHz
 
 Typical runtime on an RTX 3060 for a 30-minute 44 kHz FLAC is \~70 s.
