@@ -27,6 +27,7 @@ import torch
 import whisper
 import librosa
 from pyannote.audio import Pipeline
+from duration import parse_duration
 
 SAMPLE_RATE = 16_000
 TARGET_SR = 24_000
@@ -247,7 +248,12 @@ def main() -> None:
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--model", default="medium", choices=sorted(PUBLIC_SIZES))
-    parser.add_argument("--duration", type=float, default=WIN_SEC)
+    parser.add_argument(
+        "--duration",
+        type=parse_duration,
+        default=WIN_SEC,
+        help="window length, e.g. '20', '60s', '1m'",
+    )
     parser.add_argument("--min-confidence", type=float, default=0.80)
     parser.add_argument("--language", help="ISO language code (e.g. 'en')")
     parser.add_argument(
