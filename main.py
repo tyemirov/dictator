@@ -107,15 +107,13 @@ def concat_normalise(inputs: List[Path], dst: Path, cap: Optional[float]) -> Non
     def normalised_streams() -> ffmpeg.nodes.FilterableStream:
         streams = [ffmpeg.input(str(f)) for f in inputs]
         audio = ffmpeg.concat(*[s.audio for s in streams], v=0, a=1)
-        return audio.filter("dynaudnorm")
+        audio = audio.filter("dynaudnorm")
+        if cap is not None:
+            audio = audio.filter("atrim", duration=cap)
+        return audio
 
     # First pass: detect max volume after dynamic normalisation
-    detect = (
-        normalised_streams()
-        .filter("volumedetect")
-        .output("null", f="null")
-        .overwrite_output()
-    )
+    detect = normalised_streams().filter("volumedetect").output("null", f="null").overwrite_output()
     _, stderr = detect.run(capture_stdout=True, capture_stderr=True)
     m = re.search(r"max_volume: (-?inf|[-\d.]+) dB", stderr.decode())
     if not m or m.group(1) == "-inf":
@@ -127,11 +125,8 @@ def concat_normalise(inputs: List[Path], dst: Path, cap: Optional[float]) -> Non
     audio = normalised_streams()
     if abs(gain_db) > 1e-3:
         audio = audio.filter("volume", f"{gain_db}dB")
-    out_kwargs = dict(ar=TARGET_SR, ac=1, acodec="pcm_s16le")
-    if cap is not None:
-        out_kwargs["t"] = str(cap)
     (
-        audio.output(str(dst), **out_kwargs)
+        audio.output(str(dst), ar=TARGET_SR, ac=1, acodec="pcm_s16le")
         .overwrite_output()
         .run(quiet=True)
     )

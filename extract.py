@@ -147,7 +147,7 @@ def transcribe_with_whisper(
     return confident_words
 
 
-def perform_speaker_diarization(_: Path) -> Pipeline:
+def load_diarization_pipeline() -> Pipeline:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     with timed("load_diarization_pipeline"):
         pipeline = Pipeline.from_pretrained(DIARIZATION_MODEL)
@@ -223,6 +223,9 @@ def choose_window(
             if word_count == 0:
                 position += STRIDE_SEC
                 continue
+            if word_count / duration > max_speech_rate:
+                position += STRIDE_SEC
+                continue
             average_confidence = sum(
                 w["probability"] for w in speaker_words if position <= w["start"] < position + duration
             ) / word_count
@@ -274,14 +277,18 @@ def main() -> None:
         pcm = decode_pcm(args.input)
     total_track_seconds = len(pcm) / SAMPLE_RATE
     logging.info("Track length %s", timedelta(seconds=int(total_track_seconds)))
-    diarization_pipeline = perform_speaker_diarization(args.input)
+    diarization_pipeline = load_diarization_pipeline()
     with timeout(args.timeouts[1], "transcription"):
         raw_words = transcribe_with_whisper(
             pcm, args.model, args.min_confidence, total_track_seconds, args.language
         )
     dominant_speaker_words = apply_diarization_filter(raw_words, diarization_pipeline, args.input)
-    window_start = choose_window(pcm, dominant_speaker_words, args.duration, max_speech_rate=args.max_speech_rate)
-    window_start = choose_window(pcm, dominant_speaker_words, args.duration)
+    window_start = choose_window(
+        pcm,
+        dominant_speaker_words,
+        args.duration,
+        max_speech_rate=args.max_speech_rate,
+    )
     window_end = window_start + args.duration
     logging.info(
         "window %s → %s",
@@ -304,27 +311,32 @@ def main() -> None:
         timedelta(seconds=round(trim_end)),
     )
     with timeout(args.timeouts[2], "trim"), timed("trim"):
+        trim_duration = trim_end - trim_start
         _, err = (
-            ffmpeg.input(str(args.input), ss=window_start, t=args.duration)
+            ffmpeg.input(str(args.input), ss=trim_start, t=trim_duration)
             .filter("aresample", str(TARGET_SR))
             .filter("aformat", channel_layouts="mono")
             .filter("volumedetect")
             .output("-", f="null")
             .run(capture_stdout=True, capture_stderr=True)
         )
-        match = re.search(r"max_volume:\s*(-?\d+(?:\.\d+)?)\s*dB", err.decode())
+        match = re.search(r"max_volume:\s*(-?inf|-?\d+(?:\.\d+)?)\s*dB", err.decode())
         if not match:
             raise RuntimeError("volumedetect failed to find max_volume")
-        max_volume_db = float(match.group(1))
-        gain_db = -1.0 - max_volume_db
+        max_volume_str = match.group(1)
+        if max_volume_str == "-inf":
+            gain_db = 0.0
+        else:
+            max_volume_db = float(max_volume_str)
+            gain_db = -1.0 - max_volume_db
         volume_factor = 10 ** (gain_db / 20)
         logging.info(
-            "peak %+0.1f dBFS, applying %+0.1f dB gain",
-            max_volume_db,
+            "peak %s dBFS, applying %+0.1f dB gain",
+            max_volume_str,
             gain_db,
         )
         (
-            ffmpeg.input(str(args.input), ss=window_start, t=args.duration)
+            ffmpeg.input(str(args.input), ss=trim_start, t=trim_duration)
             .filter("volume", volume_factor)
             .output(str(args.output), acodec="pcm_s16le", ac=1, ar=str(TARGET_SR))
             .overwrite_output()
