@@ -36,6 +36,8 @@ MAX_CENTROID_HZ = 4_000  # skip overly bright segments
 MIN_CENTROID_HZ = 500    # skip overly muffled segments
 PUBLIC_SIZES = {"tiny", "base", "small", "medium", "large-v2", "large-v3"}
 DIARIZATION_MODEL = "pyannote/speaker-diarization@2.1"
+PRE_ROLL_SEC = 0.2
+POST_ROLL_SEC = 0.2
 
 
 @contextmanager
@@ -270,10 +272,26 @@ def main() -> None:
         )
     dominant_speaker_words = apply_diarization_filter(raw_words, diarization_pipeline, args.input)
     window_start = choose_window(pcm, dominant_speaker_words, args.duration)
+    window_end = window_start + args.duration
     logging.info(
         "window %s → %s",
         timedelta(seconds=round(window_start)),
-        timedelta(seconds=round(window_start + args.duration)),
+        timedelta(seconds=round(window_end)),
+    )
+    window_words = [
+        w for w in dominant_speaker_words if window_start <= w["start"] < window_end
+    ]
+    window_words.sort(key=lambda w: w["start"])
+    if not window_words:
+        raise RuntimeError("no words found in chosen window")
+    first_word_start = window_words[0]["start"]
+    last_word_end = window_words[-1]["end"]
+    trim_start = max(0.0, first_word_start - PRE_ROLL_SEC)
+    trim_end = min(total_track_seconds, last_word_end + POST_ROLL_SEC)
+    logging.info(
+        "trim %s → %s",
+        timedelta(seconds=round(trim_start)),
+        timedelta(seconds=round(trim_end)),
     )
     with timeout(args.timeouts[2], "trim"), timed("trim"):
         _, err = (
