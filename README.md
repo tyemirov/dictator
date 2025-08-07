@@ -95,6 +95,7 @@ optional arguments
   --duration SECONDS    window length (default: 20)
   --min-confidence P    keep words whose P ≥ threshold (default: 0.80)
   --language CODE       Whisper language (e.g. 'en'); auto-detect if omitted
+  --max-speech-rate R   discard windows faster than R words/s (default: 4)
   --timeouts D T R      seconds for decode / transcribe / trim
   --force               overwrite existing output
 ```

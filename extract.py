@@ -32,6 +32,7 @@ SAMPLE_RATE = 16_000
 TARGET_SR = 24_000
 WIN_SEC = 20.0
 STRIDE_SEC = 1.0
+MAX_SPEECH_RATE = 4.0
 MAX_CENTROID_HZ = 4_000  # skip overly bright segments
 MIN_CENTROID_HZ = 500    # skip overly muffled segments
 PUBLIC_SIZES = {"tiny", "base", "small", "medium", "large-v2", "large-v3"}
@@ -198,6 +199,7 @@ def choose_window(
         pcm_array: np.ndarray,
         speaker_words: List[Dict],
         duration: float,
+        max_speech_rate: float = MAX_SPEECH_RATE,
         max_centroid: float = MAX_CENTROID_HZ,
         min_centroid: float = MIN_CENTROID_HZ,
 ) -> float:
@@ -216,7 +218,8 @@ def choose_window(
             if centroid > max_centroid or centroid < min_centroid:
                 position += STRIDE_SEC
                 continue
-            word_count = sum(position <= w["start"] < position + duration for w in speaker_words)
+            words_in_window = [w for w in speaker_words if position <= w["start"] < position + duration]
+            word_count = len(words_in_window)
             if word_count == 0:
                 position += STRIDE_SEC
                 continue
@@ -245,6 +248,12 @@ def main() -> None:
     parser.add_argument("--min-confidence", type=float, default=0.80)
     parser.add_argument("--language", help="ISO language code (e.g. 'en')")
     parser.add_argument(
+        "--max-speech-rate",
+        type=float,
+        default=MAX_SPEECH_RATE,
+        help="discard windows faster than this many words/s",
+    )
+    parser.add_argument(
         "--timeouts",
         nargs=3,
         metavar=("decode", "transcribe", "trim"),
@@ -271,6 +280,7 @@ def main() -> None:
             pcm, args.model, args.min_confidence, total_track_seconds, args.language
         )
     dominant_speaker_words = apply_diarization_filter(raw_words, diarization_pipeline, args.input)
+    window_start = choose_window(pcm, dominant_speaker_words, args.duration, max_speech_rate=args.max_speech_rate)
     window_start = choose_window(pcm, dominant_speaker_words, args.duration)
     window_end = window_start + args.duration
     logging.info(
