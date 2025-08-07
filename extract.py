@@ -210,6 +210,10 @@ def choose_window(
     """
     best_word_count, best_quality_score, best_window_start = -1, -1.0, 0.0
     track_length = len(pcm_array) / SAMPLE_RATE
+    if duration > track_length:
+        raise RuntimeError(
+            f"requested duration {duration:.1f}s exceeds track length {track_length:.1f}s"
+        )
     with timed("window_search"):
         position = 0.0
         while position + duration <= track_length:
