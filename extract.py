@@ -208,7 +208,7 @@ def choose_window(
     Windows are skipped if their spectral centroid lies outside ``min_centroid``
     and ``max_centroid`` to avoid overly muffled or overly bright segments.
     """
-    best_word_count, best_quality_score, best_window_start = -1, -1.0, 0.0
+    best_score, best_word_count, best_window_start = -1.0, -1, 0.0
     track_length = len(pcm_array) / SAMPLE_RATE
     with timed("window_search"):
         position = 0.0
@@ -231,14 +231,13 @@ def choose_window(
             ) / word_count
             variation = pitch_variation(chunk)
             quality_score = average_confidence * snr(chunk) * (1.0 + variation)
-            if (word_count > best_word_count) or (
-                    word_count == best_word_count and quality_score > best_quality_score
-            ):
-                best_word_count, best_quality_score, best_window_start = word_count, quality_score, position
+            score = word_count * quality_score
+            if score > best_score:
+                best_score, best_word_count, best_window_start = score, word_count, position
             position += STRIDE_SEC
-    if best_word_count < 0:
+    if best_score < 0:
         raise RuntimeError("no suitable window found")
-    logging.info("chosen window: %d words, quality %.2f", best_word_count, best_quality_score)
+    logging.info("chosen window: %d words, score %.2f", best_word_count, best_score)
     return best_window_start
 
 
@@ -262,6 +261,18 @@ def main() -> None:
         metavar=("decode", "transcribe", "trim"),
         type=int,
         default=(60, 3600, 60),
+    )
+    parser.add_argument(
+        "--min-centroid",
+        type=float,
+        default=MIN_CENTROID_HZ,
+        help="discard windows below this spectral centroid (Hz)",
+    )
+    parser.add_argument(
+        "--max-centroid",
+        type=float,
+        default=MAX_CENTROID_HZ,
+        help="discard windows above this spectral centroid (Hz)",
     )
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
@@ -288,6 +299,8 @@ def main() -> None:
         dominant_speaker_words,
         args.duration,
         max_speech_rate=args.max_speech_rate,
+        max_centroid=args.max_centroid,
+        min_centroid=args.min_centroid,
     )
     window_end = window_start + args.duration
     logging.info(
