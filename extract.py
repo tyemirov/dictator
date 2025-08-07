@@ -32,7 +32,8 @@ SAMPLE_RATE = 16_000
 TARGET_SR = 24_000
 WIN_SEC = 20.0
 STRIDE_SEC = 1.0
-CENTROID_HZ = 4_000
+MAX_CENTROID_HZ = 4_000  # skip overly bright segments
+MIN_CENTROID_HZ = 500    # skip overly muffled segments
 PUBLIC_SIZES = {"tiny", "base", "small", "medium", "large-v2", "large-v3"}
 DIARIZATION_MODEL = "pyannote/speaker-diarization@2.1"
 
@@ -195,15 +196,22 @@ def choose_window(
         pcm_array: np.ndarray,
         speaker_words: List[Dict],
         duration: float,
-        minimum_centroid: float = CENTROID_HZ,
+        max_centroid: float = MAX_CENTROID_HZ,
+        min_centroid: float = MIN_CENTROID_HZ,
 ) -> float:
+    """Return the start time of the highest-quality window.
+
+    Windows are skipped if their spectral centroid lies outside ``min_centroid``
+    and ``max_centroid`` to avoid overly muffled or overly bright segments.
+    """
     best_word_count, best_quality_score, best_window_start = -1, -1.0, 0.0
     track_length = len(pcm_array) / SAMPLE_RATE
     with timed("window_search"):
         position = 0.0
         while position + duration <= track_length:
             chunk = pcm_array[int(position * SAMPLE_RATE):int((position + duration) * SAMPLE_RATE)]
-            if spectral_centroid(chunk) > minimum_centroid:
+            centroid = spectral_centroid(chunk)
+            if centroid > max_centroid or centroid < min_centroid:
                 position += STRIDE_SEC
                 continue
             word_count = sum(position <= w["start"] < position + duration for w in speaker_words)
