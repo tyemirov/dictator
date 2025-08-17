@@ -12,9 +12,9 @@ import argparse
 import logging
 import signal
 import sys
-import tempfile
 import time
 import re
+import warnings
 from collections import Counter
 from contextlib import contextmanager
 from datetime import timedelta
@@ -26,6 +26,20 @@ import numpy as np
 import torch
 import whisper
 import librosa
+
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+
+warnings.filterwarnings(
+    "ignore",
+    category=UserWarning,
+    module="pyannote.audio.utils.reproducibility",
+)
+warnings.filterwarnings("ignore", category=UserWarning, module="torchaudio._backend")
+warnings.filterwarnings(
+    "ignore", message=".*torchaudio._backend.list_audio_backends.*"
+)
+
 from pyannote.audio import Pipeline
 from duration import parse_duration
 
@@ -162,16 +176,13 @@ def apply_diarization_filter(
         audio_file: Path,
 ) -> List[Dict]:
     with timed("prepare_diarization_audio"):
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
-            temp_wav_path = Path(tmp_file.name)
-        ffmpeg.input(str(audio_file)) \
-            .output(str(temp_wav_path), ac=1, ar=SAMPLE_RATE, format="wav") \
-            .overwrite_output() \
-            .run(quiet=True)
+        samples = decode_pcm(audio_file).astype(np.float32) / 32768.0
+        waveform = torch.from_numpy(samples).unsqueeze(0)
     with timed("diarization"):
         diarization_result = diarization_pipeline({
-            "uri": temp_wav_path.stem,
-            "audio": str(temp_wav_path)
+            "uri": audio_file.stem,
+            "waveform": waveform,
+            "sample_rate": SAMPLE_RATE,
         })
     speaker_durations = Counter()
     for turn, _, speaker_label in diarization_result.itertracks(yield_label=True):
@@ -187,10 +198,6 @@ def apply_diarization_filter(
                     word["speaker"] = speaker_label
                     filtered_words.append(word)
                 break
-    try:
-        temp_wav_path.unlink()
-    except Exception:
-        pass
     if not filtered_words:
         raise RuntimeError("no words from dominant speaker")
     return filtered_words
