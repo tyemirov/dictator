@@ -1,5 +1,6 @@
 import sys
 import types
+import unittest
 import numpy as np
 
 
@@ -21,7 +22,7 @@ torch_stub = types.SimpleNamespace(
     cuda=types.SimpleNamespace(is_available=lambda: False),
     from_numpy=lambda arr: _DummyTensor(arr),
 )
-sys.modules.setdefault("torch", torch_stub)
+sys.modules["torch"] = torch_stub
 
 
 class _DummyPipeline:
@@ -34,8 +35,8 @@ class _DummyPipeline:
 
 
 pyannote_audio = types.SimpleNamespace(Pipeline=_DummyPipeline)
-sys.modules.setdefault("pyannote", types.ModuleType("pyannote"))
-sys.modules.setdefault("pyannote.audio", pyannote_audio)
+sys.modules["pyannote"] = types.ModuleType("pyannote")
+sys.modules["pyannote.audio"] = pyannote_audio
 
 
 class _DummyWhisperModel:
@@ -44,7 +45,12 @@ class _DummyWhisperModel:
 
 
 whisper_stub = types.SimpleNamespace(load_model=lambda *a, **k: _DummyWhisperModel())
-sys.modules.setdefault("whisper", whisper_stub)
+sys.modules["whisper"] = whisper_stub
+
+librosa_stub = types.SimpleNamespace(
+    feature=types.SimpleNamespace(rms=lambda y: np.array([[0.0]]))
+)
+sys.modules["librosa"] = librosa_stub
 
 
 from extract import (
@@ -97,28 +103,33 @@ def choose_window_original(
     return best_window_start
 
 
-def test_choose_window_identical():
-    np.random.seed(0)
-    pcm = np.random.randint(-2000, 2000, SAMPLE_RATE * 6, dtype=np.int16)
-    speaker_words = [
-        {"start": 0.1, "probability": 0.9},
-        {"start": 1.2, "probability": 0.8},
-        {"start": 2.5, "probability": 0.95},
-        {"start": 3.3, "probability": 0.85},
-        {"start": 4.1, "probability": 0.9},
-    ]
-    duration = 2.0
-    min_centroid = 0.0
-    max_centroid = 10000.0
-    expected = choose_window_original(
-        pcm, speaker_words, duration, MAX_SPEECH_RATE, max_centroid, min_centroid
-    )
-    result = choose_window(
-        pcm,
-        speaker_words,
-        duration,
-        max_speech_rate=MAX_SPEECH_RATE,
-        max_centroid=max_centroid,
-        min_centroid=min_centroid,
-    )
-    assert result == expected
+class TestChooseWindow(unittest.TestCase):
+    def test_choose_window_identical(self):
+        np.random.seed(0)
+        pcm = np.random.randint(-2000, 2000, SAMPLE_RATE * 6, dtype=np.int16)
+        speaker_words = [
+            {"start": 0.1, "probability": 0.9},
+            {"start": 1.2, "probability": 0.8},
+            {"start": 2.5, "probability": 0.95},
+            {"start": 3.3, "probability": 0.85},
+            {"start": 4.1, "probability": 0.9},
+        ]
+        duration = 2.0
+        min_centroid = 0.0
+        max_centroid = 10000.0
+        expected = choose_window_original(
+            pcm, speaker_words, duration, MAX_SPEECH_RATE, max_centroid, min_centroid
+        )
+        result = choose_window(
+            pcm,
+            speaker_words,
+            duration,
+            max_speech_rate=MAX_SPEECH_RATE,
+            max_centroid=max_centroid,
+            min_centroid=min_centroid,
+        )
+        self.assertEqual(result, expected)
+
+
+if __name__ == "__main__":
+    unittest.main()

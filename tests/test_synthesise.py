@@ -1,8 +1,8 @@
 import sys
 import types
 from pathlib import Path
+import unittest
 
-import pytest
 
 # stub heavy dependencies so main imports without optional packages
 if 'torch' not in sys.modules:
@@ -40,6 +40,11 @@ if 'ffmpeg' not in sys.modules:
 import main
 
 
-def test_synthesise_empty_chunks_raises_value_error():
-    with pytest.raises(ValueError):
-        main.synthesise(Path('speaker.wav'), [], 10.0, 'en')
+class TestSynthesise(unittest.TestCase):
+    def test_synthesise_empty_chunks_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            main.synthesise(Path('speaker.wav'), [], 10.0, 'en')
+
+
+if __name__ == "__main__":
+    unittest.main()
