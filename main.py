@@ -146,7 +146,6 @@ def synthesise(
     """Generate WAV chunks until `cap` seconds have been produced."""
 
     if not chunks:
-        logging.error("No text chunks provided")
         raise ValueError("No text chunks provided")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
