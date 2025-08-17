@@ -11,3 +11,6 @@ openai-whisper
 pyannote.audio
 librosa
 coqui-tts
+
+# testing
+pytest

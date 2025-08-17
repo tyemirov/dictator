@@ -149,6 +149,7 @@ optional arguments
     * openai-whisper
     * pyannote.audio
     * coqui-tts
+    * pytest
 
 ---
 
