@@ -135,6 +135,11 @@ def transcribe_with_whisper(
         total_duration: float,
         language: Optional[str] = None,
 ) -> List[Dict]:
+    if total_duration <= 0:
+        raise ValueError(
+            f"total_duration must be positive, got {total_duration}"
+        )
+
     model = load_whisper_model(model_size)
     word_list: List[Dict] = []
 
