@@ -1,7 +1,4 @@
 import sys
-import sys
-import types
-import sys
 import types
 import importlib
 import unittest
@@ -26,18 +23,15 @@ class DummyModel:
 class TranscribeWordsTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        # stub heavy dependencies before importing main
+        # stub heavy dependencies before importing service
         modules = {
             'torch': types.SimpleNamespace(cuda=types.SimpleNamespace(is_available=lambda: False)),
-            'TTS': types.SimpleNamespace(api=types.SimpleNamespace(TTS=object)),
-            'TTS.api': types.SimpleNamespace(TTS=object),
-            'soundfile': types.SimpleNamespace(),
-            'ffmpeg': types.SimpleNamespace(),
+            'whisper': types.SimpleNamespace(),
         }
         cls.patcher = patch.dict(sys.modules, modules)
         cls.patcher.start()
-        import main as _main
-        cls.main = importlib.reload(_main)
+        import whisper_service as ws
+        cls.ws = importlib.reload(ws)
 
     @classmethod
     def tearDownClass(cls):
@@ -53,12 +47,12 @@ class TranscribeWordsTests(unittest.TestCase):
             ]
         }
         model = DummyModel(dummy_result)
-        segments = self.main.transcribe_words(Path('dummy.wav'), 'en', model=model)
+        segments = self.ws.transcribe_words(Path('dummy.wav'), 'en', model=model)
         self.assertEqual(
             segments,
             [
-                {'content': 'Hello', 'start': 0.0, 'end': 0.4},
-                {'content': 'world', 'start': 0.4, 'end': 0.9},
+                {'content': 'Hello', 'start': 0.0, 'end': 0.4, 'probability': None},
+                {'content': 'world', 'start': 0.4, 'end': 0.9, 'probability': None},
             ],
         )
         self.assertEqual(model.called_with['language'], 'en')

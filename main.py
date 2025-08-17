@@ -23,6 +23,7 @@ import ffmpeg
 import soundfile as sf
 import torch
 from TTS.api import TTS
+from whisper_service import transcribe_words
 
 MODEL_ID = "tts_models/multilingual/multi-dataset/xtts_v2"
 TARGET_SR = 24_000
@@ -200,40 +201,6 @@ def synthesise(
         raise ValueError("No chunks fit within the length cap")
     return wav_paths, segments
 
-
-def transcribe_words(wav_path: Path, language_code: str, model=None) -> List[dict]:
-    """Use Whisper to extract word-level timestamps from ``wav_path``.
-
-    Parameters
-    ----------
-    wav_path:
-        Path to the audio file to transcribe.
-    language_code:
-        ISO language code hint for Whisper.
-    model:
-        Optional preloaded Whisper model. Supplying this allows tests to
-        inject a stub implementation and avoids loading real weights.
-    """
-
-    if model is None:
-        import whisper  # lazy import so tests can stub easily
-        model = whisper.load_model("base")
-
-    result = model.transcribe(
-        str(wav_path), language=language_code, word_timestamps=True, verbose=False
-    )
-
-    words: List[dict] = []
-    for segment in result.get("segments", []):
-        for word in segment.get("words", []):
-            words.append(
-                {
-                    "content": word.get("word", "").strip(),
-                    "start": word.get("start"),
-                    "end": word.get("end"),
-                }
-            )
-    return words
 
 def main() -> None:
     parser = argparse.ArgumentParser()
