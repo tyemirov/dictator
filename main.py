@@ -141,9 +141,17 @@ def concat_normalise(inputs: List[Path], dst: Path, cap: Optional[float]) -> Non
 
 
 def synthesise(
-        speaker_wav: Path, chunks: List[str], cap: Optional[float], language_code: str
-) -> List[Path]:
-    """Generate WAV chunks until `cap` seconds have been produced."""
+        speaker_wav: Path,
+        chunks: List[str],
+        cap: Optional[float],
+        language_code: str,
+) -> tuple[List[Path], List[dict]]:
+    """Generate WAV chunks until `cap` seconds have been produced.
+
+    Returns a tuple ``(paths, segments)`` where ``paths`` is the list of
+    temporary WAV files and ``segments`` describes the timeline as
+    ``{"content": chunk, "start": float, "end": float}``.
+    """
 
     if not chunks:
         logging.error("No text chunks provided")
@@ -155,6 +163,7 @@ def synthesise(
     tmp_dir = Path("_tts_chunks")
     tmp_dir.mkdir(exist_ok=True)
     wav_paths: List[Path] = []
+    segments: List[dict] = []
 
     elapsed = 0.0
     dur = 0.0
@@ -183,13 +192,14 @@ def synthesise(
             break
 
         wav_paths.append(path)
+        segments.append({"content": chunk, "start": elapsed, "end": elapsed + dur})
         elapsed += dur
         logging.info("chunk %03d  %.1f s  (cumulative %.1f s)", idx, dur, elapsed)
 
     if cap and not wav_paths:
         logging.error("First sentence (%.1fs) exceeds --length – nothing generated", dur)
         raise ValueError("No chunks fit within the length cap")
-    return wav_paths
+    return wav_paths, segments
 
 
 def main() -> None:
@@ -200,6 +210,10 @@ def main() -> None:
     parser.add_argument("--length", help="max duration (e.g. 3m or 180s)")
     parser.add_argument(
         "--language", default="en", help="TTS language code (e.g. 'en', 'ru')"
+    )
+    parser.add_argument(
+        "--speech",
+        help="write JSON timeline alongside audio",
     )
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
@@ -234,11 +248,30 @@ def main() -> None:
     logging.info("XTTS calls: %d  (≤%d UTF-8 bytes each)", len(text_chunks), BYTE_BUDGET)
 
     cap_seconds = parse_length(args.length)
-    wav_chunks = synthesise(ref_wav, text_chunks, cap_seconds, language_code)
+    wav_chunks, segments = synthesise(ref_wav, text_chunks, cap_seconds, language_code)
     if not wav_chunks:
         return
 
     concat_normalise(wav_chunks, out_path, cap_seconds)
+
+    if args.speech:
+        import json
+
+        timeline = {
+            "textSegments": segments,
+            "imageCues": [],
+            "voices": [
+                {
+                    "id": sample_path.stem,
+                    "label": sample_path.stem,
+                    "file": str(sample_path),
+                }
+            ],
+        }
+
+        Path(args.speech).write_text(
+            json.dumps(timeline, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
     # tidy up
     for f in wav_chunks:
