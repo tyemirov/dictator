@@ -197,9 +197,8 @@ def choose_window(
             if word_count / duration > max_speech_rate:
                 position += STRIDE_SEC
                 continue
-            average_confidence = sum(w["probability"] for w in words_in_window) / word_count
             variation = pitch_variation(chunk)
-            quality_score = average_confidence * snr(chunk) * (1.0 + variation)
+            quality_score = snr(chunk) * (1.0 + variation)
             score = word_count * quality_score
             if score > best_score:
                 best_score, best_word_count, best_window_start = score, word_count, position
@@ -221,7 +220,6 @@ def main() -> None:
         default=WIN_SEC,
         help="window length, e.g. '20', '60s', '1m'",
     )
-    parser.add_argument("--min-confidence", type=float, default=0.80)
     parser.add_argument("--language", help="ISO language code (e.g. 'en')")
     parser.add_argument(
         "--max-speech-rate",
@@ -280,11 +278,9 @@ def main() -> None:
                 model=model,
                 progress_cb=log_progress,
             )
-
-    confident_words = [w for w in raw_words if (w.get("probability") or 0.0) >= args.min_confidence]
-    if not confident_words:
-        raise RuntimeError("no words above confidence threshold")
-    dominant_speaker_words = apply_diarization_filter(confident_words, diarization_pipeline, args.input)
+    if not raw_words:
+        raise RuntimeError("no words transcribed")
+    dominant_speaker_words = apply_diarization_filter(raw_words, diarization_pipeline, args.input)
     window_start = choose_window(
         pcm,
         dominant_speaker_words,

@@ -103,16 +103,8 @@ class ChooseWindowTests(unittest.TestCase):
             if word_count / duration > max_speech_rate:
                 position += cls.STRIDE_SEC
                 continue
-            average_confidence = (
-                sum(
-                    w["probability"]
-                    for w in speaker_words
-                    if position <= w["start"] < position + duration
-                )
-                / word_count
-            )
             variation = cls.pitch_variation(chunk)
-            quality_score = average_confidence * cls.snr(chunk) * (1.0 + variation)
+            quality_score = cls.snr(chunk) * (1.0 + variation)
             score = word_count * quality_score
             if score > best_score:
                 best_score, best_word_count, best_window_start = (
@@ -129,11 +121,11 @@ class ChooseWindowTests(unittest.TestCase):
         np.random.seed(0)
         pcm = np.random.randint(-2000, 2000, self.SAMPLE_RATE * 6, dtype=np.int16)
         speaker_words = [
-            {"start": 0.1, "probability": 0.9},
-            {"start": 1.2, "probability": 0.8},
-            {"start": 2.5, "probability": 0.95},
-            {"start": 3.3, "probability": 0.85},
-            {"start": 4.1, "probability": 0.9},
+            {"start": 0.1},
+            {"start": 1.2},
+            {"start": 2.5},
+            {"start": 3.3},
+            {"start": 4.1},
         ]
         duration = 2.0
         min_centroid = 0.0
