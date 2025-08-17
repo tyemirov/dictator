@@ -187,6 +187,9 @@ def apply_diarization_filter(
     speaker_durations = Counter()
     for turn, _, speaker_label in diarization_result.itertracks(yield_label=True):
         speaker_durations[speaker_label] += (turn.end - turn.start)
+    if not speaker_durations:
+        logging.warning("no speakers detected")
+        raise RuntimeError("no speakers detected")
     dominant_speaker = speaker_durations.most_common(1)[0][0]
     logging.info("dominant speaker: %s", dominant_speaker)
     filtered_words: List[Dict] = []
