@@ -24,8 +24,8 @@ from typing import Iterator, List, Dict, Optional
 import ffmpeg
 import numpy as np
 import torch
-import whisper
 import librosa
+from whisper_service import load_whisper_model, transcribe_words
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
@@ -116,55 +116,6 @@ def pitch_variation(samples: np.ndarray) -> float:
     return float(rms.std())
 
 
-def load_whisper_model(model_size: str) -> whisper.Whisper:
-    if model_size not in PUBLIC_SIZES:
-        raise ValueError(f"--model must be one of {sorted(PUBLIC_SIZES)}")
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    with timed(f"load_whisper_model {model_size} ({device})"):
-        return whisper.load_model(
-            model_size,
-            device=device,
-            download_root=str(Path.home() / ".cache" / "whisper"),
-        )
-
-
-def transcribe_with_whisper(
-        pcm_array: np.ndarray,
-        model_size: str,
-        minimum_confidence: float,
-        total_duration: float,
-        language: Optional[str] = None,
-) -> List[Dict]:
-    if total_duration <= 0:
-        raise ValueError(
-            f"total_duration must be positive, got {total_duration}"
-        )
-
-    model = load_whisper_model(model_size)
-    word_list: List[Dict] = []
-
-    def log_progress(segment_end: float) -> None:
-        percent = int(100 * segment_end / total_duration)
-        if percent - log_progress.last_logged >= 5:
-            logging.info("  progress %d %%", percent)
-            log_progress.last_logged = percent
-
-    log_progress.last_logged = 0
-    with timed("transcribe"):
-        transcribe_kwargs = {"word_timestamps": True, "verbose": False}
-        if language is not None:
-            transcribe_kwargs["language"] = language
-        result = model.transcribe(
-            pcm_array.astype(np.float32) / 32768,
-            **transcribe_kwargs,
-        )
-        for segment in result["segments"]:
-            word_list.extend(segment["words"])
-            log_progress(segment["end"])
-    confident_words = [w for w in word_list if w["probability"] >= minimum_confidence]
-    if not confident_words:
-        raise RuntimeError("no words above confidence threshold")
-    return confident_words
 
 
 def load_diarization_pipeline() -> Pipeline:
@@ -312,11 +263,28 @@ def main() -> None:
     total_track_seconds = len(pcm) / SAMPLE_RATE
     logging.info("Track length %s", timedelta(seconds=int(total_track_seconds)))
     diarization_pipeline = load_diarization_pipeline()
+    model = load_whisper_model(args.model)
+
+    def log_progress(segment_end: float) -> None:
+        percent = int(100 * segment_end / total_track_seconds)
+        if percent - log_progress.last_logged >= 5:
+            logging.info("  progress %d %%", percent)
+            log_progress.last_logged = percent
+
+    log_progress.last_logged = 0
     with timeout(args.timeouts[1], "transcription"):
-        raw_words = transcribe_with_whisper(
-            pcm, args.model, args.min_confidence, total_track_seconds, args.language
-        )
-    dominant_speaker_words = apply_diarization_filter(raw_words, diarization_pipeline, args.input)
+        with timed("transcribe"):
+            raw_words = transcribe_words(
+                pcm,
+                language=args.language,
+                model=model,
+                progress_cb=log_progress,
+            )
+
+    confident_words = [w for w in raw_words if (w.get("probability") or 0.0) >= args.min_confidence]
+    if not confident_words:
+        raise RuntimeError("no words above confidence threshold")
+    dominant_speaker_words = apply_diarization_filter(confident_words, diarization_pipeline, args.input)
     window_start = choose_window(
         pcm,
         dominant_speaker_words,
