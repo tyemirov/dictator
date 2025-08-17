@@ -47,6 +47,14 @@ def fits_xtts(chunk: str, budget: int = BYTE_BUDGET) -> bool:
     return len(chunk.encode("utf-8")) <= budget
 
 
+def trim_utf8(text: str, budget: int) -> str:
+    """Trim ``text`` to at most ``budget`` UTF-8 bytes."""
+    encoded = text.encode("utf-8")
+    if len(encoded) <= budget:
+        return text
+    return encoded[:budget].decode("utf-8", errors="ignore")
+
+
 def build_chunks(text: str, budget: int = BYTE_BUDGET) -> List[str]:
     """
     Greedy byte-budget splitter.
@@ -66,7 +74,7 @@ def build_chunks(text: str, budget: int = BYTE_BUDGET) -> List[str]:
         else:
             if buf:
                 chunks.append(buf)
-            buf = sent if fits_xtts(sent, budget) else sent[:budget]
+            buf = sent if fits_xtts(sent, budget) else trim_utf8(sent, budget)
     if buf:
         chunks.append(buf)
 
