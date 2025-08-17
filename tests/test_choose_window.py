@@ -1,5 +1,6 @@
 import sys
 import types
+import unittest
 import numpy as np
 import importlib
 import unittest
@@ -149,3 +150,8 @@ class ChooseWindowTests(unittest.TestCase):
             min_centroid=min_centroid,
         )
         self.assertEqual(result, expected)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
