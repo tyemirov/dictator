@@ -125,6 +125,7 @@ usage: main.py --sample WAV/MP3 --text TXT --output WAV [options]
 optional arguments
   --length 10s|3m|1.5h   cap final audio; stops on last full sentence
   --language CODE       TTS language code (default: en)
+  --speech JSON        write JSON timeline with text/metadata
   --force                overwrite existing output
 ```
 
@@ -132,6 +133,15 @@ optional arguments
 * **Smart-split** into ≤ 800 bytes so XTTS never truncates mid-chunk.
 * Synthesis stops when the next sentence would exceed `--length`.
 * All chunks concatenated with FFmpeg, `dynaudnorm` + –1 dBFS, 24 kHz mono.
+* When `--speech` is provided, a JSON file is written containing:
+
+  ```json
+  {
+    "textSegments": [{"start": 0.0, "end": 4.1, "content": "Once upon a time"}],
+    "imageCues": [],
+    "voices": [{"id": "sample", "label": "sample", "file": "voice.wav"}]
+  }
+  ```
 
 ---
 

@@ -21,7 +21,7 @@ torch_stub = types.SimpleNamespace(
     cuda=types.SimpleNamespace(is_available=lambda: False),
     from_numpy=lambda arr: _DummyTensor(arr),
 )
-sys.modules.setdefault("torch", torch_stub)
+sys.modules["torch"] = torch_stub
 
 
 class _DummyPipeline:
@@ -34,8 +34,8 @@ class _DummyPipeline:
 
 
 pyannote_audio = types.SimpleNamespace(Pipeline=_DummyPipeline)
-sys.modules.setdefault("pyannote", types.ModuleType("pyannote"))
-sys.modules.setdefault("pyannote.audio", pyannote_audio)
+sys.modules["pyannote"] = types.ModuleType("pyannote")
+sys.modules["pyannote.audio"] = pyannote_audio
 
 
 class _DummyWhisperModel:
@@ -44,7 +44,13 @@ class _DummyWhisperModel:
 
 
 whisper_stub = types.SimpleNamespace(load_model=lambda *a, **k: _DummyWhisperModel())
-sys.modules.setdefault("whisper", whisper_stub)
+sys.modules["whisper"] = whisper_stub
+
+
+# librosa stub for spectral centroid / RMS
+librosa_stub = types.ModuleType("librosa")
+librosa_stub.feature = types.SimpleNamespace(rms=lambda y: np.array([[0.0]]))
+sys.modules["librosa"] = librosa_stub
 
 
 from extract import (
