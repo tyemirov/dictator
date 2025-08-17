@@ -238,9 +238,7 @@ def choose_window(
             if word_count / duration > max_speech_rate:
                 position += STRIDE_SEC
                 continue
-            average_confidence = sum(
-                w["probability"] for w in speaker_words if position <= w["start"] < position + duration
-            ) / word_count
+            average_confidence = sum(w["probability"] for w in words_in_window) / word_count
             variation = pitch_variation(chunk)
             quality_score = average_confidence * snr(chunk) * (1.0 + variation)
             score = word_count * quality_score
