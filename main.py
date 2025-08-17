@@ -136,6 +136,11 @@ def synthesise(
         speaker_wav: Path, chunks: List[str], cap: Optional[float], language_code: str
 ) -> List[Path]:
     """Generate WAV chunks until `cap` seconds have been produced."""
+
+    if not chunks:
+        logging.error("No text chunks provided")
+        raise ValueError("No text chunks provided")
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
     tts = TTS(MODEL_ID).to(device)
 
@@ -144,6 +149,7 @@ def synthesise(
     wav_paths: List[Path] = []
 
     elapsed = 0.0
+    dur = 0.0
     for idx, chunk in enumerate(chunks):
         if cap and elapsed >= cap:
             break
@@ -165,7 +171,7 @@ def synthesise(
                 "Sentence %.1fs longer than remaining cap (%.1fs) – skipped",
                 dur,
                 cap - elapsed,
-                )
+            )
             break
 
         wav_paths.append(path)
@@ -174,6 +180,7 @@ def synthesise(
 
     if cap and not wav_paths:
         logging.error("First sentence (%.1fs) exceeds --length – nothing generated", dur)
+        raise ValueError("No chunks fit within the length cap")
     return wav_paths
 
 
