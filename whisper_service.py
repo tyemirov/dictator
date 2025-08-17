@@ -23,7 +23,6 @@ def transcribe_words(
     audio: Union[Path, np.ndarray],
     language: Optional[str] = None,
     model: Optional[object] = None,
-    min_confidence: float = 0.0,
     progress_cb: Optional[Callable[[float], None]] = None,
 ) -> List[Dict]:
     """Transcribe ``audio`` and return word-level timestamps.
@@ -52,15 +51,11 @@ def transcribe_words(
         if progress_cb and "end" in segment:
             progress_cb(segment["end"])
         for word in segment.get("words", []):
-            prob = word.get("probability")
-            if prob is not None and prob < min_confidence:
-                continue
             words.append(
                 {
                     "content": word.get("word", "").strip(),
                     "start": word.get("start"),
                     "end": word.get("end"),
-                    "probability": prob,
                 }
             )
     return words

@@ -51,8 +51,8 @@ class TranscribeWordsTests(unittest.TestCase):
         self.assertEqual(
             segments,
             [
-                {'content': 'Hello', 'start': 0.0, 'end': 0.4, 'probability': None},
-                {'content': 'world', 'start': 0.4, 'end': 0.9, 'probability': None},
+                {'content': 'Hello', 'start': 0.0, 'end': 0.4},
+                {'content': 'world', 'start': 0.4, 'end': 0.9},
             ],
         )
         self.assertEqual(model.called_with['language'], 'en')
