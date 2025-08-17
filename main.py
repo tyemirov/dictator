@@ -208,6 +208,10 @@ def main() -> None:
         ref_wav = sample_path.with_suffix(".wav")
         mp3_to_wav(sample_path, ref_wav)
         logging.info("converted MP3 → WAV: %s", ref_wav)
+    pcm, sr = sf.read(ref_wav, dtype="int16")
+    track_length = len(pcm) / sr if sr else 0
+    if track_length <= 0:
+        raise RuntimeError(f"reference audio {ref_wav} is empty")
 
     raw_text = Path(args.text).read_text(encoding="utf-8")
     clean_text = clean(raw_text)
