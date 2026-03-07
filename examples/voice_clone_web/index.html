@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Genesis Voice Demo</title>
+    <style>
+      :root {
+        --paper: #f4ecdc;
+        --ink: #201715;
+        --accent: #9b3d2f;
+        --accent-soft: #d89b68;
+        --panel: rgba(255, 250, 240, 0.88);
+        --shadow: rgba(32, 23, 21, 0.18);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Georgia, "Times New Roman", serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(255, 245, 215, 0.9), transparent 30%),
+          linear-gradient(135deg, #e8d8b3, #f5efe4 40%, #d8c6a1 100%);
+      }
+
+      main {
+        width: min(980px, calc(100% - 2rem));
+        margin: 2rem auto 3rem;
+        display: grid;
+        gap: 1.25rem;
+      }
+
+      .hero,
+      .panel {
+        background: var(--panel);
+        border: 1px solid rgba(32, 23, 21, 0.1);
+        border-radius: 20px;
+        box-shadow: 0 18px 40px var(--shadow);
+        backdrop-filter: blur(8px);
+      }
+
+      .hero {
+        padding: 1.75rem;
+      }
+
+      .hero h1 {
+        margin: 0;
+        font-size: clamp(2.3rem, 4vw, 4rem);
+        line-height: 0.95;
+      }
+
+      .hero p {
+        max-width: 52rem;
+        font-size: 1.05rem;
+      }
+
+      .hero strong {
+        color: var(--accent);
+      }
+
+      .grid {
+        display: grid;
+        gap: 1.25rem;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      }
+
+      .panel {
+        padding: 1.25rem;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 0.35rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        font-size: 0.78rem;
+      }
+
+      input,
+      textarea,
+      button {
+        width: 100%;
+        font: inherit;
+      }
+
+      input {
+        padding: 0.8rem 0.9rem;
+        border-radius: 12px;
+        border: 1px solid rgba(32, 23, 21, 0.18);
+        background: rgba(255, 255, 255, 0.78);
+      }
+
+      textarea {
+        min-height: 12rem;
+        resize: vertical;
+        padding: 1rem;
+        border-radius: 14px;
+        border: 1px solid rgba(32, 23, 21, 0.12);
+        background: #fffdf7;
+      }
+
+      .stack {
+        display: grid;
+        gap: 0.9rem;
+      }
+
+      .buttons {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.75rem;
+      }
+
+      button {
+        border: 0;
+        border-radius: 999px;
+        padding: 0.85rem 1rem;
+        cursor: pointer;
+        color: #fffaf2;
+        background: linear-gradient(135deg, var(--accent), #672118);
+        transition: transform 160ms ease, box-shadow 160ms ease;
+        box-shadow: 0 12px 20px rgba(103, 33, 24, 0.24);
+      }
+
+      button.secondary {
+        background: linear-gradient(135deg, #7b6b56, #46352c);
+      }
+
+      button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        box-shadow: none;
+      }
+
+      button:not(:disabled):hover {
+        transform: translateY(-1px);
+      }
+
+      audio {
+        width: 100%;
+      }
+
+      .status {
+        min-height: 1.5rem;
+        font-weight: 700;
+      }
+
+      .status.error {
+        color: #8a1d12;
+      }
+
+      .status.ok {
+        color: #28592e;
+      }
+
+      .download {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        text-decoration: none;
+        color: #fffaf2;
+        background: linear-gradient(135deg, #244b5a, #10212a);
+        border-radius: 999px;
+        padding: 0.85rem 1rem;
+        box-shadow: 0 12px 20px rgba(16, 33, 42, 0.22);
+      }
+
+      .download[hidden] {
+        display: none;
+      }
+
+      .eyebrow {
+        font-size: 0.78rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: rgba(32, 23, 21, 0.72);
+      }
+
+      @media (max-width: 640px) {
+        .buttons {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <div class="eyebrow">Dictator Example</div>
+        <h1>Read Genesis in your own cloned voice</h1>
+        <p>
+          Record a short sample, point the page at a running <strong>Dictator gRPC service</strong>,
+          and it will send back a WAV file of the opening of Genesis read back in your voice.
+          Read the sample twice if you want a steadier clone.
+        </p>
+      </section>
+
+      <section class="grid">
+        <div class="panel stack">
+          <div>
+            <label for="dictator-url">Dictator gRPC URL</label>
+            <input id="dictator-url" value="localhost:50051" />
+          </div>
+          <div>
+            <label for="auth-token">Auth Token</label>
+            <input id="auth-token" type="password" placeholder="Paste the Dictator token" />
+          </div>
+          <div>
+            <label for="language-code">Language Code</label>
+            <input id="language-code" value="en" />
+          </div>
+          <div class="buttons">
+            <button id="start-recording" type="button">Start Recording</button>
+            <button id="stop-recording" class="secondary" type="button" disabled>Stop Recording</button>
+            <button id="generate-voice" type="button" disabled>Make Genesis</button>
+          </div>
+          <div id="status" class="status" aria-live="polite"></div>
+        </div>
+
+        <div class="panel stack">
+          <div>
+            <label for="sample-text">Read This Sample</label>
+            <textarea id="sample-text" readonly>The quick brown fox jumped over the lazy dog.
+Eleven benevolent elephants balanced on bright blue bicycles.</textarea>
+          </div>
+          <div>
+            <label for="genesis-text">The Generated Reading</label>
+            <textarea id="genesis-text" readonly>Genesis 1:1-10, King James Version.
+In the beginning God created the heaven and the earth.
+And the earth was without form, and void; and darkness was upon the face of the deep.
+And the Spirit of God moved upon the face of the waters.
+And God said, Let there be light: and there was light.
+And God saw the light, that it was good: and God divided the light from the darkness.
+And God called the light Day, and the darkness he called Night. And the evening and the morning were the first day.
+And God said, Let there be a firmament in the midst of the waters, and let it divide the waters from the waters.
+And God made the firmament, and divided the waters which were under the firmament from the waters which were above the firmament: and it was so.
+And God called the firmament Heaven. And the evening and the morning were the second day.
+And God said, Let the waters under the heaven be gathered together unto one place, and let the dry land appear: and it was so.
+And God called the dry land Earth; and the gathering together of the waters called he Seas: and God saw that it was good.</textarea>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="panel stack">
+          <div class="eyebrow">Your Sample</div>
+          <audio id="recorded-audio" controls></audio>
+        </div>
+        <div class="panel stack">
+          <div class="eyebrow">Genesis Playback</div>
+          <audio id="generated-audio" controls></audio>
+          <a id="download-link" class="download" download="genesis-in-your-voice.wav" hidden>Download WAV</a>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const statusNode = document.getElementById("status");
+      const startButton = document.getElementById("start-recording");
+      const stopButton = document.getElementById("stop-recording");
+      const generateButton = document.getElementById("generate-voice");
+      const recordedAudio = document.getElementById("recorded-audio");
+      const generatedAudio = document.getElementById("generated-audio");
+      const downloadLink = document.getElementById("download-link");
+      const dictatorUrlInput = document.getElementById("dictator-url");
+      const authTokenInput = document.getElementById("auth-token");
+      const languageCodeInput = document.getElementById("language-code");
+
+      let recorder;
+      let mediaStream;
+      let recordedBlob;
+      let recordedMimeType = "audio/webm";
+
+      function setStatus(message, kind = "") {
+        statusNode.textContent = message;
+        statusNode.className = kind ? `status ${kind}` : "status";
+      }
+
+      function pickMimeType() {
+        const options = [
+          "audio/webm;codecs=opus",
+          "audio/webm",
+          "audio/mp4",
+          "audio/ogg;codecs=opus"
+        ];
+        return options.find((type) => window.MediaRecorder && MediaRecorder.isTypeSupported(type)) || "";
+      }
+
+      async function blobToBase64(blob) {
+        const buffer = await blob.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        const chunkSize = 0x8000;
+        let binary = "";
+        for (let index = 0; index < bytes.length; index += chunkSize) {
+          binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+        }
+        return btoa(binary);
+      }
+
+      function parseDownloadFilename(response) {
+        const header = response.headers.get("Content-Disposition") || "";
+        const match = header.match(/filename="([^"]+)"/i);
+        return match ? match[1] : "genesis-in-your-voice.wav";
+      }
+
+      startButton.addEventListener("click", async () => {
+        if (!navigator.mediaDevices || !window.MediaRecorder) {
+          setStatus("This browser cannot record audio. Use a recent Chromium, Firefox, or Safari release.", "error");
+          return;
+        }
+        try {
+          mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const chunks = [];
+          const mimeType = pickMimeType();
+          recorder = mimeType ? new MediaRecorder(mediaStream, { mimeType }) : new MediaRecorder(mediaStream);
+          recordedMimeType = recorder.mimeType || mimeType || "audio/webm";
+          recorder.addEventListener("dataavailable", (event) => {
+            if (event.data.size > 0) {
+              chunks.push(event.data);
+            }
+          });
+          recorder.addEventListener("stop", () => {
+            recordedBlob = new Blob(chunks, { type: recordedMimeType });
+            recordedAudio.src = URL.createObjectURL(recordedBlob);
+            generateButton.disabled = false;
+            if (mediaStream) {
+              mediaStream.getTracks().forEach((track) => track.stop());
+            }
+            setStatus("Recording captured. Generate the Genesis reading when ready.", "ok");
+          });
+          recorder.start();
+          startButton.disabled = true;
+          stopButton.disabled = false;
+          generateButton.disabled = true;
+          setStatus("Recording. Read the sample text twice for a steadier voice clone.");
+        } catch (error) {
+          setStatus(error.message || "Microphone access failed.", "error");
+        }
+      });
+
+      stopButton.addEventListener("click", () => {
+        if (recorder && recorder.state !== "inactive") {
+          recorder.stop();
+        }
+        startButton.disabled = false;
+        stopButton.disabled = true;
+      });
+
+      generateButton.addEventListener("click", async () => {
+        if (!recordedBlob) {
+          setStatus("Record a sample before generating Genesis.", "error");
+          return;
+        }
+        try {
+          generateButton.disabled = true;
+          setStatus("Uploading your sample to Dictator and generating the cloned reading...");
+          const response = await fetch("/api/clone", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              dictatorUrl: dictatorUrlInput.value,
+              authToken: authTokenInput.value,
+              languageCode: languageCodeInput.value || "en",
+              audioFilename: `voice-sample.${recordedMimeType.includes("ogg") ? "ogg" : recordedMimeType.includes("mp4") ? "m4a" : "webm"}`,
+              audioMediaType: recordedMimeType,
+              audioBase64: await blobToBase64(recordedBlob)
+            })
+          });
+          if (!response.ok) {
+            let message = `Request failed with HTTP ${response.status}.`;
+            try {
+              const errorPayload = await response.json();
+              if (errorPayload.error) {
+                message = errorPayload.error;
+              }
+            } catch (_) {
+              // Preserve the fallback message.
+            }
+            throw new Error(message);
+          }
+          const audioBlob = await response.blob();
+          const audioUrl = URL.createObjectURL(audioBlob);
+          const filename = parseDownloadFilename(response);
+          generatedAudio.src = audioUrl;
+          downloadLink.href = audioUrl;
+          downloadLink.download = filename;
+          downloadLink.hidden = false;
+          setStatus("Genesis is ready. Play it back or download the WAV.", "ok");
+        } catch (error) {
+          setStatus(error.message || "Generation failed.", "error");
+        } finally {
+          generateButton.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>
