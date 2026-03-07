@@ -48,6 +48,7 @@ def build_server(
         )
     register_services(server, service_context)
     health_service = grpc_health.HealthServicer()
+    health_service.set("", health_pb2.HealthCheckResponse.SERVING)
     for service_name in _SERVICE_NAMES:
         health_service.set(service_name, health_pb2.HealthCheckResponse.SERVING)
     health_pb2_grpc.add_HealthServicer_to_server(health_service, server)

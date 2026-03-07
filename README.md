@@ -192,7 +192,29 @@ Behavior:
 
 ## Diarization Output
 
-`DiarizeAudio` returns a structured JSON object via `google.protobuf.Struct`.
+## Browser Voice Clone Demo
+
+The repo includes a browser example that records a short voice sample, calls the Dictator gRPC API through a small local HTTP bridge, and downloads a WAV of Genesis 1:1-10 read back in the user's cloned voice.
+
+Run the example after Dictator is already up:
+
+```bash
+python -m examples.voice_clone_web.app --host 127.0.0.1 --port 8080
+```
+
+Then open `http://127.0.0.1:8080` and provide:
+
+* `Dictator gRPC URL`, for example `localhost:50051` or `https://your-host:443`
+* `Auth Token`, matching `DICTATOR_GRPC_AUTH_TOKEN`
+* `Language Code`, usually `en`
+
+The page asks the user to read:
+
+> The quick brown fox jumped over the lazy dog. Eleven benevolent elephants balanced on bright blue bicycles.
+
+Example-specific notes live in [examples/voice_clone_web/README.md](./examples/voice_clone_web/README.md).
+
+---
 
 Directionally, the payload can include:
 

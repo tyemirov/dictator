@@ -1,4 +1,6 @@
+import threading
 import tempfile
+import time
 from pathlib import Path
 import sys
 import types
@@ -129,6 +131,11 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 store.finalize_artifact(reservation)
 
+            reservation.path.parent.mkdir(parents=True, exist_ok=True)
+            reservation.path.write_bytes(b"partial")
+            store.discard_reservation(reservation)
+            self.assertFalse(reservation.path.parent.exists())
+
     def test_speech_execution_runtime_caches_and_builds_services(self):
         runtime = SpeechExecutionRuntime()
         loader_calls = []
@@ -235,6 +242,63 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 self.assertEqual(subtitle_service.alignment_service.backend, "align-backend")
 
                 self.assertIsInstance(runtime.get_reference_extraction_service(), FakeReferenceExtractionService)
+
+    def test_speech_execution_runtime_serializes_cold_model_and_pipeline_loads(self):
+        runtime = SpeechExecutionRuntime()
+        model_results = []
+        pipeline_results = []
+
+        model_started = threading.Event()
+        model_release = threading.Event()
+        model_calls = []
+
+        def fake_load_whisper_model(model_size):
+            model_calls.append(model_size)
+            model_started.set()
+            model_release.wait(1.0)
+            return {"model": model_size}
+
+        fake_transcription_module = types.ModuleType("dictator.transcription.service")
+        fake_transcription_module.load_whisper_model = fake_load_whisper_model
+        with patch.dict(sys.modules, {"dictator.transcription.service": fake_transcription_module}):
+            first = threading.Thread(target=lambda: model_results.append(runtime.get_whisper_model("base")))
+            second = threading.Thread(target=lambda: model_results.append(runtime.get_whisper_model("base")))
+            first.start()
+            self.assertTrue(model_started.wait(0.5))
+            second.start()
+            time.sleep(0.05)
+            self.assertEqual(model_calls, ["base"])
+            model_release.set()
+            first.join()
+            second.join()
+        self.assertEqual(len(model_results), 2)
+        self.assertIs(model_results[0], model_results[1])
+
+        pipeline_started = threading.Event()
+        pipeline_release = threading.Event()
+        pipeline_calls = []
+
+        def fake_load_diarization_pipeline():
+            pipeline_calls.append("pipeline")
+            pipeline_started.set()
+            pipeline_release.wait(1.0)
+            return {"pipeline": True}
+
+        fake_extraction_module = types.ModuleType("dictator.extraction.service")
+        fake_extraction_module.load_diarization_pipeline = fake_load_diarization_pipeline
+        with patch.dict(sys.modules, {"dictator.extraction.service": fake_extraction_module}):
+            first = threading.Thread(target=lambda: pipeline_results.append(runtime.get_diarization_pipeline()))
+            second = threading.Thread(target=lambda: pipeline_results.append(runtime.get_diarization_pipeline()))
+            first.start()
+            self.assertTrue(pipeline_started.wait(0.5))
+            second.start()
+            time.sleep(0.05)
+            self.assertEqual(pipeline_calls, ["pipeline"])
+            pipeline_release.set()
+            first.join()
+            second.join()
+        self.assertEqual(len(pipeline_results), 2)
+        self.assertIs(pipeline_results[0], pipeline_results[1])
 
 
 if __name__ == "__main__":

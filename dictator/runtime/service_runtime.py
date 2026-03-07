@@ -11,8 +11,10 @@ class SpeechExecutionRuntime:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._whisper_models: dict[str, object] = {}
+        self._whisper_model_load_locks: dict[str, threading.Lock] = {}
         self._transcription_service: object | None = None
         self._diarization_pipeline: object | None = None
+        self._diarization_pipeline_load_lock = threading.Lock()
         self._tts_backend: object | None = None
         self._alignment_backend: object | None = None
 
@@ -21,12 +23,21 @@ class SpeechExecutionRuntime:
             cached = self._whisper_models.get(model_size)
             if cached is not None:
                 return cached
-        from dictator.transcription.service import load_whisper_model
+            load_lock = self._whisper_model_load_locks.get(model_size)
+            if load_lock is None:
+                load_lock = threading.Lock()
+                self._whisper_model_load_locks[model_size] = load_lock
+        with load_lock:
+            with self._lock:
+                cached = self._whisper_models.get(model_size)
+                if cached is not None:
+                    return cached
+            from dictator.transcription.service import load_whisper_model
 
-        loaded = load_whisper_model(model_size)
-        with self._lock:
-            self._whisper_models.setdefault(model_size, loaded)
-            return self._whisper_models[model_size]
+            loaded = load_whisper_model(model_size)
+            with self._lock:
+                self._whisper_models.setdefault(model_size, loaded)
+                return self._whisper_models[model_size]
 
 
     def get_transcription_service(self):
@@ -43,13 +54,17 @@ class SpeechExecutionRuntime:
         with self._lock:
             if self._diarization_pipeline is not None:
                 return self._diarization_pipeline
-        from dictator.extraction.service import load_diarization_pipeline
+        with self._diarization_pipeline_load_lock:
+            with self._lock:
+                if self._diarization_pipeline is not None:
+                    return self._diarization_pipeline
+            from dictator.extraction.service import load_diarization_pipeline
 
-        loaded = load_diarization_pipeline()
-        with self._lock:
-            if self._diarization_pipeline is None:
-                self._diarization_pipeline = loaded
-            return self._diarization_pipeline
+            loaded = load_diarization_pipeline()
+            with self._lock:
+                if self._diarization_pipeline is None:
+                    self._diarization_pipeline = loaded
+                return self._diarization_pipeline
 
     def get_synthesis_service(self):
         from dictator.synthesis.service import SpeechSynthesisService, XTTSBackend
