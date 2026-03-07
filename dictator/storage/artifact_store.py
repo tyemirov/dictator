@@ -8,6 +8,7 @@ import json
 import mimetypes
 from pathlib import Path
 import re
+import shutil
 from typing import BinaryIO, Iterable, Iterator
 import uuid
 
@@ -102,6 +103,9 @@ class LocalArtifactStore:
             path=reservation.path,
             metadata_path=reservation.metadata_path,
         )
+
+    def discard_reservation(self, reservation: ArtifactReservation) -> None:
+        shutil.rmtree(reservation.path.parent, ignore_errors=True)
 
     def write_artifact(
         self,

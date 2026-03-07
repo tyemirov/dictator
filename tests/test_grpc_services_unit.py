@@ -286,8 +286,11 @@ class GrpcServicesUnitTests(unittest.TestCase):
             artifacts_pb2.UploadArtifactChunk(metadata=artifacts_pb2.UploadArtifactMetadata(filename="a.bin", media_type="application/octet-stream")),
             artifacts_pb2.UploadArtifactChunk(metadata=artifacts_pb2.UploadArtifactMetadata(filename="oops", media_type="application/octet-stream")),
         ])
+        before = {path.name for path in Path(self.tmpdir.name).iterdir()}
         with self.assertRaises(RpcAbort):
             servicer.UploadArtifact(stream, context)
+        after = {path.name for path in Path(self.tmpdir.name).iterdir()}
+        self.assertEqual(after, before)
 
     def test_transcription_and_alignment_servicer_branches(self):
         context = FakeContext(metadata=(("x-dictator-token", "secret"),))
