@@ -1,224 +1,305 @@
 # Dictator
 
-## Archival-voice extraction and long-form voice-cloning
+Dictator is a Python 3.11.8 speech execution service with a gRPC API for:
 
-Two small, self-contained Python utilities:
+- audio transcription
+- structured speaker diarization
+- forced alignment
+- grouped subtitle rendering
+- reference voice extraction
+- long-form voice-cloned speech synthesis
 
-| Script           | Purpose                                                                                                                                                                                                                                       |
-|------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **`extract.py`** | Carve out the **clearest window** (default 20 s) from a noisy archival recording using Whisper ASR confidence + SNR heuristics, with a speaker-diarization model provided by `pyannote.audio`, then output a peak-normalised 24 kHz mono WAV. |
-| **`main.py`**    | Feed that reference sample (or any WAV/MP3) to **[XTTS-v2]** and synthesise arbitrarily long speech from plain text – again to a peak-normalised 24 kHz mono WAV.                                                                             |
+The repo still contains local compatibility CLIs for the earlier script workflows, but the primary shape now is a token-protected gRPC service.
 
----
+## Current Capabilities
 
-## Prerequisites
+| Capability | What it does |
+| --- | --- |
+| Transcription | Converts uploaded audio into text, with optional word-level timestamps |
+| Diarization | Returns structured JSON with request-local speakers (`S1`, `S2`, ...), utterances, words, and speaker segments |
+| Forced alignment | Aligns known source text against audio and returns aligned words plus SRT |
+| Subtitle rendering | Builds grouped SRT cues by `N` words or `N` sentences; with `source_text`, this uses forced alignment |
+| Reference extraction | Extracts a clean speaker reference sample from noisy archival material |
+| Speech synthesis | Generates cloned speech from text using an extracted or supplied speaker reference |
+| Artifact storage | Uploads and downloads audio, text, JSON, and SRT artifacts |
+| Runtime metrics | Exposes request, latency, inflight, and byte counters |
 
-You **must** run this project under **Python 3.11.8**, as some dependencies (pyannote.audio, Coqui-TTS) don’t ship
-wheels for newer interpreters. We recommend installing via **pyenv**:
+## API Surface
+
+The server currently exposes these gRPC services under [`proto/dictator/speech/v1`](/home/tyemirov/Development/tyemirov/dictator/proto/dictator/speech/v1):
+
+| Service | RPCs |
+| --- | --- |
+| `ArtifactService` | `UploadArtifact`, `DownloadArtifact` |
+| `TranscriptionService` | `Transcribe`, `DiarizeAudio` |
+| `AlignmentService` | `AlignTranscript` |
+| `SubtitleService` | `RenderSubtitles` |
+| `VoiceService` | `ExtractReferenceSample`, `SynthesizeSpeech` |
+| `RuntimeService` | `GetMetrics` |
+
+There is also a standard gRPC health service registered by the server.
+
+## Request Model
+
+Most workflows follow the same pattern:
+
+1. Upload audio or text with `ArtifactService.UploadArtifact`
+2. Call a speech RPC with the returned `artifact_id`
+3. Read inline fields from the RPC response
+4. Optionally download generated artifacts such as SRT, WAV, timeline JSON, or diarization JSON
+
+This keeps the service independent of the caller's local filesystem.
+
+## Auth and Transport
+
+- The gRPC service is protected by a token
+- Callers authenticate with either:
+  - `x-dictator-token: <token>`
+  - `Authorization: Bearer <token>`
+- By default the server listens with insecure gRPC transport and token auth
+- TLS is not configured in this repo yet
+
+The token is typically provided through:
+
+- [`config.yml`](/home/tyemirov/Development/tyemirov/dictator/config.yml)
+- [`.env.example`](/home/tyemirov/Development/tyemirov/dictator/.env.example)
+
+Example:
+
+```dotenv
+DICTATOR_GRPC_AUTH_TOKEN=replace-with-a-long-random-token
+HF_TOKEN=
+```
+
+`HF_TOKEN` is needed for pyannote-backed diarization / reference extraction model downloads.
+
+## Local Development Prerequisites
+
+You should run the project with Python `3.11.8`.
+
+System dependencies for local non-container runs:
+
+- `ffmpeg`
+- `libsndfile`
+- `espeak-ng`
+- build tooling for Python wheels
+
+Suggested setup:
 
 ```bash
-# 1) Install pyenv (if needed)
-curl https://pyenv.run | bash
-# Add these to your shell startup (~/.bashrc or similar):
-export PATH="$HOME/.pyenv/bin:$PATH"
-eval "$(pyenv init --path)"
-eval "$(pyenv init -)"
-
-# 2) Install Python 3.11.8
 pyenv install 3.11.8
-
-# 3) Use 3.11.8 in this project directory
-cd /path/to/dictator
 pyenv local 3.11.8
 
-# 4) Create & activate your venv
-python3.11 -m venv .venv
+python -m venv .venv
 source .venv/bin/activate
 
-# 5) Install dependencies
-pip install --upgrade pip
-pip install -r requirements.txt
-````
-
----
-
-## Quick start (GPU)
-
-```bash
-# 🔈 1) cut a 20-second Churchill clip
-python extract.py \
-       --input  assets/sources/voices/churchill_disc1side2.flac \
-       --output assets/samples/churchill.wav
-
-# 📖 2) clone the voice and read Genesis, capped at 3 minutes
-python main.py \
-       --sample assets/samples/churchill.wav \
-       --text   assets/sources/texts/genesis.txt \
-       --output output/genesis_by_churchill.wav \
-       --length 3m
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
-### CPU-only?
+## Local Service Quick Start
 
-Both scripts fall back to `"cpu"` if CUDA is missing. `main.py` on CPU will be **slow** – consider shorter texts.
-
-## Service Container
-
-The repo now includes a containerized gRPC service runtime with the required system packages:
-
-* Python 3.11.8
-* FFmpeg
-* `libsndfile`
-* `espeak-ng`
-* build tooling for Python wheels
-* Python packages from `requirements.txt`
-
-### Build
-
-```bash
-docker build -t dictator:local .
-```
-
-### Build GPU Image
-
-```bash
-docker build -f Dockerfile.gpu -t dictator:gpu .
-```
-
-### Run with Compose
-
-Create `.env` from `.env.example`, then start the service:
+1. Create the environment file:
 
 ```bash
 cp .env.example .env
-# edit .env and set DICTATOR_GRPC_AUTH_TOKEN
-# set HF_TOKEN as well if you need diarization / speaker extraction
+```
 
+2. Set at least:
+
+```dotenv
+DICTATOR_GRPC_AUTH_TOKEN=replace-with-a-long-random-token
+```
+
+3. Start the server:
+
+```bash
+python serve.py --config config.yml --env-file .env
+```
+
+By default this starts the gRPC service on `0.0.0.0:50051`.
+
+## Client and CLI Helpers
+
+Thin client helpers live under [`dictator/client`](/home/tyemirov/Development/tyemirov/dictator/dictator/client):
+
+- `DictationClient`
+- `DiarizationClient`
+- `SubtitleClient`
+
+Current CLI entrypoints:
+
+| File | Purpose |
+| --- | --- |
+| [`serve.py`](/home/tyemirov/Development/tyemirov/dictator/serve.py) | run the gRPC server |
+| [`dictate.py`](/home/tyemirov/Development/tyemirov/dictator/dictate.py) | upload audio and print dictation JSON |
+| [`subtitle.py`](/home/tyemirov/Development/tyemirov/dictator/subtitle.py) | upload audio and print or save grouped SRT |
+| [`align.py`](/home/tyemirov/Development/tyemirov/dictator/align.py) | local direct forced-alignment CLI over the packaged service |
+| [`extract.py`](/home/tyemirov/Development/tyemirov/dictator/extract.py) | local direct reference extraction CLI |
+| [`main.py`](/home/tyemirov/Development/tyemirov/dictator/main.py) | local direct synthesis CLI |
+
+### Dictation Example
+
+```bash
+python dictate.py \
+  --config config.yml \
+  --env-file .env \
+  --input sample.wav \
+  --autodetect-language
+```
+
+This prints:
+
+```json
+{"text": "hello world"}
+```
+
+### Grouped Subtitle Example
+
+Transcription mode:
+
+```bash
+python subtitle.py \
+  --config config.yml \
+  --env-file .env \
+  --input sample.wav \
+  --autodetect-language \
+  --granularity words \
+  --group-size 2 \
+  --output sample.srt
+```
+
+Forced-alignment mode:
+
+```bash
+python subtitle.py \
+  --config config.yml \
+  --env-file .env \
+  --input sample.wav \
+  --language en \
+  --granularity sentences \
+  --group-size 1 \
+  --source-text-file transcript.txt \
+  --output sample.srt
+```
+
+Behavior:
+
+- if `source_text` is absent, subtitles come from transcription
+- if `source_text` is present, subtitles come from forced alignment
+- `granularity=words` groups every `N` timed words
+- `granularity=sentences` groups every `N` timed sentence units
+
+## Diarization Output
+
+`DiarizeAudio` returns a structured JSON object via `google.protobuf.Struct`.
+
+Directionally, the payload can include:
+
+- `text`
+- `languageCode`
+- `speakers`
+- `utterances`
+- `words`
+- `speakerSegments`
+
+Speaker labels are request-local only. `S1` in one request is not a persistent speaker identity across files.
+
+## Voice Workflows
+
+The voice pipeline currently supports:
+
+1. upload long/noisy source audio
+2. call `ExtractReferenceSample`
+3. upload or inline text
+4. call `SynthesizeSpeech`
+
+`SynthesizeSpeech` can optionally return inline timeline segments and persist a timeline JSON artifact.
+
+## Docker
+
+### CPU Image
+
+```bash
+docker build -t dictator:local .
 docker compose up --build
 ```
 
-### Run with Compose on CUDA
-
-This requires a host GPU plus the NVIDIA Container Toolkit so Docker can pass the device through.
+### CUDA Image
 
 ```bash
+docker build -f Dockerfile.gpu -t dictator:gpu .
 docker compose -f compose.yml -f compose.gpu.yml up --build
 ```
 
-The container starts the gRPC server with:
+Notes:
 
-```bash
-python serve.py --config /app/config.yml --env-file /app/.env
+- [`Dockerfile`](/home/tyemirov/Development/tyemirov/dictator/Dockerfile) installs CPU `torch` / `torchaudio`
+- [`Dockerfile.gpu`](/home/tyemirov/Development/tyemirov/dictator/Dockerfile.gpu) installs CUDA 12.8 wheels
+- [`compose.yml`](/home/tyemirov/Development/tyemirov/dictator/compose.yml) mounts `.env`, `config.yml`, model caches, and artifact storage
+- [`compose.gpu.yml`](/home/tyemirov/Development/tyemirov/dictator/compose.gpu.yml) requests `gpus: all`
+
+## Configuration
+
+Primary server configuration is in [`config.yml`](/home/tyemirov/Development/tyemirov/dictator/config.yml):
+
+```yaml
+grpc:
+  host: 0.0.0.0
+  port: 50051
+  max_workers: 4
+  max_message_bytes: 67108864
+  max_inflight: 4
+  download_chunk_bytes: 1048576
+  artifact_root: .dictator-artifacts
+  auth_token: ${DICTATOR_GRPC_AUTH_TOKEN}
 ```
 
-The compose setup mounts persistent caches for Hugging Face, Whisper, and Torch models, plus `.dictator-artifacts` for generated service artifacts.
+The service resolves `${ENV_VAR}` placeholders from `.env` and the process environment.
 
-### Notes
+## Validation
 
-* The provided image is CPU-oriented. It includes the service prerequisites and will start the server, but heavy transcription/alignment/TTS workloads will be slow without GPU acceleration.
-* The container installs CPU `torch` / `torchaudio` wheels explicitly so it does not pull CUDA runtimes into a CPU deployment.
-* `HF_TOKEN` should be present in `.env` if you want pyannote diarization and archival speaker extraction to download gated Hugging Face models on first run.
-* `Dockerfile.gpu` installs the CUDA 12.8 Torch wheel set and is intended to run with `compose.gpu.yml`.
-* The GPU container still uses Python 3.11.8. The host provides the actual NVIDIA device through Docker; without that runtime integration, the image will build but CUDA execution will not be available.
+Local developer entrypoints:
 
----
+```bash
+make test
+make coverage
+make ci
+```
 
-## Folder layout
+`make ci` runs the coverage-enforced test suite.
+
+This repo currently enforces `100%` line coverage on production Python code.
+
+## Package Layout
+
+The live service code is organized under [`dictator/`](/home/tyemirov/Development/tyemirov/dictator/dictator):
 
 ```text
 dictator/
-├── assets/
-│   ├── sources/
-│   │   ├── voices/      # original long recordings
-│   │   └── texts/       # .txt books / speeches / etc.
-│   └── samples/         # reference clips cut by extract.py
-├── output/              # final generated audio
-├── extract.py
-├── main.py
-├── requirements.txt
-└── README.md            # ← you are here
+├── alignment/          # forced alignment logic and WhisperX backend
+├── audio/              # ffmpeg-based audio helpers
+├── client/             # thin gRPC client helpers
+├── diarization/        # speaker assignment and JSON shaping
+├── extraction/         # reference sample extraction
+├── runtime/            # errors, metrics, inflight, model runtime
+├── speech/v1/          # generated protobuf/grpc stubs
+├── storage/            # local artifact store
+├── subtitles/          # grouped subtitle rendering
+├── synthesis/          # XTTS-backed speech synthesis
+├── transcription/      # Whisper-backed transcription
+└── transport/grpc/     # gRPC config, server, and servicers
 ```
 
-Feel free to change folders – the scripts just take full paths.
+## Legacy / Local Utility Workflows
 
----
+The earlier local script workflows still work:
 
-## `extract.py` usage
+- [`extract.py`](/home/tyemirov/Development/tyemirov/dictator/extract.py): extract a strong reference sample from long audio
+- [`main.py`](/home/tyemirov/Development/tyemirov/dictator/main.py): synthesize long-form speech from a reference sample and text
+- [`align.py`](/home/tyemirov/Development/tyemirov/dictator/align.py): align a transcript to audio and emit SRT
 
-```text
-usage: extract.py --input FILE --output FILE [options]
-
-optional arguments
-  --model {tiny,base,small,medium,large-v2,large-v3}
-                        Whisper size (default: medium)
-  --duration SECONDS    window length (default: 20)
-  --min-confidence P    keep words whose P ≥ threshold (default: 0.80)
-  --language CODE       Whisper language (e.g. 'en'); auto-detect if omitted
-  --max-speech-rate R   discard windows faster than R words/s (default: 4)
-  --min-centroid HZ     discard windows below this spectral centroid
-                         (default: 500)
-  --max-centroid HZ     discard windows above this spectral centroid
-                         (default: 4000)
-  --timeouts D T R      seconds for decode / transcribe / trim
-  --force               overwrite existing output
-```
-
-**Algorithm**
-
-1. FFmpeg → mono 16 kHz PCM
-2. Whisper full-track transcription (progress heartbeat every 5 %)
-3. Slide a fixed window; discard windows with spectral centroids outside
-   `[MIN_CENTROID_HZ, MAX_CENTROID_HZ]`, then rank by
-   *(word count × avg confidence × SNR × (1 + variation))*
-4. FFmpeg lossless trim + peak-normalise to –1 dBFS, resample 24 kHz
-
-Typical runtime on an RTX 3060 for a 30-minute 44 kHz FLAC is \~70 s.
-
----
-
-## `main.py` usage
-
-```text
-usage: main.py --sample WAV/MP3 --text TXT --output WAV [options]
-
-optional arguments
-  --length 10s|3m|1.5h   cap final audio; stops on last full sentence
-  --language CODE       TTS language code (default: en)
-  --speech JSON        write JSON timeline with text/metadata
-  --force                overwrite existing output
-```
-
-* Input text is **cleaned** (Unicode NFKC, whitespace collapsed).
-* **Smart-split** into ≤ 800 bytes so XTTS never truncates mid-chunk.
-* Synthesis stops when the next sentence would exceed `--length`.
-* All chunks concatenated with FFmpeg, `dynaudnorm` + –1 dBFS, 24 kHz mono.
-* When `--speech` is provided, a JSON file is written containing:
-
-  ```json
-  {
-    "textSegments": [{"start": 0.0, "end": 4.1, "content": "Once upon a time"}],
-    "imageCues": [],
-    "voices": [{"id": "sample", "label": "sample", "file": "voice.wav"}]
-  }
-  ```
-
----
-
-## Dependencies
-
-* **Python 3.11.8** (via pyenv; see “0 Prerequisites”)
-* **FFmpeg** (with `dynaudnorm` filter) – e.g. `sudo apt install ffmpeg`
-* Python libraries in `requirements.txt`
-
-    * Torch wheels matching your CUDA version (see the [PyTorch site](https://pytorch.org/get-started/locally/))
-    * ffmpeg-python
-    * soundfile
-    * numpy
-    * openai-whisper
-    * pyannote.audio
-    * coqui-tts
-
----
+Those remain useful for direct local use, but they are no longer the best description of the repo.
 
 ## License
 
@@ -226,4 +307,4 @@ This project is proprietary software. All rights reserved by Marco Polo Research
 
 XTTS-v2 and Whisper licenses apply to their respective models.
 
-See the [LICENSE](./LICENSE) file for details.
+See [LICENSE](./LICENSE) for details.
