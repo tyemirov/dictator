@@ -72,5 +72,5 @@ def main() -> None:
     serve(config)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

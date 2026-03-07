@@ -59,5 +59,5 @@ def main() -> None:
         print(json.dumps(result.to_http_payload(), ensure_ascii=False))
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

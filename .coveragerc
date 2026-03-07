@@ -1,0 +1,11 @@
+[run]
+source = .
+omit =
+    tests/*
+    dictator/speech/v1/*_pb2.py
+    dictator/speech/v1/*_pb2_grpc.py
+
+[report]
+fail_under = 100
+show_missing = True
+

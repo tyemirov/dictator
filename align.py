@@ -51,5 +51,5 @@ def main() -> None:
     logging.info("saved -> %s", args.output)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

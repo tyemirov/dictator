@@ -109,7 +109,7 @@ def grouped_cues(units: Sequence[TimedWord], group_size: int) -> tuple[SubtitleC
     cues: list[SubtitleCue] = []
     for index, offset in enumerate(range(0, len(units), group_size), start=1):
         batch = units[offset : offset + group_size]
-        if not batch:
+        if not batch:  # pragma: no cover
             continue
         cues.append(
             SubtitleCue(

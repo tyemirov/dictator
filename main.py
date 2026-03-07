@@ -131,5 +131,5 @@ def main() -> None:
             temp_ref_wav.unlink(missing_ok=True)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()
