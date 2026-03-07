@@ -8,7 +8,7 @@ from google.protobuf.json_format import MessageToDict
 
 from dictator.alignment.models import AlignTranscriptResult, AlignedWord
 from dictator.alignment.srt import build_srt
-from dictator.client import DiarizationClient, DictationClient
+from dictator.client import DiarizationClient, DictationClient, SubtitleClient
 from dictator.diarization.models import (
     DiarizeAudioResult,
     DiarizedUtterance,
@@ -381,6 +381,22 @@ class GrpcTransportIntegrationTests(unittest.TestCase):
         self.assertEqual(result.language_code, "en")
         self.assertEqual(result.diarization["utterances"][0]["speaker"], "S1")
         self.assertTrue(result.diarization_artifact_id)
+
+    def test_subtitle_client_returns_grouped_srt_payload(self):
+        client = SubtitleClient(self.channel, metadata=self._auth_metadata, chunk_bytes=2)
+        result = client.render_bytes(
+            b"abcdef",
+            filename="audio.webm",
+            autodetect_language=True,
+            granularity="words",
+            group_size=2,
+            include_srt_text=True,
+        )
+        self.assertEqual(result.mode, "transcription")
+        self.assertEqual(result.language_code, "en")
+        self.assertEqual(result.cues[0]["content"], "hello world")
+        self.assertIn("hello world", result.srt_text)
+        self.assertTrue(result.srt_artifact_id)
 
     def test_render_subtitles_uses_alignment_when_source_text_is_present(self):
         artifact_id = self._upload_artifact("sample.wav", b"abcdef")

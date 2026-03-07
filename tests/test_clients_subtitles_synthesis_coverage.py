@@ -10,10 +10,10 @@ from unittest.mock import Mock, patch
 sys.modules.setdefault("ffmpeg", types.SimpleNamespace())
 sys.modules.setdefault("torch", types.SimpleNamespace(cuda=types.SimpleNamespace(is_available=lambda: False)))
 
-from dictator.client.diarization import DiarizationClient
-from dictator.client.dictation import DictationClient
+from dictator.client import DiarizationClient, DictationClient, SubtitleClient, SubtitleResult
 from dictator.diarization.models import DiarizeAudioResult, DiarizedUtterance, DiarizedWord, SpeakerSegment, SpeakerSummary
 from dictator.runtime import ProcessingError, ValidationError
+from dictator.speech.v1 import subtitle_pb2
 from dictator.subtitles.models import RenderSubtitlesRequest, TimedWord
 from dictator.subtitles.service import (
     SubtitleService,
@@ -43,6 +43,16 @@ class _TranscriptionStub:
         return self.response
 
     def DiarizeAudio(self, request, metadata=()):
+        self.calls.append((request, metadata))
+        return self.response
+
+
+class _SubtitleStub:
+    def __init__(self, response):
+        self.response = response
+        self.calls = []
+
+    def RenderSubtitles(self, request, metadata=()):
         self.calls.append((request, metadata))
         return self.response
 
@@ -120,6 +130,110 @@ class ClientsSubtitlesSynthesisCoverageTests(unittest.TestCase):
         self.assertEqual(result.source_artifact_id, "artifact-2")
         self.assertEqual(diarization_stub.calls[0][0].utterance_gap_seconds, 0.25)
         self.assertEqual(result.diarization_artifact_id, "json-1")
+
+        subtitle_response = types.SimpleNamespace(
+            language_code="en",
+            mode=subtitle_pb2.SUBTITLE_MODE_FORCED_ALIGNMENT,
+            group_size=2,
+            srt_artifact_id="srt-1",
+            srt_text="1\n00:00:00,000 --> 00:00:00,400\nhello world\n",
+            cues=[types.SimpleNamespace(content="hello world", start_seconds=0.0, end_seconds=0.4, item_count=2)],
+        )
+        subtitle_stub = _SubtitleStub(subtitle_response)
+        with (
+            patch("dictator.client.subtitles.artifacts_pb2_grpc.ArtifactServiceStub", return_value=_ArtifactStub()),
+            patch("dictator.client.subtitles.subtitle_pb2_grpc.SubtitleServiceStub", return_value=subtitle_stub),
+            patch(
+                "dictator.client.subtitles.upload_audio_artifact",
+                return_value=types.SimpleNamespace(artifact_id="artifact-3"),
+            ),
+        ):
+            client = SubtitleClient(channel=object())
+            with tempfile.TemporaryDirectory() as tmpdir:
+                audio = Path(tmpdir) / "audio.wav"
+                transcript = Path(tmpdir) / "transcript.txt"
+                audio.write_bytes(b"audio")
+                transcript.write_text("hello world", encoding="utf-8")
+                result = client.render_file(
+                    audio,
+                    autodetect_language=True,
+                    granularity="sentences",
+                    group_size=2,
+                    source_text_file=transcript,
+                )
+        self.assertEqual(
+            result,
+            SubtitleResult(
+                language_code="en",
+                mode="forced_alignment",
+                granularity="sentences",
+                group_size=2,
+                source_artifact_id="artifact-3",
+                srt_artifact_id="srt-1",
+                srt_text="1\n00:00:00,000 --> 00:00:00,400\nhello world\n",
+                cues=(
+                    {
+                        "content": "hello world",
+                        "start": 0.0,
+                        "end": 0.4,
+                        "itemCount": 2,
+                    },
+                ),
+            ),
+        )
+        request = subtitle_stub.calls[0][0]
+        self.assertEqual(request.granularity, subtitle_pb2.SUBTITLE_GRANULARITY_SENTENCES)
+        self.assertEqual(request.source_text, "hello world")
+        self.assertEqual(request.source_text_name, "transcript.txt")
+
+        subtitle_response.mode = subtitle_pb2.SUBTITLE_MODE_TRANSCRIPTION
+        with (
+            patch("dictator.client.subtitles.artifacts_pb2_grpc.ArtifactServiceStub", return_value=_ArtifactStub()),
+            patch("dictator.client.subtitles.subtitle_pb2_grpc.SubtitleServiceStub", return_value=subtitle_stub),
+            patch(
+                "dictator.client.subtitles.upload_audio_artifact",
+                return_value=types.SimpleNamespace(artifact_id="artifact-4"),
+            ),
+        ):
+            client = SubtitleClient(channel=object())
+            result = client.render_bytes(
+                b"audio",
+                language_code="en",
+                autodetect_language=False,
+                source_text="inline",
+                source_text_name="inline.txt",
+                include_srt_text=False,
+            )
+        self.assertEqual(result.mode, "transcription")
+        request = subtitle_stub.calls[-1][0]
+        self.assertEqual(request.granularity, subtitle_pb2.SUBTITLE_GRANULARITY_WORDS)
+        self.assertEqual(request.source_text_name, "inline.txt")
+        self.assertFalse(request.include_srt_text)
+
+        self.assertEqual(
+            SubtitleClient._resolve_source_text(
+                source_text="inline",
+                source_text_file=None,
+                source_text_name="",
+            ),
+            ("inline", "transcript.txt"),
+        )
+        self.assertEqual(
+            SubtitleClient._resolve_granularity("words"),
+            subtitle_pb2.SUBTITLE_GRANULARITY_WORDS,
+        )
+        self.assertEqual(
+            SubtitleClient._resolve_mode(subtitle_pb2.SUBTITLE_MODE_FORCED_ALIGNMENT),
+            "forced_alignment",
+        )
+        with self.assertRaisesRegex(ValueError, "granularity"):
+            SubtitleClient._resolve_granularity("paragraphs")
+        with self.assertRaisesRegex(ValueError, "cannot both be set"):
+            SubtitleClient._resolve_source_text(
+                source_text="inline",
+                source_text_file=Path("transcript.txt"),
+                source_text_name="",
+            )
 
     def test_diarization_models_subtitle_helpers_and_render_errors(self):
         word = DiarizedWord("hello", 0.0, 0.4, "S1")
