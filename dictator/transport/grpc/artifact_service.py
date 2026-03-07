@@ -12,6 +12,8 @@ class ArtifactServiceServicer(BaseServicer, artifacts_pb2_grpc.ArtifactServiceSe
     def UploadArtifact(self, request_iterator, context):
         with self._request_scope(context):
             payload_size = 0
+            reservation = None
+            finalised = False
             iterator = iter(request_iterator)
             try:
                 first_chunk = next(iterator)
@@ -30,20 +32,25 @@ class ArtifactServiceServicer(BaseServicer, artifacts_pb2_grpc.ArtifactServiceSe
                 metadata_message.filename,
                 media_type=metadata_message.media_type,
             )
-            with reservation.path.open("wb") as handle:
-                for chunk in iterator:
-                    payload_type = chunk.WhichOneof("payload")
-                    if payload_type != "content":
-                        raise ValidationError(
-                            "dictator.grpc.artifact.invalid_chunk",
-                            "upload content chunks cannot contain metadata",
-                        )
-                    handle.write(chunk.content)
-                    payload_size += len(chunk.content)
-            if payload_size:
-                self.service_context.metrics.record_bytes(payload_size)
-            record = self.service_context.artifact_store.finalize_artifact(reservation)
-            return artifacts_pb2.UploadArtifactResponse(artifact=self._artifact_ref(record))
+            try:
+                with reservation.path.open("wb") as handle:
+                    for chunk in iterator:
+                        payload_type = chunk.WhichOneof("payload")
+                        if payload_type != "content":
+                            raise ValidationError(
+                                "dictator.grpc.artifact.invalid_chunk",
+                                "upload content chunks cannot contain metadata",
+                            )
+                        handle.write(chunk.content)
+                        payload_size += len(chunk.content)
+                if payload_size:
+                    self.service_context.metrics.record_bytes(payload_size)
+                record = self.service_context.artifact_store.finalize_artifact(reservation)
+                finalised = True
+                return artifacts_pb2.UploadArtifactResponse(artifact=self._artifact_ref(record))
+            finally:
+                if reservation is not None and not finalised:
+                    self.service_context.artifact_store.discard_reservation(reservation)
 
     def DownloadArtifact(self, request, context):
         with self._request_scope(context):
