@@ -79,6 +79,12 @@ The repo now includes a containerized gRPC service runtime with the required sys
 docker build -t dictator:local .
 ```
 
+### Build GPU Image
+
+```bash
+docker build -f Dockerfile.gpu -t dictator:gpu .
+```
+
 ### Run with Compose
 
 Create `.env` from `.env.example`, then start the service:
@@ -89,6 +95,14 @@ cp .env.example .env
 # set HF_TOKEN as well if you need diarization / speaker extraction
 
 docker compose up --build
+```
+
+### Run with Compose on CUDA
+
+This requires a host GPU plus the NVIDIA Container Toolkit so Docker can pass the device through.
+
+```bash
+docker compose -f compose.yml -f compose.gpu.yml up --build
 ```
 
 The container starts the gRPC server with:
@@ -104,7 +118,8 @@ The compose setup mounts persistent caches for Hugging Face, Whisper, and Torch 
 * The provided image is CPU-oriented. It includes the service prerequisites and will start the server, but heavy transcription/alignment/TTS workloads will be slow without GPU acceleration.
 * The container installs CPU `torch` / `torchaudio` wheels explicitly so it does not pull CUDA runtimes into a CPU deployment.
 * `HF_TOKEN` should be present in `.env` if you want pyannote diarization and archival speaker extraction to download gated Hugging Face models on first run.
-* For GPU deployment, use a CUDA-capable base/runtime and install the matching Torch wheel set for that CUDA version.
+* `Dockerfile.gpu` installs the CUDA 12.8 Torch wheel set and is intended to run with `compose.gpu.yml`.
+* The GPU container still uses Python 3.11.8. The host provides the actual NVIDIA device through Docker; without that runtime integration, the image will build but CUDA execution will not be available.
 
 ---
 

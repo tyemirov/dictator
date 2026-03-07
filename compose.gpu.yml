@@ -1,0 +1,15 @@
+services:
+  dictator:
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+      args:
+        TORCH_VERSION: "2.8.0"
+        TORCHAUDIO_VERSION: "2.8.0"
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cu128
+    image: dictator:gpu
+    container_name: dictator-gpu
+    gpus: all
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
