@@ -4,6 +4,7 @@ from .errors import DependencyError, DictatorError, ProcessingError, ServiceRequ
 from .inflight import InflightLimiter
 from .metrics import MetricsRegistry, MetricsSnapshot
 from .service_runtime import SpeechExecutionRuntime
+from .timeouts import run_with_timeout
 
 __all__ = [
     "DependencyError",
@@ -12,6 +13,7 @@ __all__ = [
     "MetricsRegistry",
     "MetricsSnapshot",
     "SpeechExecutionRuntime",
+    "run_with_timeout",
     "ProcessingError",
     "ServiceRequestError",
     "ValidationError",

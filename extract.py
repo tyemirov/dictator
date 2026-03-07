@@ -10,13 +10,10 @@ Whisper speech-clip extractor limited to the dominant speaker.
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
 from datetime import timedelta
 import logging
-import signal
 import sys
 from pathlib import Path
-from typing import Iterator
 
 from dictator.audio.ffmpeg_ops import decode_pcm, trim_and_normalise
 from dictator.extraction import (
@@ -40,26 +37,9 @@ from dictator.extraction import (
     spectral_centroid,
 )
 from dictator.extraction.service import timed
+from dictator.runtime import run_with_timeout
 from dictator.transcription.service import load_whisper_model, transcribe_words
 from duration import parse_duration
-
-
-@contextmanager
-def timeout(seconds: int, task_name: str) -> Iterator[None]:
-    if seconds <= 0:
-        yield
-        return
-
-    def _timeout_handler(_sig, _frame):
-        raise TimeoutError(f"{task_name} exceeded {seconds}s")
-
-    previous_handler = signal.signal(signal.SIGALRM, _timeout_handler)
-    signal.alarm(seconds)
-    try:
-        yield
-    finally:
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, previous_handler)
 
 
 def main() -> None:
@@ -111,8 +91,7 @@ def main() -> None:
         if input(f"{args.output} exists. Overwrite? [y/N]: ").lower() != "y":
             sys.exit(0)
 
-    with timeout(args.timeouts[0], "decode"):
-        pcm = decode_pcm(args.input)
+    pcm = run_with_timeout(args.timeouts[0], "decode", decode_pcm, args.input)
     total_track_seconds = len(pcm) / SAMPLE_RATE
     logging.info("Track length %s", timedelta(seconds=int(total_track_seconds)))
 
@@ -126,14 +105,16 @@ def main() -> None:
             log_progress.last_logged = percent
 
     log_progress.last_logged = 0
-    with timeout(args.timeouts[1], "transcription"):
-        with timed("transcribe"):
-            raw_words = transcribe_words(
-                pcm,
-                language=args.language,
-                model=model,
-                progress_cb=log_progress,
-            )
+    with timed("transcribe"):
+        raw_words = run_with_timeout(
+            args.timeouts[1],
+            "transcription",
+            transcribe_words,
+            pcm,
+            language=args.language,
+            model=model,
+            progress_cb=log_progress,
+        )
     if not raw_words:
         raise RuntimeError("no words transcribed")
 
@@ -163,14 +144,16 @@ def main() -> None:
         timedelta(seconds=round(trim_end)),
     )
 
-    with timeout(args.timeouts[2], "trim"):
-        with timed("trim"):
-            max_volume_str, gain_db = trim_and_normalise(
-                args.input,
-                args.output,
-                trim_start,
-                trim_end - trim_start,
-            )
+    with timed("trim"):
+        max_volume_str, gain_db = run_with_timeout(
+            args.timeouts[2],
+            "trim",
+            trim_and_normalise,
+            args.input,
+            args.output,
+            trim_start,
+            trim_end - trim_start,
+        )
     logging.info("peak %s dBFS, applying %+0.1f dB gain", max_volume_str, gain_db)
     logging.info("saved -> %s", args.output)
 

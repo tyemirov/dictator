@@ -7,6 +7,7 @@ import grpc
 
 from dictator.alignment.models import AlignTranscriptResult, AlignedWord
 from dictator.alignment.srt import build_srt
+from dictator.client import DictationClient
 from dictator.runtime import InflightLimiter, MetricsRegistry
 from dictator.speech.v1 import (
     alignment_pb2,
@@ -214,6 +215,19 @@ class GrpcTransportIntegrationTests(unittest.TestCase):
             exc.exception.code(),
             {grpc.StatusCode.DEADLINE_EXCEEDED, grpc.StatusCode.CANCELLED},
         )
+
+    def test_dictation_client_returns_llm_proxy_shape(self):
+        client = DictationClient(self.channel, metadata=self._auth_metadata, chunk_bytes=2)
+        result = client.dictate_bytes(
+            b"abcdef",
+            filename="audio.webm",
+            model_size="base",
+            language_code="en",
+            include_word_segments=True,
+        )
+        self.assertEqual(result.text, "hello world")
+        self.assertEqual(result.to_http_payload(), {"text": "hello world"})
+        self.assertEqual([word["content"] for word in result.words], ["hello", "world"])
 
 
 if __name__ == "__main__":
