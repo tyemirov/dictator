@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package dictator.speech.v1;
+
+service RuntimeService {
+  rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);
+}
+
+message GetMetricsRequest {}
+
+message GetMetricsResponse {
+  int64 requests_total = 1;
+  int64 requests_succeeded = 2;
+  int64 requests_failed = 3;
+  int64 inflight = 4;
+  int64 bytes_received = 5;
+  double uptime_seconds = 6;
+  double average_latency_seconds = 7;
+  double max_latency_seconds = 8;
+}

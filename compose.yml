@@ -1,0 +1,24 @@
+services:
+  dictator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dictator:local
+    container_name: dictator
+    restart: unless-stopped
+    ports:
+      - "50051:50051"
+    volumes:
+      - ./config.yml:/app/config.yml:ro
+      - ./.env:/app/.env:ro
+      - dictator-artifacts:/app/.dictator-artifacts
+      - huggingface-cache:/home/app/.cache/huggingface
+      - whisper-cache:/home/app/.cache/whisper
+      - torch-cache:/home/app/.cache/torch
+    command: ["python", "serve.py", "--config", "/app/config.yml", "--env-file", "/app/.env"]
+
+volumes:
+  dictator-artifacts:
+  huggingface-cache:
+  whisper-cache:
+  torch-cache:

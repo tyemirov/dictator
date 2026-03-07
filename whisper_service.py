@@ -1,61 +1,68 @@
+"""Compatibility wrapper for the packaged Whisper transcription service."""
+
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Optional, Union, Callable
-
-import numpy as np
-import torch
+from typing import Optional
 
 
 def load_whisper_model(model_size: str = "base"):
-    """Load a Whisper model on CPU or GPU depending on availability."""
-    import whisper
+    from dictator.transcription.service import load_whisper_model as _load_whisper_model
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    return whisper.load_model(
-        model_size,
-        device=device,
-        download_root=str(Path.home() / ".cache" / "whisper"),
+    return _load_whisper_model(model_size)
+
+
+def transcribe_word_segments(
+    audio,
+    language: Optional[str] = None,
+    model: Optional[object] = None,
+    progress_cb=None,
+):
+    from dictator.transcription.service import transcribe_word_segments as _transcribe_word_segments
+
+    return _transcribe_word_segments(
+        audio,
+        language=language,
+        model=model,
+        progress_cb=progress_cb,
     )
 
 
 def transcribe_words(
-    audio: Union[Path, np.ndarray],
+    audio,
     language: Optional[str] = None,
     model: Optional[object] = None,
-    progress_cb: Optional[Callable[[float], None]] = None,
-) -> List[Dict]:
-    """Transcribe ``audio`` and return word-level timestamps.
+    progress_cb=None,
+):
+    from dictator.transcription.service import transcribe_words as _transcribe_words
 
-    ``audio`` may be a file :class:`Path` or a numpy ``ndarray`` of int16 PCM
-    samples. If ``model`` is ``None`` a base Whisper model is loaded.
-    ``progress_cb`` is called with each segment's end time in seconds.
-    """
-    if model is None:
-        model = load_whisper_model("base")
+    return _transcribe_words(
+        audio,
+        language=language,
+        model=model,
+        progress_cb=progress_cb,
+    )
 
-    if isinstance(audio, Path):
-        audio_input = str(audio)
-    else:
-        if audio.size == 0:
-            raise ValueError("audio array is empty")
-        audio_input = audio.astype(np.float32) / 32768
 
-    kwargs = {"word_timestamps": True, "verbose": False}
-    if language is not None:
-        kwargs["language"] = language
-    result = model.transcribe(audio_input, **kwargs)
+def transcribe_text(
+    audio,
+    language: Optional[str] = None,
+    model: Optional[object] = None,
+    progress_cb=None,
+) -> str:
+    from dictator.transcription.service import transcribe_text as _transcribe_text
 
-    words: List[Dict] = []
-    for segment in result.get("segments", []):
-        if progress_cb and "end" in segment:
-            progress_cb(segment["end"])
-        for word in segment.get("words", []):
-            words.append(
-                {
-                    "content": word.get("word", "").strip(),
-                    "start": word.get("start"),
-                    "end": word.get("end"),
-                }
-            )
-    return words
+    return _transcribe_text(
+        audio,
+        language=language,
+        model=model,
+        progress_cb=progress_cb,
+    )
+
+
+__all__ = [
+    "load_whisper_model",
+    "transcribe_text",
+    "transcribe_word_segments",
+    "transcribe_words",
+]

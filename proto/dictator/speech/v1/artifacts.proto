@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package dictator.speech.v1;
+
+import "dictator/speech/v1/common.proto";
+
+service ArtifactService {
+  rpc UploadArtifact(stream UploadArtifactChunk) returns (UploadArtifactResponse);
+  rpc DownloadArtifact(DownloadArtifactRequest) returns (stream DownloadArtifactChunk);
+}
+
+message UploadArtifactMetadata {
+  string filename = 1;
+  string media_type = 2;
+}
+
+message UploadArtifactChunk {
+  oneof payload {
+    UploadArtifactMetadata metadata = 1;
+    bytes content = 2;
+  }
+}
+
+message UploadArtifactResponse {
+  ArtifactRef artifact = 1;
+}
+
+message DownloadArtifactRequest {
+  string artifact_id = 1;
+  int64 chunk_size = 2;
+}
+
+message DownloadArtifactChunk {
+  ArtifactRef artifact = 1;
+  bytes content = 2;
+  int64 offset = 3;
+  bool eof = 4;
+}

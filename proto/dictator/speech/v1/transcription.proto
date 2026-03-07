@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package dictator.speech.v1;
+
+import "dictator/speech/v1/common.proto";
+import "google/protobuf/struct.proto";
+
+service TranscriptionService {
+  rpc Transcribe(TranscribeRequest) returns (TranscribeResponse);
+  rpc DiarizeAudio(DiarizeAudioRequest) returns (DiarizeAudioResponse);
+}
+
+message TranscribeRequest {
+  string audio_artifact_id = 1;
+  string language_code = 2;
+  string model_size = 3;
+  bool include_word_segments = 4;
+  bool autodetect_language = 5;
+}
+
+message TranscribeResponse {
+  string text = 1;
+  string language_code = 2;
+  repeated WordSegment words = 3;
+}
+
+message DiarizeAudioRequest {
+  string audio_artifact_id = 1;
+  string language_code = 2;
+  string model_size = 3;
+  bool include_words = 4;
+  bool include_utterances = 5;
+  bool include_speaker_segments = 6;
+  optional double utterance_gap_seconds = 7;
+  bool persist_json_artifact = 8;
+  bool include_speakers = 9;
+  bool autodetect_language = 10;
+}
+
+message DiarizeAudioResponse {
+  string text = 1;
+  string language_code = 2;
+  google.protobuf.Struct diarization = 3;
+  string diarization_artifact_id = 4;
+}

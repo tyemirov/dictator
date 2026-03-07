@@ -62,6 +62,87 @@ python main.py \
 
 Both scripts fall back to `"cpu"` if CUDA is missing. `main.py` on CPU will be **slow** – consider shorter texts.
 
+## Service Container
+
+The repo now includes a containerized gRPC service runtime with the required system packages:
+
+* Python 3.11.8
+* FFmpeg
+* `libsndfile`
+* `espeak-ng`
+* build tooling for Python wheels
+* Python packages from `requirements.txt`
+
+### Build
+
+```bash
+docker build -t dictator:local .
+```
+
+### Build GPU Image
+
+```bash
+docker build -f Dockerfile.gpu -t dictator:gpu .
+```
+
+### Run with Compose
+
+Create `.env` from `.env.example`, then start the service:
+
+```bash
+cp .env.example .env
+# edit .env and set DICTATOR_GRPC_AUTH_TOKEN
+# set HF_TOKEN as well if you need diarization / speaker extraction
+
+docker compose up --build
+```
+
+### Run with Compose on CUDA
+
+This requires a host GPU plus the NVIDIA Container Toolkit so Docker can pass the device through.
+
+```bash
+docker compose -f compose.yml -f compose.gpu.yml up --build
+```
+
+The container starts the gRPC server with:
+
+```bash
+python serve.py --config /app/config.yml --env-file /app/.env
+```
+
+The compose setup mounts persistent caches for Hugging Face, Whisper, and Torch models, plus `.dictator-artifacts` for generated service artifacts.
+
+### Notes
+
+* The provided image is CPU-oriented. It includes the service prerequisites and will start the server, but heavy transcription/alignment/TTS workloads will be slow without GPU acceleration.
+* The container installs CPU `torch` / `torchaudio` wheels explicitly so it does not pull CUDA runtimes into a CPU deployment.
+* `HF_TOKEN` should be present in `.env` if you want pyannote diarization and archival speaker extraction to download gated Hugging Face models on first run.
+* `Dockerfile.gpu` installs the CUDA 12.8 Torch wheel set and is intended to run with `compose.gpu.yml`.
+* The GPU container still uses Python 3.11.8. The host provides the actual NVIDIA device through Docker; without that runtime integration, the image will build but CUDA execution will not be available.
+
+## Browser Voice Clone Demo
+
+The repo includes a browser example that records a short voice sample, calls the Dictator gRPC API through a small local HTTP bridge, and downloads a WAV of Genesis 1:1-10 read back in the user's cloned voice.
+
+Run the example after Dictator is already up:
+
+```bash
+python -m examples.voice_clone_web.app --host 127.0.0.1 --port 8080
+```
+
+Then open `http://127.0.0.1:8080` and provide:
+
+* `Dictator gRPC URL`, for example `localhost:50051` or `https://your-host:443`
+* `Auth Token`, matching `DICTATOR_GRPC_AUTH_TOKEN`
+* `Language Code`, usually `en`
+
+The page asks the user to read:
+
+> The quick brown fox jumped over the lazy dog. Eleven benevolent elephants balanced on bright blue bicycles.
+
+Example-specific notes live in [examples/voice_clone_web/README.md](./examples/voice_clone_web/README.md).
+
 ---
 
 ## Folder layout

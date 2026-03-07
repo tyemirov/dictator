@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package dictator.speech.v1;
+
+service SubtitleService {
+  rpc RenderSubtitles(RenderSubtitlesRequest) returns (RenderSubtitlesResponse);
+}
+
+enum SubtitleFormat {
+  SUBTITLE_FORMAT_UNSPECIFIED = 0;
+  SUBTITLE_FORMAT_SRT = 1;
+}
+
+enum SubtitleGranularity {
+  SUBTITLE_GRANULARITY_UNSPECIFIED = 0;
+  SUBTITLE_GRANULARITY_WORDS = 1;
+  SUBTITLE_GRANULARITY_SENTENCES = 2;
+}
+
+enum SubtitleMode {
+  SUBTITLE_MODE_UNSPECIFIED = 0;
+  SUBTITLE_MODE_TRANSCRIPTION = 1;
+  SUBTITLE_MODE_FORCED_ALIGNMENT = 2;
+}
+
+message SubtitleCue {
+  string content = 1;
+  double start_seconds = 2;
+  double end_seconds = 3;
+  int32 item_count = 4;
+}
+
+message RenderSubtitlesRequest {
+  string audio_artifact_id = 1;
+  string language_code = 2;
+  bool autodetect_language = 3;
+  string model_size = 4;
+  SubtitleFormat output_format = 5;
+  SubtitleGranularity granularity = 6;
+  int32 group_size = 7;
+  oneof source_text_source {
+    string source_text = 8;
+    string source_text_artifact_id = 9;
+  }
+  string source_text_name = 10;
+  bool include_srt_text = 11;
+}
+
+message RenderSubtitlesResponse {
+  string language_code = 1;
+  SubtitleMode mode = 2;
+  SubtitleFormat output_format = 3;
+  SubtitleGranularity granularity = 4;
+  int32 group_size = 5;
+  repeated SubtitleCue cues = 6;
+  string srt_text = 7;
+  string srt_artifact_id = 8;
+}

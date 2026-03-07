@@ -1,212 +1,45 @@
 #!/usr/bin/env python3
 """
-Whisper GPU speech-clip extractor, limited to the single dominant speaker.
-• Outputs 24 kHz mono WAV, peak-normalised to –1 dBFS.
-• Picks the window (default 20 s) where the dominant speaker speaks most.
-• Uses pyannote.audio’s pretrained speaker-diarization pipeline on GPU if available.
+Whisper speech-clip extractor limited to the dominant speaker.
+
+- Outputs 24 kHz mono WAV, peak-normalised to -1 dBFS
+- Picks the window where the dominant speaker speaks most cleanly
+- Uses pyannote speaker diarization when available
 """
 
 from __future__ import annotations
 
 import argparse
-import logging
-import signal
-import sys
-import time
-import re
-import warnings
-from collections import Counter
-from contextlib import contextmanager
 from datetime import timedelta
+import logging
+import sys
 from pathlib import Path
-from typing import Iterator, List, Dict, Optional
 
-import ffmpeg
-import numpy as np
-import torch
-import librosa
-from whisper_service import load_whisper_model, transcribe_words
-
-torch.backends.cuda.matmul.allow_tf32 = True
-torch.backends.cudnn.allow_tf32 = True
-
-warnings.filterwarnings(
-    "ignore",
-    category=UserWarning,
-    module="pyannote.audio.utils.reproducibility",
+from dictator.audio.ffmpeg_ops import decode_pcm, trim_and_normalise
+from dictator.extraction import (
+    DIARIZATION_MODEL,
+    MAX_CENTROID_HZ,
+    MAX_SPEECH_RATE,
+    MIN_CENTROID_HZ,
+    POST_ROLL_SEC,
+    PRE_ROLL_SEC,
+    PUBLIC_SIZES,
+    SAMPLE_RATE,
+    STRIDE_SEC,
+    TARGET_SR,
+    WIN_SEC,
+    apply_diarization_filter,
+    choose_window,
+    compute_trim_bounds,
+    load_diarization_pipeline,
+    pitch_variation,
+    snr,
+    spectral_centroid,
 )
-warnings.filterwarnings("ignore", category=UserWarning, module="torchaudio._backend")
-warnings.filterwarnings(
-    "ignore", message=".*torchaudio._backend.list_audio_backends.*"
-)
-
-from pyannote.audio import Pipeline
+from dictator.extraction.service import timed
+from dictator.runtime import run_with_timeout
+from dictator.transcription.service import load_whisper_model, transcribe_words
 from duration import parse_duration
-
-SAMPLE_RATE = 16_000
-TARGET_SR = 24_000
-WIN_SEC = 20.0
-STRIDE_SEC = 1.0
-MAX_SPEECH_RATE = 4.0
-MAX_CENTROID_HZ = 4_000  # skip overly bright segments
-MIN_CENTROID_HZ = 500    # skip overly muffled segments
-PUBLIC_SIZES = {"tiny", "base", "small", "medium", "large-v2", "large-v3"}
-DIARIZATION_MODEL = "pyannote/speaker-diarization@2.1"
-PRE_ROLL_SEC = 0.2
-POST_ROLL_SEC = 0.2
-
-
-@contextmanager
-def timed(tag: str) -> Iterator[None]:
-    t0 = time.perf_counter()
-    logging.info("START %s", tag)
-    yield
-    logging.info("DONE  %s  (Δ = %.1fs)", tag, time.perf_counter() - t0)
-
-
-@contextmanager
-def timeout(seconds: int, task_name: str) -> Iterator[None]:
-    if seconds <= 0:
-        yield
-        return
-
-    def _timeout_handler(_sig, _frame):
-        raise TimeoutError(f"{task_name} exceeded {seconds}s")
-
-    previous_handler = signal.signal(signal.SIGALRM, _timeout_handler)
-    signal.alarm(seconds)
-    try:
-        yield
-    finally:
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, previous_handler)
-
-
-def decode_pcm(source_path: Path) -> np.ndarray:
-    buffer, _ = (
-        ffmpeg.input(str(source_path))
-        .output("pipe:", format="s16le", ac=1, ar=SAMPLE_RATE)
-        .run(quiet=True, capture_stdout=True, capture_stderr=True)
-    )
-    return np.frombuffer(buffer, dtype=np.int16)
-
-
-def spectral_centroid(samples: np.ndarray) -> float:
-    spec = np.abs(np.fft.rfft(samples.astype(float)))
-    if spec.sum() == 0:
-        return 0.0
-    freqs = np.fft.rfftfreq(len(samples), 1 / SAMPLE_RATE)
-    return float((spec * freqs).sum() / spec.sum())
-
-
-def snr(samples: np.ndarray) -> float:
-    samples_float = samples.astype(float)
-    noise_floor = np.percentile(np.abs(samples_float), 20)
-    return samples_float.std() / (noise_floor + 1e-6)
-
-
-def pitch_variation(samples: np.ndarray) -> float:
-    """Estimate RMS energy spread for a window.
-
-    Uses librosa to compute frame-wise RMS and returns the standard
-    deviation, which serves as a proxy for dynamic range.
-    """
-    y = samples.astype(float) / 32768.0
-    rms = librosa.feature.rms(y=y)
-    return float(rms.std())
-
-
-
-
-def load_diarization_pipeline() -> Pipeline:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    with timed("load_diarization_pipeline"):
-        pipeline = Pipeline.from_pretrained(DIARIZATION_MODEL)
-        pipeline.to(device)
-        return pipeline
-
-
-def apply_diarization_filter(
-        words: List[Dict],
-        diarization_pipeline: Pipeline,
-        audio_file: Path,
-) -> List[Dict]:
-    with timed("prepare_diarization_audio"):
-        samples = decode_pcm(audio_file).astype(np.float32) / 32768.0
-        waveform = torch.from_numpy(samples).unsqueeze(0)
-    with timed("diarization"):
-        diarization_result = diarization_pipeline({
-            "uri": audio_file.stem,
-            "waveform": waveform,
-            "sample_rate": SAMPLE_RATE,
-        })
-    speaker_durations = Counter()
-    for turn, _, speaker_label in diarization_result.itertracks(yield_label=True):
-        speaker_durations[speaker_label] += (turn.end - turn.start)
-    if not speaker_durations:
-        logging.warning("no speakers detected")
-        raise RuntimeError("no speakers detected")
-    dominant_speaker = speaker_durations.most_common(1)[0][0]
-    logging.info("dominant speaker: %s", dominant_speaker)
-    filtered_words: List[Dict] = []
-    for word in words:
-        word_start = word["start"]
-        for turn, _, speaker_label in diarization_result.itertracks(yield_label=True):
-            if turn.start <= word_start < turn.end:
-                if speaker_label == dominant_speaker:
-                    word["speaker"] = speaker_label
-                    filtered_words.append(word)
-                break
-    if not filtered_words:
-        raise RuntimeError("no words from dominant speaker")
-    return filtered_words
-
-
-def choose_window(
-        pcm_array: np.ndarray,
-        speaker_words: List[Dict],
-        duration: float,
-        max_speech_rate: float = MAX_SPEECH_RATE,
-        max_centroid: float = MAX_CENTROID_HZ,
-        min_centroid: float = MIN_CENTROID_HZ,
-) -> float:
-    """Return the start time of the highest-quality window.
-
-    Windows are skipped if their spectral centroid lies outside ``min_centroid``
-    and ``max_centroid`` to avoid overly muffled or overly bright segments.
-    """
-    best_score, best_word_count, best_window_start = -1.0, -1, 0.0
-    track_length = len(pcm_array) / SAMPLE_RATE
-    if duration > track_length:
-        raise RuntimeError(
-            f"requested duration {duration:.1f}s exceeds track length {track_length:.1f}s"
-        )
-    with timed("window_search"):
-        position = 0.0
-        while position + duration <= track_length:
-            chunk = pcm_array[int(position * SAMPLE_RATE):int((position + duration) * SAMPLE_RATE)]
-            centroid = spectral_centroid(chunk)
-            if centroid > max_centroid or centroid < min_centroid:
-                position += STRIDE_SEC
-                continue
-            words_in_window = [w for w in speaker_words if position <= w["start"] < position + duration]
-            word_count = len(words_in_window)
-            if word_count == 0:
-                position += STRIDE_SEC
-                continue
-            if word_count / duration > max_speech_rate:
-                position += STRIDE_SEC
-                continue
-            variation = pitch_variation(chunk)
-            quality_score = snr(chunk) * (1.0 + variation)
-            score = word_count * quality_score
-            if score > best_score:
-                best_score, best_word_count, best_window_start = score, word_count, position
-            position += STRIDE_SEC
-    if best_score < 0:
-        raise RuntimeError("no suitable window found")
-    logging.info("chosen window: %d words, score %.2f", best_word_count, best_score)
-    return best_window_start
 
 
 def main() -> None:
@@ -248,18 +81,20 @@ def main() -> None:
     )
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
+
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s │ %(levelname)-8s │ %(message)s",
+        format="%(asctime)s | %(levelname)-8s | %(message)s",
         datefmt="%H:%M:%S",
     )
     if args.output.exists() and not args.force:
         if input(f"{args.output} exists. Overwrite? [y/N]: ").lower() != "y":
             sys.exit(0)
-    with timeout(args.timeouts[0], "decode"):
-        pcm = decode_pcm(args.input)
+
+    pcm = run_with_timeout(args.timeouts[0], "decode", decode_pcm, args.input)
     total_track_seconds = len(pcm) / SAMPLE_RATE
     logging.info("Track length %s", timedelta(seconds=int(total_track_seconds)))
+
     diarization_pipeline = load_diarization_pipeline()
     model = load_whisper_model(args.model)
 
@@ -270,16 +105,19 @@ def main() -> None:
             log_progress.last_logged = percent
 
     log_progress.last_logged = 0
-    with timeout(args.timeouts[1], "transcription"):
-        with timed("transcribe"):
-            raw_words = transcribe_words(
-                pcm,
-                language=args.language,
-                model=model,
-                progress_cb=log_progress,
-            )
+    with timed("transcribe"):
+        raw_words = run_with_timeout(
+            args.timeouts[1],
+            "transcription",
+            transcribe_words,
+            pcm,
+            language=args.language,
+            model=model,
+            progress_cb=log_progress,
+        )
     if not raw_words:
         raise RuntimeError("no words transcribed")
+
     dominant_speaker_words = apply_diarization_filter(raw_words, diarization_pipeline, args.input)
     window_start = choose_window(
         pcm,
@@ -291,59 +129,34 @@ def main() -> None:
     )
     window_end = window_start + args.duration
     logging.info(
-        "window %s → %s",
+        "window %s -> %s",
         timedelta(seconds=round(window_start)),
         timedelta(seconds=round(window_end)),
     )
+
     window_words = [
-        w for w in dominant_speaker_words if window_start <= w["start"] < window_end
+        word for word in dominant_speaker_words if window_start <= float(word["start"]) < window_end
     ]
-    window_words.sort(key=lambda w: w["start"])
-    if not window_words:
-        raise RuntimeError("no words found in chosen window")
-    first_word_start = window_words[0]["start"]
-    last_word_end = window_words[-1]["end"]
-    trim_start = max(0.0, first_word_start - PRE_ROLL_SEC)
-    trim_end = min(total_track_seconds, last_word_end + POST_ROLL_SEC)
+    trim_start, trim_end = compute_trim_bounds(total_track_seconds, window_words)
     logging.info(
-        "trim %s → %s",
+        "trim %s -> %s",
         timedelta(seconds=round(trim_start)),
         timedelta(seconds=round(trim_end)),
     )
-    with timeout(args.timeouts[2], "trim"), timed("trim"):
-        trim_duration = trim_end - trim_start
-        _, err = (
-            ffmpeg.input(str(args.input), ss=trim_start, t=trim_duration)
-            .filter("aresample", str(TARGET_SR))
-            .filter("aformat", channel_layouts="mono")
-            .filter("volumedetect")
-            .output("-", f="null")
-            .run(capture_stdout=True, capture_stderr=True)
+
+    with timed("trim"):
+        max_volume_str, gain_db = run_with_timeout(
+            args.timeouts[2],
+            "trim",
+            trim_and_normalise,
+            args.input,
+            args.output,
+            trim_start,
+            trim_end - trim_start,
         )
-        match = re.search(r"max_volume:\s*(-?inf|-?\d+(?:\.\d+)?)\s*dB", err.decode())
-        if not match:
-            raise RuntimeError("volumedetect failed to find max_volume")
-        max_volume_str = match.group(1)
-        if max_volume_str == "-inf":
-            gain_db = 0.0
-        else:
-            max_volume_db = float(max_volume_str)
-            gain_db = -1.0 - max_volume_db
-        volume_factor = 10 ** (gain_db / 20)
-        logging.info(
-            "peak %s dBFS, applying %+0.1f dB gain",
-            max_volume_str,
-            gain_db,
-        )
-        (
-            ffmpeg.input(str(args.input), ss=trim_start, t=trim_duration)
-            .filter("volume", volume_factor)
-            .output(str(args.output), acodec="pcm_s16le", ac=1, ar=str(TARGET_SR))
-            .overwrite_output()
-            .run(quiet=True)
-        )
-    logging.info("✓ Saved → %s", args.output)
+    logging.info("peak %s dBFS, applying %+0.1f dB gain", max_volume_str, gain_db)
+    logging.info("saved -> %s", args.output)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

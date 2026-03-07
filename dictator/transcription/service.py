@@ -1,0 +1,200 @@
+"""Whisper-backed transcription helpers."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, Callable, Iterable, Optional
+
+import torch
+
+from .models import TranscriptionResult, WordSegment
+
+ProgressCallback = Callable[[float], None]
+AudioInput = Any
+ModelLoader = Callable[[str], object]
+
+
+def load_whisper_model(model_size: str = "base", cache_dir: Path | None = None):
+    """Load a Whisper model on CPU or GPU depending on availability."""
+    import whisper
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    download_root = cache_dir or (Path.home() / ".cache" / "whisper")
+    return whisper.load_model(
+        model_size,
+        device=device,
+        download_root=str(download_root),
+    )
+
+
+def _coerce_audio_input(audio: AudioInput) -> str | object:
+    if isinstance(audio, Path):
+        return str(audio)
+    import numpy as np
+
+    if audio.size == 0:
+        raise ValueError("audio array is empty")
+    return audio.astype(np.float32) / 32768.0
+
+
+def transcribe(
+    audio: AudioInput,
+    language: Optional[str] = None,
+    model: Optional[object] = None,
+    progress_cb: Optional[ProgressCallback] = None,
+) -> TranscriptionResult:
+    """Transcribe audio and return words with detected language metadata."""
+    if model is None:
+        model = load_whisper_model("base")
+
+    kwargs = {"word_timestamps": True, "verbose": False}
+    if language is not None:
+        kwargs["language"] = language
+    result = model.transcribe(_coerce_audio_input(audio), **kwargs)
+
+    words: list[WordSegment] = []
+    for segment in result.get("segments", []):
+        if progress_cb and "end" in segment:
+            progress_cb(segment["end"])
+        for word in segment.get("words", []):
+            words.append(
+                WordSegment(
+                    text=word.get("word", "").strip(),
+                    start_seconds=word.get("start"),
+                    end_seconds=word.get("end"),
+                )
+            )
+    detected_language = result.get("language")
+    if language is not None:
+        detected_language = language
+    return TranscriptionResult(
+        language=str(detected_language) if detected_language else None,
+        words=tuple(words),
+    )
+
+
+def transcribe_word_segments(
+    audio: AudioInput,
+    language: Optional[str] = None,
+    model: Optional[object] = None,
+    progress_cb: Optional[ProgressCallback] = None,
+) -> list[WordSegment]:
+    """Transcribe audio and return typed word segments."""
+    return list(
+        transcribe(
+            audio,
+            language=language,
+            model=model,
+            progress_cb=progress_cb,
+        ).words
+    )
+
+
+class TranscriptionService:
+    """Request-safe application service over Whisper transcription."""
+
+    def __init__(self, model_loader: ModelLoader | None = None) -> None:
+        self._model_loader = model_loader or load_whisper_model
+
+    def transcribe_word_segments(
+        self,
+        audio: AudioInput,
+        language: Optional[str] = None,
+        model_size: str = "base",
+        model: Optional[object] = None,
+        progress_cb: Optional[ProgressCallback] = None,
+    ) -> list[WordSegment]:
+        resolved_model = model or self._model_loader(model_size)
+        return transcribe_word_segments(
+            audio,
+            language=language,
+            model=resolved_model,
+            progress_cb=progress_cb,
+        )
+
+    def transcribe(
+        self,
+        audio: AudioInput,
+        language: Optional[str] = None,
+        model_size: str = "base",
+        model: Optional[object] = None,
+        progress_cb: Optional[ProgressCallback] = None,
+    ) -> TranscriptionResult:
+        resolved_model = model or self._model_loader(model_size)
+        return transcribe(
+            audio,
+            language=language,
+            model=resolved_model,
+            progress_cb=progress_cb,
+        )
+
+    def transcribe_words(
+        self,
+        audio: AudioInput,
+        language: Optional[str] = None,
+        model_size: str = "base",
+        model: Optional[object] = None,
+        progress_cb: Optional[ProgressCallback] = None,
+    ) -> list[dict[str, float | str | None]]:
+        return serialise_word_segments(
+            self.transcribe_word_segments(
+                audio,
+                language=language,
+                model_size=model_size,
+                model=model,
+                progress_cb=progress_cb,
+            )
+        )
+
+    def transcribe_text(
+        self,
+        audio: AudioInput,
+        language: Optional[str] = None,
+        model_size: str = "base",
+        model: Optional[object] = None,
+        progress_cb: Optional[ProgressCallback] = None,
+    ) -> str:
+        return self.transcribe(
+            audio,
+            language=language,
+            model_size=model_size,
+            model=model,
+            progress_cb=progress_cb,
+        ).text
+
+
+def serialise_word_segments(words: Iterable[WordSegment]) -> list[dict[str, float | str | None]]:
+    """Convert typed segments into the legacy dict structure."""
+    return [word.to_legacy_dict() for word in words]
+
+
+def transcribe_words(
+    audio: AudioInput,
+    language: Optional[str] = None,
+    model: Optional[object] = None,
+    progress_cb: Optional[ProgressCallback] = None,
+) -> list[dict[str, float | str | None]]:
+    """Compatibility wrapper returning the legacy word payload."""
+    return serialise_word_segments(
+        transcribe_word_segments(
+            audio,
+            language=language,
+            model=model,
+            progress_cb=progress_cb,
+        )
+    )
+
+
+def transcribe_text(
+    audio: AudioInput,
+    language: Optional[str] = None,
+    model: Optional[object] = None,
+    progress_cb: Optional[ProgressCallback] = None,
+) -> str:
+    """Transcribe audio and return plain text."""
+    return transcribe(
+        audio,
+        language=language,
+        model=model,
+        progress_cb=progress_cb,
+    ).text

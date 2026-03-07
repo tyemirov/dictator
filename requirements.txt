@@ -11,3 +11,10 @@ openai-whisper
 pyannote.audio
 librosa
 coqui-tts
+whisperx
+
+# gRPC transport
+grpcio
+grpcio-health-checking
+grpcio-tools
+protobuf
