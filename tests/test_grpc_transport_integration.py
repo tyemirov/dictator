@@ -24,10 +24,13 @@ from dictator.speech.v1 import (
     artifacts_pb2_grpc,
     runtime_pb2,
     runtime_pb2_grpc,
+    subtitle_pb2,
+    subtitle_pb2_grpc,
     transcription_pb2,
     transcription_pb2_grpc,
 )
 from dictator.storage import LocalArtifactStore
+from dictator.subtitles.service import SubtitleService
 from dictator.transport.grpc.config import ServerConfig
 from dictator.transport.grpc.server import build_server
 from dictator.transport.grpc.services import ServiceContext
@@ -137,6 +140,12 @@ class FakeRuntime:
     def get_diarization_service(self):
         return self.diarization_service
 
+    def get_subtitle_service(self):
+        return SubtitleService(
+            transcription_service=self.transcription_service,
+            alignment_service=self.alignment_service,
+        )
+
     def get_reference_extraction_service(self):
         raise NotImplementedError
 
@@ -175,6 +184,7 @@ class GrpcTransportIntegrationTests(unittest.TestCase):
         cls.artifact_stub = artifacts_pb2_grpc.ArtifactServiceStub(cls.channel)
         cls.transcription_stub = transcription_pb2_grpc.TranscriptionServiceStub(cls.channel)
         cls.alignment_stub = alignment_pb2_grpc.AlignmentServiceStub(cls.channel)
+        cls.subtitle_stub = subtitle_pb2_grpc.SubtitleServiceStub(cls.channel)
         cls.runtime_stub = runtime_pb2_grpc.RuntimeServiceStub(cls.channel)
 
     @classmethod
@@ -238,6 +248,24 @@ class GrpcTransportIntegrationTests(unittest.TestCase):
         self.assertEqual([word.content for word in alignment.words], ["hello", "world"])
         self.assertIn("00:00:00,000 --> 00:00:00,400", alignment.srt_text)
         self.assertTrue(alignment.srt_artifact_id)
+
+        subtitles = self.subtitle_stub.RenderSubtitles(
+            subtitle_pb2.RenderSubtitlesRequest(
+                audio_artifact_id=artifact_id,
+                language_code="en",
+                autodetect_language=False,
+                output_format=subtitle_pb2.SUBTITLE_FORMAT_SRT,
+                granularity=subtitle_pb2.SUBTITLE_GRANULARITY_WORDS,
+                group_size=2,
+                include_srt_text=True,
+            ),
+            metadata=self._auth_metadata,
+        )
+        self.assertEqual(subtitles.mode, subtitle_pb2.SUBTITLE_MODE_TRANSCRIPTION)
+        self.assertEqual(len(subtitles.cues), 1)
+        self.assertEqual(subtitles.cues[0].content, "hello world")
+        self.assertIn("hello world", subtitles.srt_text)
+        self.assertTrue(subtitles.srt_artifact_id)
 
         srt_chunks = list(
             self.artifact_stub.DownloadArtifact(
@@ -354,6 +382,24 @@ class GrpcTransportIntegrationTests(unittest.TestCase):
         self.assertEqual(result.diarization["utterances"][0]["speaker"], "S1")
         self.assertTrue(result.diarization_artifact_id)
 
+    def test_render_subtitles_uses_alignment_when_source_text_is_present(self):
+        artifact_id = self._upload_artifact("sample.wav", b"abcdef")
+        subtitles = self.subtitle_stub.RenderSubtitles(
+            subtitle_pb2.RenderSubtitlesRequest(
+                audio_artifact_id=artifact_id,
+                autodetect_language=True,
+                output_format=subtitle_pb2.SUBTITLE_FORMAT_SRT,
+                granularity=subtitle_pb2.SUBTITLE_GRANULARITY_WORDS,
+                group_size=1,
+                source_text="hello world",
+                include_srt_text=True,
+            ),
+            metadata=self._auth_metadata,
+        )
+        self.assertEqual(subtitles.mode, subtitle_pb2.SUBTITLE_MODE_FORCED_ALIGNMENT)
+        self.assertEqual(subtitles.language_code, "en")
+        self.assertEqual([cue.content for cue in subtitles.cues], ["hello", "world"])
+
     def test_transcribe_rejects_missing_language_mode(self):
         artifact_id = self._upload_artifact("sample.wav", b"abcdef")
         with self.assertRaises(grpc.RpcError) as exc:
@@ -375,6 +421,21 @@ class GrpcTransportIntegrationTests(unittest.TestCase):
                     language_code="en",
                     autodetect_language=True,
                     model_size="base",
+                ),
+                metadata=self._auth_metadata,
+            )
+        self.assertEqual(exc.exception.code(), grpc.StatusCode.INVALID_ARGUMENT)
+
+    def test_render_subtitles_rejects_unspecified_granularity(self):
+        artifact_id = self._upload_artifact("sample.wav", b"abcdef")
+        with self.assertRaises(grpc.RpcError) as exc:
+            self.subtitle_stub.RenderSubtitles(
+                subtitle_pb2.RenderSubtitlesRequest(
+                    audio_artifact_id=artifact_id,
+                    language_code="en",
+                    autodetect_language=False,
+                    output_format=subtitle_pb2.SUBTITLE_FORMAT_SRT,
+                    group_size=1,
                 ),
                 metadata=self._auth_metadata,
             )

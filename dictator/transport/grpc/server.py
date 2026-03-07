@@ -20,6 +20,7 @@ _SERVICE_NAMES = (
     "dictator.speech.v1.ArtifactService",
     "dictator.speech.v1.TranscriptionService",
     "dictator.speech.v1.AlignmentService",
+    "dictator.speech.v1.SubtitleService",
     "dictator.speech.v1.VoiceService",
     "dictator.speech.v1.RuntimeService",
 )

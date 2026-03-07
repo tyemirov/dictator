@@ -78,6 +78,14 @@ class SpeechExecutionRuntime:
             diarization_pipeline_loader=self.get_diarization_pipeline,
         )
 
+    def get_subtitle_service(self):
+        from dictator.subtitles.service import SubtitleService
+
+        return SubtitleService(
+            transcription_service=self.get_transcription_service(),
+            alignment_service=self.get_alignment_service(),
+        )
+
     def get_reference_extraction_service(self):
         from dictator.extraction.service import ReferenceExtractionService
 

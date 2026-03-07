@@ -6,6 +6,7 @@ __all__ = [
     "diarization",
     "extraction",
     "runtime",
+    "subtitles",
     "synthesis",
     "transcription",
 ]
