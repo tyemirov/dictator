@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package dictator.speech.v1;
+
+import "dictator/speech/v1/common.proto";
+
+service TranscriptionService {
+  rpc Transcribe(TranscribeRequest) returns (TranscribeResponse);
+}
+
+message TranscribeRequest {
+  string audio_artifact_id = 1;
+  string language_code = 2;
+  string model_size = 3;
+  bool include_word_segments = 4;
+}
+
+message TranscribeResponse {
+  string text = 1;
+  string language_code = 2;
+  repeated WordSegment words = 3;
+}

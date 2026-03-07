@@ -688,6 +688,30 @@ Forced alignment is ready only when all of the following are true:
 
 ## Migration Plan
 
+### Current implementation status
+
+The repo now has an initial implementation baseline, not just a plan:
+
+- Phase 1 is complete:
+  - reusable package modules exist under `dictator/`
+  - `main.py`, `extract.py`, and `whisper_service.py` are compatibility wrappers
+  - forced alignment has been extracted into a first-class alignment module
+- Phase 2 is partially complete:
+  - typed request/result models exist for the packaged services
+  - a long-lived execution runtime now caches Whisper, diarization, XTTS, and alignment backends
+  - one legacy compatibility edge remains in `extract.py`: the CLI still uses `signal.alarm`
+- Phase 3 is partially complete:
+  - a local-disk `ArtifactStore` exists for transport use
+- Phase 4 is partially complete:
+  - versioned protobufs exist under `proto/dictator/speech/v1/`
+  - generated Python stubs exist under `dictator/speech/v1/`
+- Phase 5 is partially complete:
+  - an initial gRPC server scaffold exists behind `serve.py`
+  - `ArtifactService`, `TranscriptionService`, `AlignmentService`, `VoiceService`, and `RuntimeService` are wired
+  - health registration, auth token checks, metrics, and inflight limiting are present
+
+What is still missing is end-to-end execution validation with the real speech stack installed, plus production hardening around deadlines, retention, and compatibility adapters.
+
 ### Phase 1: Extract a real library layer
 
 Goal: move reusable logic out of script entrypoints without changing behavior.

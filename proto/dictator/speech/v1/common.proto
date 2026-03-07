@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package dictator.speech.v1;
+
+message ArtifactRef {
+  string artifact_id = 1;
+  string filename = 2;
+  string media_type = 3;
+  int64 size_bytes = 4;
+  string sha256 = 5;
+}
+
+message WordSegment {
+  string content = 1;
+  double start_seconds = 2;
+  double end_seconds = 3;
+}
+
+message TimelineSegment {
+  string content = 1;
+  double start_seconds = 2;
+  double end_seconds = 3;
+}

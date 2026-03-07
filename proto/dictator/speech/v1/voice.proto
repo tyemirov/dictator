@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package dictator.speech.v1;
+
+import "dictator/speech/v1/common.proto";
+
+service VoiceService {
+  rpc ExtractReferenceSample(ExtractReferenceSampleRequest)
+      returns (ExtractReferenceSampleResponse);
+
+  rpc SynthesizeSpeech(SynthesizeSpeechRequest)
+      returns (SynthesizeSpeechResponse);
+}
+
+message ExtractReferenceSampleRequest {
+  string source_artifact_id = 1;
+  string model_size = 2;
+  string language_code = 3;
+  double duration_seconds = 4;
+  double max_speech_rate = 5;
+  double min_centroid_hz = 6;
+  double max_centroid_hz = 7;
+}
+
+message ExtractReferenceSampleResponse {
+  ArtifactRef sample_artifact = 1;
+  double trim_start_seconds = 2;
+  double trim_end_seconds = 3;
+  double window_start_seconds = 4;
+  double window_end_seconds = 5;
+  int32 dominant_speaker_word_count = 6;
+}
+
+message SynthesizeSpeechRequest {
+  string speaker_artifact_id = 1;
+  oneof text_source {
+    string text = 2;
+    string text_artifact_id = 3;
+  }
+  string language_code = 4;
+  double max_duration_seconds = 5;
+  bool include_timeline = 6;
+}
+
+message SynthesizeSpeechResponse {
+  ArtifactRef audio_artifact = 1;
+  double audio_duration_seconds = 2;
+  repeated TimelineSegment timeline = 3;
+  string timeline_artifact_id = 4;
+  int32 chunk_count = 5;
+}

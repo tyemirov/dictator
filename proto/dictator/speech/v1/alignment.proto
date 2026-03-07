@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package dictator.speech.v1;
+
+import "dictator/speech/v1/common.proto";
+
+service AlignmentService {
+  rpc AlignTranscript(AlignTranscriptRequest) returns (AlignTranscriptResponse);
+}
+
+message AlignTranscriptRequest {
+  string audio_artifact_id = 1;
+  oneof transcript_source {
+    string transcript_text = 2;
+    string transcript_artifact_id = 3;
+  }
+  string language_code = 4;
+  bool remove_punctuation = 5;
+  bool include_srt_text = 6;
+}
+
+message AlignTranscriptResponse {
+  string language_code = 1;
+  repeated WordSegment words = 2;
+  string srt_text = 3;
+  string srt_artifact_id = 4;
+}
