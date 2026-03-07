@@ -166,27 +166,32 @@ class ArtifactServiceServicer(BaseServicer, artifacts_pb2_grpc.ArtifactServiceSe
                     "first upload chunk must contain metadata",
                 )
             metadata_message = first_chunk.metadata
-            chunks: list[bytes] = []
-            for chunk in iterator:
-                payload_type = chunk.WhichOneof("payload")
-                if payload_type != "content":
-                    raise ValidationError(
-                        "dictator.grpc.artifact.invalid_chunk",
-                        "upload content chunks cannot contain metadata",
-                    )
-                chunks.append(chunk.content)
-                payload_size += len(chunk.content)
-            if payload_size:
-                self.service_context.metrics.record_bytes(payload_size)
-            record = self.service_context.artifact_store.write_artifact(
-                chunks,
-                filename=metadata_message.filename,
+            reservation = self.service_context.artifact_store.reserve_artifact(
+                metadata_message.filename,
                 media_type=metadata_message.media_type,
             )
+            with reservation.path.open("wb") as handle:
+                for chunk in iterator:
+                    payload_type = chunk.WhichOneof("payload")
+                    if payload_type != "content":
+                        raise ValidationError(
+                            "dictator.grpc.artifact.invalid_chunk",
+                            "upload content chunks cannot contain metadata",
+                        )
+                    handle.write(chunk.content)
+                    payload_size += len(chunk.content)
+            if payload_size:
+                self.service_context.metrics.record_bytes(payload_size)
+            record = self.service_context.artifact_store.finalize_artifact(reservation)
             return artifacts_pb2.UploadArtifactResponse(artifact=self._artifact_ref(record))
 
     def DownloadArtifact(self, request, context):
         chunk_size = request.chunk_size or self.service_context.download_chunk_bytes
+        if chunk_size <= 0:
+            raise ValidationError(
+                "dictator.grpc.artifact.invalid_chunk_size",
+                "chunk_size must be positive",
+            )
         with self._request_scope(context):
             for record, offset, payload, eof in self.service_context.artifact_store.iter_artifact_chunks(
                 request.artifact_id,
