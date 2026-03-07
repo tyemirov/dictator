@@ -9,6 +9,7 @@ __pycache__/
 # Managed by gix gitignore workflow
 .env
 .env.*
+.dictator-artifacts/
 .DS_Store
 qodana.yaml
 tools/

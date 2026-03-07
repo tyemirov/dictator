@@ -62,6 +62,50 @@ python main.py \
 
 Both scripts fall back to `"cpu"` if CUDA is missing. `main.py` on CPU will be **slow** – consider shorter texts.
 
+## Service Container
+
+The repo now includes a containerized gRPC service runtime with the required system packages:
+
+* Python 3.11.8
+* FFmpeg
+* `libsndfile`
+* `espeak-ng`
+* build tooling for Python wheels
+* Python packages from `requirements.txt`
+
+### Build
+
+```bash
+docker build -t dictator:local .
+```
+
+### Run with Compose
+
+Create `.env` from `.env.example`, then start the service:
+
+```bash
+cp .env.example .env
+# edit .env and set DICTATOR_GRPC_AUTH_TOKEN
+# set HF_TOKEN as well if you need diarization / speaker extraction
+
+docker compose up --build
+```
+
+The container starts the gRPC server with:
+
+```bash
+python serve.py --config /app/config.yml --env-file /app/.env
+```
+
+The compose setup mounts persistent caches for Hugging Face, Whisper, and Torch models, plus `.dictator-artifacts` for generated service artifacts.
+
+### Notes
+
+* The provided image is CPU-oriented. It includes the service prerequisites and will start the server, but heavy transcription/alignment/TTS workloads will be slow without GPU acceleration.
+* The container installs CPU `torch` / `torchaudio` wheels explicitly so it does not pull CUDA runtimes into a CPU deployment.
+* `HF_TOKEN` should be present in `.env` if you want pyannote diarization and archival speaker extraction to download gated Hugging Face models on first run.
+* For GPU deployment, use a CUDA-capable base/runtime and install the matching Torch wheel set for that CUDA version.
+
 ---
 
 ## Folder layout

@@ -4,10 +4,18 @@ from pathlib import Path
 import unittest
 
 import grpc
+from google.protobuf.json_format import MessageToDict
 
 from dictator.alignment.models import AlignTranscriptResult, AlignedWord
 from dictator.alignment.srt import build_srt
-from dictator.client import DictationClient
+from dictator.client import DiarizationClient, DictationClient
+from dictator.diarization.models import (
+    DiarizeAudioResult,
+    DiarizedUtterance,
+    DiarizedWord,
+    SpeakerSummary,
+    SpeakerSegment,
+)
 from dictator.runtime import InflightLimiter, MetricsRegistry
 from dictator.speech.v1 import (
     alignment_pb2,
@@ -23,10 +31,32 @@ from dictator.storage import LocalArtifactStore
 from dictator.transport.grpc.config import ServerConfig
 from dictator.transport.grpc.server import build_server
 from dictator.transport.grpc.services import ServiceContext
-from dictator.transcription.models import WordSegment
+from dictator.transcription.models import TranscriptionResult, WordSegment
 
 
 class FakeTranscriptionService:
+    def transcribe(
+        self,
+        audio,
+        language=None,
+        model_size="base",
+        model=None,
+        progress_cb=None,
+    ):
+        words = tuple(
+            self.transcribe_word_segments(
+                audio,
+                language=language,
+                model_size=model_size,
+                model=model,
+                progress_cb=progress_cb,
+            )
+        )
+        return TranscriptionResult(
+            language=language or "en",
+            words=words,
+        )
+
     def transcribe_word_segments(
         self,
         audio,
@@ -63,16 +93,49 @@ class FakeAlignmentService:
         )
 
 
+class FakeDiarizationService:
+    def diarize(self, request, model=None, diarization_pipeline=None):
+        words = (
+            DiarizedWord("hello", 0.0, 0.4, "S1"),
+            DiarizedWord("again", 0.45, 0.8, "S1"),
+            DiarizedWord("world", 1.2, 1.6, "S2"),
+        )
+        utterances = (
+            DiarizedUtterance("S1", 0.0, 0.8, "hello again", words[:2]),
+            DiarizedUtterance("S2", 1.2, 1.6, "world", words[2:]),
+        )
+        speaker_segments = (
+            SpeakerSegment("S1", 0.0, 1.0, raw_label="speaker_a"),
+            SpeakerSegment("S2", 1.0, 2.0, raw_label="speaker_b"),
+        )
+        speakers = (
+            SpeakerSummary("S1", word_count=2, utterance_count=1, total_duration_seconds=1.0),
+            SpeakerSummary("S2", word_count=1, utterance_count=1, total_duration_seconds=1.0),
+        )
+        return DiarizeAudioResult(
+            language=request.language or "en",
+            text="hello again world",
+            words=words,
+            utterances=utterances,
+            speakers=speakers,
+            speaker_segments=speaker_segments,
+        )
+
+
 class FakeRuntime:
     def __init__(self):
         self.transcription_service = FakeTranscriptionService()
         self.alignment_service = FakeAlignmentService()
+        self.diarization_service = FakeDiarizationService()
 
     def get_transcription_service(self):
         return self.transcription_service
 
     def get_alignment_service(self):
         return self.alignment_service
+
+    def get_diarization_service(self):
+        return self.diarization_service
 
     def get_reference_extraction_service(self):
         raise NotImplementedError
@@ -156,6 +219,7 @@ class GrpcTransportIntegrationTests(unittest.TestCase):
                 language_code="en",
                 model_size="base",
                 include_word_segments=True,
+                autodetect_language=False,
             ),
             metadata=self._auth_metadata,
         )
@@ -188,6 +252,48 @@ class GrpcTransportIntegrationTests(unittest.TestCase):
         self.assertGreaterEqual(metrics.requests_succeeded, 5)
         self.assertGreaterEqual(metrics.bytes_received, 6)
 
+    def test_diarize_audio_returns_inline_json_and_artifact(self):
+        artifact_id = self._upload_artifact("sample.wav", b"abcdef")
+
+        diarization = self.transcription_stub.DiarizeAudio(
+            transcription_pb2.DiarizeAudioRequest(
+                audio_artifact_id=artifact_id,
+                model_size="base",
+                include_words=True,
+                include_utterances=True,
+                include_speakers=True,
+                include_speaker_segments=True,
+                utterance_gap_seconds=0.5,
+                persist_json_artifact=True,
+                autodetect_language=True,
+            ),
+            metadata=self._auth_metadata,
+        )
+
+        payload = MessageToDict(diarization.diarization, preserving_proto_field_name=True)
+        self.assertEqual(diarization.text, "hello again world")
+        self.assertEqual(diarization.language_code, "en")
+        self.assertEqual(payload["utterances"][0]["speaker"], "S1")
+        self.assertEqual(payload["utterances"][0]["words"][0]["word"], "hello")
+        self.assertEqual(payload["speakers"][0]["speaker"], "S1")
+        self.assertEqual(payload["speakers"][0]["wordCount"], 2.0)
+        self.assertEqual(payload["speakerSegments"][1]["speaker"], "S2")
+        self.assertTrue(diarization.diarization_artifact_id)
+
+        json_chunks = list(
+            self.artifact_stub.DownloadArtifact(
+                artifacts_pb2.DownloadArtifactRequest(
+                    artifact_id=diarization.diarization_artifact_id,
+                    chunk_size=128,
+                ),
+                metadata=self._auth_metadata,
+            )
+        )
+        self.assertIn(
+            "\"utterances\"",
+            b"".join(chunk.content for chunk in json_chunks).decode("utf-8"),
+        )
+
     def test_invalid_download_chunk_size_is_rejected(self):
         artifact_id = self._upload_artifact("sample.wav", b"abcdef")
         with self.assertRaises(grpc.RpcError) as exc:
@@ -207,6 +313,7 @@ class GrpcTransportIntegrationTests(unittest.TestCase):
                     audio_artifact_id=artifact_id,
                     language_code="en",
                     model_size="sleep",
+                    autodetect_language=False,
                 ),
                 metadata=self._auth_metadata,
                 timeout=0.01,
@@ -223,11 +330,55 @@ class GrpcTransportIntegrationTests(unittest.TestCase):
             filename="audio.webm",
             model_size="base",
             language_code="en",
+            autodetect_language=False,
             include_word_segments=True,
         )
         self.assertEqual(result.text, "hello world")
         self.assertEqual(result.to_http_payload(), {"text": "hello world"})
         self.assertEqual([word["content"] for word in result.words], ["hello", "world"])
+
+    def test_diarization_client_returns_struct_payload(self):
+        client = DiarizationClient(self.channel, metadata=self._auth_metadata, chunk_bytes=2)
+        result = client.diarize_bytes(
+            b"abcdef",
+            filename="audio.webm",
+            model_size="base",
+            autodetect_language=True,
+            include_words=True,
+            include_utterances=True,
+            include_speakers=True,
+            persist_json_artifact=True,
+        )
+        self.assertEqual(result.text, "hello again world")
+        self.assertEqual(result.language_code, "en")
+        self.assertEqual(result.diarization["utterances"][0]["speaker"], "S1")
+        self.assertTrue(result.diarization_artifact_id)
+
+    def test_transcribe_rejects_missing_language_mode(self):
+        artifact_id = self._upload_artifact("sample.wav", b"abcdef")
+        with self.assertRaises(grpc.RpcError) as exc:
+            self.transcription_stub.Transcribe(
+                transcription_pb2.TranscribeRequest(
+                    audio_artifact_id=artifact_id,
+                    model_size="base",
+                ),
+                metadata=self._auth_metadata,
+            )
+        self.assertEqual(exc.exception.code(), grpc.StatusCode.INVALID_ARGUMENT)
+
+    def test_diarize_rejects_conflicting_language_inputs(self):
+        artifact_id = self._upload_artifact("sample.wav", b"abcdef")
+        with self.assertRaises(grpc.RpcError) as exc:
+            self.transcription_stub.DiarizeAudio(
+                transcription_pb2.DiarizeAudioRequest(
+                    audio_artifact_id=artifact_id,
+                    language_code="en",
+                    autodetect_language=True,
+                    model_size="base",
+                ),
+                metadata=self._auth_metadata,
+            )
+        self.assertEqual(exc.exception.code(), grpc.StatusCode.INVALID_ARGUMENT)
 
 
 if __name__ == "__main__":

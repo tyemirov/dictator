@@ -1,0 +1,9 @@
+grpc:
+  host: 0.0.0.0
+  port: 50051
+  max_workers: 4
+  max_message_bytes: 67108864
+  max_inflight: 4
+  download_chunk_bytes: 1048576
+  artifact_root: .dictator-artifacts
+  auth_token: ${DICTATOR_GRPC_AUTH_TOKEN}

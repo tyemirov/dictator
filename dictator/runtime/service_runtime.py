@@ -70,6 +70,14 @@ class SpeechExecutionRuntime:
             backend = self._alignment_backend
         return AlignmentService(backend=backend)
 
+    def get_diarization_service(self):
+        from dictator.diarization.service import DiarizationService
+
+        return DiarizationService(
+            transcription_service=self.get_transcription_service(),
+            diarization_pipeline_loader=self.get_diarization_pipeline,
+        )
+
     def get_reference_extraction_service(self):
         from dictator.extraction.service import ReferenceExtractionService
 

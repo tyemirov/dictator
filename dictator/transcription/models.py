@@ -19,3 +19,15 @@ class WordSegment:
             "start": self.start_seconds,
             "end": self.end_seconds,
         }
+
+
+@dataclass(frozen=True)
+class TranscriptionResult:
+    """Transcription output with detected language metadata."""
+
+    language: str | None
+    words: tuple[WordSegment, ...]
+
+    @property
+    def text(self) -> str:
+        return " ".join(word.text for word in self.words if word.text)

@@ -4,14 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Sequence
 
 import grpc
 
-from dictator.speech.v1 import artifacts_pb2, artifacts_pb2_grpc, transcription_pb2, transcription_pb2_grpc
+from dictator.speech.v1 import artifacts_pb2_grpc, transcription_pb2, transcription_pb2_grpc
 
-_DEFAULT_MEDIA_TYPE = "application/octet-stream"
-_DEFAULT_CHUNK_BYTES = 1024 * 1024
+from ._uploads import DEFAULT_CHUNK_BYTES, DEFAULT_MEDIA_TYPE, upload_audio_artifact
 
 
 @dataclass(frozen=True)
@@ -32,7 +31,7 @@ class DictationClient:
         self,
         channel: grpc.Channel,
         metadata: Sequence[tuple[str, str]] = (),
-        chunk_bytes: int = _DEFAULT_CHUNK_BYTES,
+        chunk_bytes: int = DEFAULT_CHUNK_BYTES,
     ) -> None:
         self._artifact_stub = artifacts_pb2_grpc.ArtifactServiceStub(channel)
         self._transcription_stub = transcription_pb2_grpc.TranscriptionServiceStub(channel)
@@ -44,6 +43,7 @@ class DictationClient:
         audio_path: Path,
         model_size: str = "base",
         language_code: str = "",
+        autodetect_language: bool | None = None,
         include_word_segments: bool = False,
         media_type: str | None = None,
     ) -> DictationResult:
@@ -54,6 +54,7 @@ class DictationClient:
             media_type=media_type,
             model_size=model_size,
             language_code=language_code,
+            autodetect_language=autodetect_language,
             include_word_segments=include_word_segments,
         )
 
@@ -64,12 +65,20 @@ class DictationClient:
         media_type: str | None = None,
         model_size: str = "base",
         language_code: str = "",
+        autodetect_language: bool | None = None,
         include_word_segments: bool = False,
     ) -> DictationResult:
-        artifact = self._upload_audio(
-            payload,
+        resolved_autodetect = self._resolve_autodetect(
+            language_code=language_code,
+            autodetect_language=autodetect_language,
+        )
+        artifact = upload_audio_artifact(
+            self._artifact_stub,
+            metadata=self._metadata,
+            chunk_bytes=self._chunk_bytes,
+            payload=payload,
             filename=filename,
-            media_type=media_type or _DEFAULT_MEDIA_TYPE,
+            media_type=media_type or DEFAULT_MEDIA_TYPE,
         )
         response = self._transcription_stub.Transcribe(
             transcription_pb2.TranscribeRequest(
@@ -77,6 +86,7 @@ class DictationClient:
                 language_code=language_code,
                 model_size=model_size,
                 include_word_segments=include_word_segments,
+                autodetect_language=resolved_autodetect,
             ),
             metadata=self._metadata,
         )
@@ -95,26 +105,17 @@ class DictationClient:
             words=words,
         )
 
-    def _upload_audio(
-        self,
-        payload: bytes,
-        filename: str,
-        media_type: str,
-    ):
-        def request_iter() -> Iterable[artifacts_pb2.UploadArtifactChunk]:
-            yield artifacts_pb2.UploadArtifactChunk(
-                metadata=artifacts_pb2.UploadArtifactMetadata(
-                    filename=filename,
-                    media_type=media_type,
-                )
-            )
-            for index in range(0, len(payload), self._chunk_bytes):
-                yield artifacts_pb2.UploadArtifactChunk(
-                    content=payload[index : index + self._chunk_bytes]
-                )
-
-        response = self._artifact_stub.UploadArtifact(
-            request_iter(),
-            metadata=self._metadata,
-        )
-        return response.artifact
+    @staticmethod
+    def _resolve_autodetect(
+        *,
+        language_code: str,
+        autodetect_language: bool | None,
+    ) -> bool:
+        normalized = language_code.strip()
+        if autodetect_language is None:
+            autodetect_language = not bool(normalized)
+        if normalized and autodetect_language:
+            raise ValueError("language_code and autodetect_language cannot both be set")
+        if not normalized and not autodetect_language:
+            raise ValueError("set language_code or autodetect_language=True")
+        return autodetect_language

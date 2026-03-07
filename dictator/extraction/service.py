@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections import Counter
 from contextlib import contextmanager
 import logging
 import time
@@ -16,6 +15,11 @@ import torch
 
 from dictator.audio.constants import PCM_SAMPLE_RATE, TARGET_SAMPLE_RATE
 from dictator.audio.ffmpeg_ops import decode_pcm, trim_and_normalise
+from dictator.diarization import (
+    assign_words_to_speakers,
+    dominant_speaker_label,
+    run_diarization,
+)
 from dictator.transcription.service import load_whisper_model, transcribe_words
 
 from .models import ReferenceExtractionRequest, ReferenceExtractionResult
@@ -101,38 +105,16 @@ def apply_diarization_filter(
     audio_file: Path,
 ) -> list[dict[str, object]]:
     """Keep only words spoken by the dominant diarized speaker."""
-    with timed("prepare_diarization_audio"):
-        samples = decode_pcm(audio_file).astype(np.float32) / 32768.0
-        waveform = torch.from_numpy(samples).unsqueeze(0)
     with timed("diarization"):
-        diarization_result = diarization_pipeline(
-            {
-                "uri": audio_file.stem,
-                "waveform": waveform,
-                "sample_rate": SAMPLE_RATE,
-            }
-        )
-
-    speaker_durations: Counter[str] = Counter()
-    tracks = list(diarization_result.itertracks(yield_label=True))
-    for turn, _, speaker_label in tracks:
-        speaker_durations[speaker_label] += turn.end - turn.start
-    if not speaker_durations:
-        raise RuntimeError("no speakers detected")
-
-    dominant_speaker = speaker_durations.most_common(1)[0][0]
+        speaker_segments = run_diarization(diarization_pipeline, audio_file)
+    dominant_speaker = dominant_speaker_label(speaker_segments)
     logging.info("dominant speaker: %s", dominant_speaker)
 
+    diarized_words = assign_words_to_speakers(words, speaker_segments)
     filtered_words: list[dict[str, object]] = []
-    for word in words:
-        word_start = float(word["start"])
-        for turn, _, speaker_label in tracks:
-            if turn.start <= word_start < turn.end:
-                if speaker_label == dominant_speaker:
-                    filtered_word = dict(word)
-                    filtered_word["speaker"] = speaker_label
-                    filtered_words.append(filtered_word)
-                break
+    for word in diarized_words:
+        if word.speaker == dominant_speaker:
+            filtered_words.append(word.to_legacy_dict())
     if not filtered_words:
         raise RuntimeError("no words from dominant speaker")
     return filtered_words

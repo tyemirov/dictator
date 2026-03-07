@@ -7,7 +7,7 @@ from typing import Any, Callable, Iterable, Optional
 
 import torch
 
-from .models import WordSegment
+from .models import TranscriptionResult, WordSegment
 
 ProgressCallback = Callable[[float], None]
 AudioInput = Any
@@ -37,13 +37,13 @@ def _coerce_audio_input(audio: AudioInput) -> str | object:
     return audio.astype(np.float32) / 32768.0
 
 
-def transcribe_word_segments(
+def transcribe(
     audio: AudioInput,
     language: Optional[str] = None,
     model: Optional[object] = None,
     progress_cb: Optional[ProgressCallback] = None,
-) -> list[WordSegment]:
-    """Transcribe audio and return typed word segments."""
+) -> TranscriptionResult:
+    """Transcribe audio and return words with detected language metadata."""
     if model is None:
         model = load_whisper_model("base")
 
@@ -64,7 +64,30 @@ def transcribe_word_segments(
                     end_seconds=word.get("end"),
                 )
             )
-    return words
+    detected_language = result.get("language")
+    if language is not None:
+        detected_language = language
+    return TranscriptionResult(
+        language=str(detected_language) if detected_language else None,
+        words=tuple(words),
+    )
+
+
+def transcribe_word_segments(
+    audio: AudioInput,
+    language: Optional[str] = None,
+    model: Optional[object] = None,
+    progress_cb: Optional[ProgressCallback] = None,
+) -> list[WordSegment]:
+    """Transcribe audio and return typed word segments."""
+    return list(
+        transcribe(
+            audio,
+            language=language,
+            model=model,
+            progress_cb=progress_cb,
+        ).words
+    )
 
 
 class TranscriptionService:
@@ -83,6 +106,22 @@ class TranscriptionService:
     ) -> list[WordSegment]:
         resolved_model = model or self._model_loader(model_size)
         return transcribe_word_segments(
+            audio,
+            language=language,
+            model=resolved_model,
+            progress_cb=progress_cb,
+        )
+
+    def transcribe(
+        self,
+        audio: AudioInput,
+        language: Optional[str] = None,
+        model_size: str = "base",
+        model: Optional[object] = None,
+        progress_cb: Optional[ProgressCallback] = None,
+    ) -> TranscriptionResult:
+        resolved_model = model or self._model_loader(model_size)
+        return transcribe(
             audio,
             language=language,
             model=resolved_model,
@@ -115,17 +154,13 @@ class TranscriptionService:
         model: Optional[object] = None,
         progress_cb: Optional[ProgressCallback] = None,
     ) -> str:
-        return " ".join(
-            word.text
-            for word in self.transcribe_word_segments(
-                audio,
-                language=language,
-                model_size=model_size,
-                model=model,
-                progress_cb=progress_cb,
-            )
-            if word.text
-        )
+        return self.transcribe(
+            audio,
+            language=language,
+            model_size=model_size,
+            model=model,
+            progress_cb=progress_cb,
+        ).text
 
 
 def serialise_word_segments(words: Iterable[WordSegment]) -> list[dict[str, float | str | None]]:
@@ -157,13 +192,9 @@ def transcribe_text(
     progress_cb: Optional[ProgressCallback] = None,
 ) -> str:
     """Transcribe audio and return plain text."""
-    return " ".join(
-        word.text
-        for word in transcribe_word_segments(
-            audio,
-            language=language,
-            model=model,
-            progress_cb=progress_cb,
-        )
-        if word.text
-    )
+    return transcribe(
+        audio,
+        language=language,
+        model=model,
+        progress_cb=progress_cb,
+    ).text

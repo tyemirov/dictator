@@ -23,19 +23,24 @@ _sym_db = _symbol_database.Default()
 
 
 from dictator.speech.v1 import common_pb2 as dictator_dot_speech_dot_v1_dot_common__pb2
+from google.protobuf import struct_pb2 as google_dot_protobuf_dot_struct__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n&dictator/speech/v1/transcription.proto\x12\x12\x64ictator.speech.v1\x1a\x1f\x64ictator/speech/v1/common.proto\"x\n\x11TranscribeRequest\x12\x19\n\x11\x61udio_artifact_id\x18\x01 \x01(\t\x12\x15\n\rlanguage_code\x18\x02 \x01(\t\x12\x12\n\nmodel_size\x18\x03 \x01(\t\x12\x1d\n\x15include_word_segments\x18\x04 \x01(\x08\"i\n\x12TranscribeResponse\x12\x0c\n\x04text\x18\x01 \x01(\t\x12\x15\n\rlanguage_code\x18\x02 \x01(\t\x12.\n\x05words\x18\x03 \x03(\x0b\x32\x1f.dictator.speech.v1.WordSegment2s\n\x14TranscriptionService\x12[\n\nTranscribe\x12%.dictator.speech.v1.TranscribeRequest\x1a&.dictator.speech.v1.TranscribeResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n&dictator/speech/v1/transcription.proto\x12\x12\x64ictator.speech.v1\x1a\x1f\x64ictator/speech/v1/common.proto\x1a\x1cgoogle/protobuf/struct.proto\"\x95\x01\n\x11TranscribeRequest\x12\x19\n\x11\x61udio_artifact_id\x18\x01 \x01(\t\x12\x15\n\rlanguage_code\x18\x02 \x01(\t\x12\x12\n\nmodel_size\x18\x03 \x01(\t\x12\x1d\n\x15include_word_segments\x18\x04 \x01(\x08\x12\x1b\n\x13\x61utodetect_language\x18\x05 \x01(\x08\"i\n\x12TranscribeResponse\x12\x0c\n\x04text\x18\x01 \x01(\t\x12\x15\n\rlanguage_code\x18\x02 \x01(\t\x12.\n\x05words\x18\x03 \x03(\x0b\x32\x1f.dictator.speech.v1.WordSegment\"\xc4\x02\n\x13\x44iarizeAudioRequest\x12\x19\n\x11\x61udio_artifact_id\x18\x01 \x01(\t\x12\x15\n\rlanguage_code\x18\x02 \x01(\t\x12\x12\n\nmodel_size\x18\x03 \x01(\t\x12\x15\n\rinclude_words\x18\x04 \x01(\x08\x12\x1a\n\x12include_utterances\x18\x05 \x01(\x08\x12 \n\x18include_speaker_segments\x18\x06 \x01(\x08\x12\"\n\x15utterance_gap_seconds\x18\x07 \x01(\x01H\x00\x88\x01\x01\x12\x1d\n\x15persist_json_artifact\x18\x08 \x01(\x08\x12\x18\n\x10include_speakers\x18\t \x01(\x08\x12\x1b\n\x13\x61utodetect_language\x18\n \x01(\x08\x42\x18\n\x16_utterance_gap_seconds\"\x8a\x01\n\x14\x44iarizeAudioResponse\x12\x0c\n\x04text\x18\x01 \x01(\t\x12\x15\n\rlanguage_code\x18\x02 \x01(\t\x12,\n\x0b\x64iarization\x18\x03 \x01(\x0b\x32\x17.google.protobuf.Struct\x12\x1f\n\x17\x64iarization_artifact_id\x18\x04 \x01(\t2\xd6\x01\n\x14TranscriptionService\x12[\n\nTranscribe\x12%.dictator.speech.v1.TranscribeRequest\x1a&.dictator.speech.v1.TranscribeResponse\x12\x61\n\x0c\x44iarizeAudio\x12\'.dictator.speech.v1.DiarizeAudioRequest\x1a(.dictator.speech.v1.DiarizeAudioResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'dictator.speech.v1.transcription_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_TRANSCRIBEREQUEST']._serialized_start=95
-  _globals['_TRANSCRIBEREQUEST']._serialized_end=215
-  _globals['_TRANSCRIBERESPONSE']._serialized_start=217
-  _globals['_TRANSCRIBERESPONSE']._serialized_end=322
-  _globals['_TRANSCRIPTIONSERVICE']._serialized_start=324
-  _globals['_TRANSCRIPTIONSERVICE']._serialized_end=439
+  _globals['_TRANSCRIBEREQUEST']._serialized_start=126
+  _globals['_TRANSCRIBEREQUEST']._serialized_end=275
+  _globals['_TRANSCRIBERESPONSE']._serialized_start=277
+  _globals['_TRANSCRIBERESPONSE']._serialized_end=382
+  _globals['_DIARIZEAUDIOREQUEST']._serialized_start=385
+  _globals['_DIARIZEAUDIOREQUEST']._serialized_end=709
+  _globals['_DIARIZEAUDIORESPONSE']._serialized_start=712
+  _globals['_DIARIZEAUDIORESPONSE']._serialized_end=850
+  _globals['_TRANSCRIPTIONSERVICE']._serialized_start=853
+  _globals['_TRANSCRIPTIONSERVICE']._serialized_end=1067
 # @@protoc_insertion_point(module_scope)

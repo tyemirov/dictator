@@ -39,12 +39,23 @@ class TranscriptionServiceStub(object):
                 request_serializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.TranscribeRequest.SerializeToString,
                 response_deserializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.TranscribeResponse.FromString,
                 _registered_method=True)
+        self.DiarizeAudio = channel.unary_unary(
+                '/dictator.speech.v1.TranscriptionService/DiarizeAudio',
+                request_serializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.DiarizeAudioRequest.SerializeToString,
+                response_deserializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.DiarizeAudioResponse.FromString,
+                _registered_method=True)
 
 
 class TranscriptionServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def Transcribe(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DiarizeAudio(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -57,6 +68,11 @@ def add_TranscriptionServiceServicer_to_server(servicer, server):
                     servicer.Transcribe,
                     request_deserializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.TranscribeRequest.FromString,
                     response_serializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.TranscribeResponse.SerializeToString,
+            ),
+            'DiarizeAudio': grpc.unary_unary_rpc_method_handler(
+                    servicer.DiarizeAudio,
+                    request_deserializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.DiarizeAudioRequest.FromString,
+                    response_serializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.DiarizeAudioResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -86,6 +102,33 @@ class TranscriptionService(object):
             '/dictator.speech.v1.TranscriptionService/Transcribe',
             dictator_dot_speech_dot_v1_dot_transcription__pb2.TranscribeRequest.SerializeToString,
             dictator_dot_speech_dot_v1_dot_transcription__pb2.TranscribeResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DiarizeAudio(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/dictator.speech.v1.TranscriptionService/DiarizeAudio',
+            dictator_dot_speech_dot_v1_dot_transcription__pb2.DiarizeAudioRequest.SerializeToString,
+            dictator_dot_speech_dot_v1_dot_transcription__pb2.DiarizeAudioResponse.FromString,
             options,
             channel_credentials,
             insecure,

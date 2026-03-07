@@ -1,0 +1,126 @@
+"""Diarization-focused gRPC client helper."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Sequence
+
+import grpc
+from google.protobuf.json_format import MessageToDict
+
+from dictator.speech.v1 import artifacts_pb2_grpc, transcription_pb2, transcription_pb2_grpc
+
+from ._uploads import DEFAULT_CHUNK_BYTES, DEFAULT_MEDIA_TYPE, upload_audio_artifact
+from .dictation import DictationClient
+
+
+@dataclass(frozen=True)
+class DiarizationResult:
+    text: str
+    language_code: str
+    source_artifact_id: str
+    diarization: dict[str, Any]
+    diarization_artifact_id: str = ""
+
+
+class DiarizationClient:
+    """Upload audio and call DiarizeAudio in one step."""
+
+    def __init__(
+        self,
+        channel: grpc.Channel,
+        metadata: Sequence[tuple[str, str]] = (),
+        chunk_bytes: int = DEFAULT_CHUNK_BYTES,
+    ) -> None:
+        self._artifact_stub = artifacts_pb2_grpc.ArtifactServiceStub(channel)
+        self._transcription_stub = transcription_pb2_grpc.TranscriptionServiceStub(channel)
+        self._metadata = tuple(metadata)
+        self._chunk_bytes = chunk_bytes
+
+    def diarize_file(
+        self,
+        audio_path: Path,
+        *,
+        model_size: str = "base",
+        language_code: str = "",
+        autodetect_language: bool | None = None,
+        include_words: bool = True,
+        include_utterances: bool = True,
+        include_speakers: bool = True,
+        include_speaker_segments: bool = False,
+        utterance_gap_seconds: float | None = None,
+        persist_json_artifact: bool = False,
+        media_type: str | None = None,
+    ) -> DiarizationResult:
+        payload = audio_path.read_bytes()
+        return self.diarize_bytes(
+            payload,
+            filename=audio_path.name,
+            media_type=media_type,
+            model_size=model_size,
+            language_code=language_code,
+            autodetect_language=autodetect_language,
+            include_words=include_words,
+            include_utterances=include_utterances,
+            include_speakers=include_speakers,
+            include_speaker_segments=include_speaker_segments,
+            utterance_gap_seconds=utterance_gap_seconds,
+            persist_json_artifact=persist_json_artifact,
+        )
+
+    def diarize_bytes(
+        self,
+        payload: bytes,
+        *,
+        filename: str = "audio.webm",
+        media_type: str | None = None,
+        model_size: str = "base",
+        language_code: str = "",
+        autodetect_language: bool | None = None,
+        include_words: bool = True,
+        include_utterances: bool = True,
+        include_speakers: bool = True,
+        include_speaker_segments: bool = False,
+        utterance_gap_seconds: float | None = None,
+        persist_json_artifact: bool = False,
+    ) -> DiarizationResult:
+        resolved_autodetect = DictationClient._resolve_autodetect(
+            language_code=language_code,
+            autodetect_language=autodetect_language,
+        )
+        artifact = upload_audio_artifact(
+            self._artifact_stub,
+            metadata=self._metadata,
+            chunk_bytes=self._chunk_bytes,
+            payload=payload,
+            filename=filename,
+            media_type=media_type or DEFAULT_MEDIA_TYPE,
+        )
+        request = transcription_pb2.DiarizeAudioRequest(
+            audio_artifact_id=artifact.artifact_id,
+            language_code=language_code,
+            model_size=model_size,
+            include_words=include_words,
+            include_utterances=include_utterances,
+            include_speakers=include_speakers,
+            include_speaker_segments=include_speaker_segments,
+            persist_json_artifact=persist_json_artifact,
+            autodetect_language=resolved_autodetect,
+        )
+        if utterance_gap_seconds is not None:
+            request.utterance_gap_seconds = utterance_gap_seconds
+        response = self._transcription_stub.DiarizeAudio(
+            request,
+            metadata=self._metadata,
+        )
+        return DiarizationResult(
+            text=response.text,
+            language_code=response.language_code,
+            source_artifact_id=artifact.artifact_id,
+            diarization=MessageToDict(
+                response.diarization,
+                preserving_proto_field_name=True,
+            ),
+            diarization_artifact_id=response.diarization_artifact_id,
+        )
