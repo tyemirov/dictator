@@ -1,0 +1,5 @@
+"""Shared audio constants."""
+
+PCM_SAMPLE_RATE = 16_000
+TARGET_SAMPLE_RATE = 24_000
+XTTS_BYTE_BUDGET = 800
