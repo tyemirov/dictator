@@ -55,6 +55,23 @@ class BaseServicer:
     def __init__(self, service_context: ServiceContext) -> None:
         self.service_context = service_context
 
+    def _ensure_request_active(self, context: grpc.ServicerContext) -> None:
+        if not context.is_active():
+            self._abort(
+                context,
+                grpc.StatusCode.CANCELLED,
+                "dictator.grpc.request.cancelled",
+                "request is no longer active",
+            )
+        time_remaining = context.time_remaining()
+        if time_remaining is not None and time_remaining <= 0:
+            self._abort(
+                context,
+                grpc.StatusCode.DEADLINE_EXCEEDED,
+                "dictator.grpc.request.deadline_exceeded",
+                "request deadline exceeded",
+            )
+
     def _require_auth(self, context: grpc.ServicerContext) -> None:
         expected = self.service_context.auth_token
         if not expected:
@@ -96,8 +113,10 @@ class BaseServicer:
         try:
             with self.service_context.limiter.acquire():
                 try:
+                    self._ensure_request_active(context)
                     self._require_auth(context)
                     yield
+                    self._ensure_request_active(context)
                     success = True
                 except ValidationError as exc:
                     self._abort(context, grpc.StatusCode.INVALID_ARGUMENT, exc.code, str(exc))
@@ -186,13 +205,13 @@ class ArtifactServiceServicer(BaseServicer, artifacts_pb2_grpc.ArtifactServiceSe
             return artifacts_pb2.UploadArtifactResponse(artifact=self._artifact_ref(record))
 
     def DownloadArtifact(self, request, context):
-        chunk_size = request.chunk_size or self.service_context.download_chunk_bytes
-        if chunk_size <= 0:
-            raise ValidationError(
-                "dictator.grpc.artifact.invalid_chunk_size",
-                "chunk_size must be positive",
-            )
         with self._request_scope(context):
+            chunk_size = request.chunk_size or self.service_context.download_chunk_bytes
+            if chunk_size <= 0:
+                raise ValidationError(
+                    "dictator.grpc.artifact.invalid_chunk_size",
+                    "chunk_size must be positive",
+                )
             for record, offset, payload, eof in self.service_context.artifact_store.iter_artifact_chunks(
                 request.artifact_id,
                 chunk_size=chunk_size,
@@ -209,14 +228,13 @@ class TranscriptionServiceServicer(BaseServicer, transcription_pb2_grpc.Transcri
     def Transcribe(self, request, context):
         with self._request_scope(context):
             audio = self.service_context.artifact_store.get_artifact(request.audio_artifact_id)
-            from dictator.transcription.service import transcribe_word_segments
 
             model_size = request.model_size or _DEFAULT_MODEL_SIZE
-            model = self.service_context.execution_runtime.get_whisper_model(model_size)
-            words = transcribe_word_segments(
+            transcription_service = self.service_context.execution_runtime.get_transcription_service()
+            words = transcription_service.transcribe_word_segments(
                 audio.path,
                 language=request.language_code or None,
-                model=model,
+                model_size=model_size,
             )
             text = " ".join(word.text for word in words if word.text)
             response = transcription_pb2.TranscribeResponse(

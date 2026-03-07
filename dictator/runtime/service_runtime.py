@@ -11,6 +11,7 @@ class SpeechExecutionRuntime:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._whisper_models: dict[str, object] = {}
+        self._transcription_service: object | None = None
         self._diarization_pipeline: object | None = None
         self._tts_backend: object | None = None
         self._alignment_backend: object | None = None
@@ -26,6 +27,17 @@ class SpeechExecutionRuntime:
         with self._lock:
             self._whisper_models.setdefault(model_size, loaded)
             return self._whisper_models[model_size]
+
+
+    def get_transcription_service(self):
+        from dictator.transcription.service import TranscriptionService
+
+        with self._lock:
+            if self._transcription_service is None:
+                self._transcription_service = TranscriptionService(
+                    model_loader=self.get_whisper_model,
+                )
+            return self._transcription_service
 
     def get_diarization_pipeline(self) -> object:
         with self._lock:

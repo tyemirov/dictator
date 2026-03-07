@@ -25,7 +25,10 @@ _SERVICE_NAMES = (
 )
 
 
-def build_server(config: ServerConfig) -> grpc.Server:
+def build_server(
+    config: ServerConfig,
+    service_context: ServiceContext | None = None,
+) -> grpc.Server:
     server = grpc.server(
         futures.ThreadPoolExecutor(max_workers=config.max_workers),
         options=(
@@ -33,14 +36,15 @@ def build_server(config: ServerConfig) -> grpc.Server:
             ("grpc.max_receive_message_length", config.max_message_bytes),
         ),
     )
-    service_context = ServiceContext(
-        artifact_store=LocalArtifactStore(config.artifact_root),
-        execution_runtime=SpeechExecutionRuntime(),
-        metrics=MetricsRegistry(),
-        limiter=InflightLimiter(config.max_inflight),
-        auth_token=config.auth_token,
-        download_chunk_bytes=config.download_chunk_bytes,
-    )
+    if service_context is None:
+        service_context = ServiceContext(
+            artifact_store=LocalArtifactStore(config.artifact_root),
+            execution_runtime=SpeechExecutionRuntime(),
+            metrics=MetricsRegistry(),
+            limiter=InflightLimiter(config.max_inflight),
+            auth_token=config.auth_token,
+            download_chunk_bytes=config.download_chunk_bytes,
+        )
     register_services(server, service_context)
     health_service = grpc_health.HealthServicer()
     for service_name in _SERVICE_NAMES:

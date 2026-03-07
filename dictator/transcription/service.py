@@ -11,6 +11,7 @@ from .models import WordSegment
 
 ProgressCallback = Callable[[float], None]
 AudioInput = Any
+ModelLoader = Callable[[str], object]
 
 
 def load_whisper_model(model_size: str = "base", cache_dir: Path | None = None):
@@ -64,6 +65,67 @@ def transcribe_word_segments(
                 )
             )
     return words
+
+
+class TranscriptionService:
+    """Request-safe application service over Whisper transcription."""
+
+    def __init__(self, model_loader: ModelLoader | None = None) -> None:
+        self._model_loader = model_loader or load_whisper_model
+
+    def transcribe_word_segments(
+        self,
+        audio: AudioInput,
+        language: Optional[str] = None,
+        model_size: str = "base",
+        model: Optional[object] = None,
+        progress_cb: Optional[ProgressCallback] = None,
+    ) -> list[WordSegment]:
+        resolved_model = model or self._model_loader(model_size)
+        return transcribe_word_segments(
+            audio,
+            language=language,
+            model=resolved_model,
+            progress_cb=progress_cb,
+        )
+
+    def transcribe_words(
+        self,
+        audio: AudioInput,
+        language: Optional[str] = None,
+        model_size: str = "base",
+        model: Optional[object] = None,
+        progress_cb: Optional[ProgressCallback] = None,
+    ) -> list[dict[str, float | str | None]]:
+        return serialise_word_segments(
+            self.transcribe_word_segments(
+                audio,
+                language=language,
+                model_size=model_size,
+                model=model,
+                progress_cb=progress_cb,
+            )
+        )
+
+    def transcribe_text(
+        self,
+        audio: AudioInput,
+        language: Optional[str] = None,
+        model_size: str = "base",
+        model: Optional[object] = None,
+        progress_cb: Optional[ProgressCallback] = None,
+    ) -> str:
+        return " ".join(
+            word.text
+            for word in self.transcribe_word_segments(
+                audio,
+                language=language,
+                model_size=model_size,
+                model=model,
+                progress_cb=progress_cb,
+            )
+            if word.text
+        )
 
 
 def serialise_word_segments(words: Iterable[WordSegment]) -> list[dict[str, float | str | None]]:
