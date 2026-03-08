@@ -7,6 +7,7 @@ soundfile
 
 # array + model dependencies
 numpy
+torchcodec==0.7.*
 openai-whisper
 pyannote.audio
 librosa

@@ -19,6 +19,7 @@ Examples:
 Options:
   --dry-run        Validate inputs and print the Docker tags without building
   --skip-tests     Skip `make ci`
+  --skip-image-test Skip the Docker image blackbox smoke test
   --skip-login     Skip `docker login ghcr.io`
   --platform       Override Docker platform (default: linux/amd64)
   --image-name     Override image repo (default: derived from origin remote)
@@ -202,6 +203,7 @@ ensure_builder() {
 
 DRY_RUN=0
 SKIP_TESTS=0
+SKIP_IMAGE_TEST=0
 SKIP_LOGIN=0
 PLATFORM="${PLATFORM:-linux/amd64}"
 CACHE_DIR="${CACHE_DIR:-.buildx-cache-gpu}"
@@ -216,6 +218,9 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-tests)
       SKIP_TESTS=1
+      ;;
+    --skip-image-test)
+      SKIP_IMAGE_TEST=1
       ;;
     --skip-login)
       SKIP_LOGIN=1
@@ -286,6 +291,11 @@ printf '  %s\n' "${IMAGE_TAGS[@]}"
 if [[ "$SKIP_TESTS" -eq 0 ]]; then
   log "Running test suite before publish."
   make ci
+fi
+
+if [[ "$SKIP_IMAGE_TEST" -eq 0 ]]; then
+  log "Running Docker image blackbox smoke test before publish."
+  ./scripts/test-docker-image.sh --tag dictator:publish-blackbox
 fi
 
 if [[ "$DRY_RUN" -eq 1 ]]; then

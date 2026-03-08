@@ -1,7 +1,7 @@
 PYTHON ?= python
 TAG ?=
 
-.PHONY: test coverage ci publish-gpu-image
+.PHONY: test coverage ci publish-gpu-image test-docker-image
 
 test:
 	$(PYTHON) -m unittest discover -s tests -p 'test_*.py'
@@ -12,6 +12,9 @@ coverage:
 	$(PYTHON) -m coverage report -m
 
 ci: coverage
+
+test-docker-image:
+	./scripts/test-docker-image.sh
 
 publish-gpu-image:
 	./scripts/docker-gh-deploy.sh $(TAG)
