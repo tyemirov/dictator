@@ -22,6 +22,7 @@ Options:
   --skip-login     Skip `docker login ghcr.io`
   --platform       Override Docker platform (default: linux/amd64)
   --image-name     Override image repo (default: derived from origin remote)
+  --builder        Override Buildx builder name (default: dictator-ghcr)
   --cache-dir      Override local Buildx cache dir (default: .buildx-cache-gpu)
   -h, --help       Show this help
 
@@ -29,6 +30,7 @@ Environment:
   GHCR_USERNAME    GitHub username for docker login
   GHCR_TOKEN       GitHub token / PAT for docker login
   DICTATOR_IMAGE   Full GHCR image repo override, e.g. ghcr.io/acme/dictator-gpu
+  BUILDX_BUILDER   Buildx builder name override
 EOF
 }
 
@@ -153,11 +155,13 @@ docker_login_ghcr() {
 }
 
 run_build() {
-  local cache_dir="$1"
-  local platform="$2"
+  local builder_name="$1"
+  local cache_dir="$2"
+  local platform="$3"
   local new_cache_dir="${cache_dir}-new"
   local cmd=(
     docker buildx build
+    --builder "$builder_name"
     --file Dockerfile.gpu
     --platform "$platform"
     --push
@@ -181,12 +185,24 @@ run_build() {
   mv "$new_cache_dir" "$cache_dir"
 }
 
+ensure_builder() {
+  local builder_name="$1"
+
+  if ! docker buildx inspect "$builder_name" >/dev/null 2>&1; then
+    log "Creating Buildx builder '${builder_name}' with docker-container driver."
+    docker buildx create --name "$builder_name" --driver docker-container >/dev/null
+  fi
+
+  docker buildx inspect --bootstrap "$builder_name" >/dev/null
+}
+
 DRY_RUN=0
 SKIP_TESTS=0
 SKIP_LOGIN=0
 PLATFORM="${PLATFORM:-linux/amd64}"
 CACHE_DIR="${CACHE_DIR:-.buildx-cache-gpu}"
 IMAGE_NAME="${DICTATOR_IMAGE:-}"
+BUILDER_NAME="${BUILDX_BUILDER:-dictator-ghcr}"
 GIT_TAG=""
 
 while [[ $# -gt 0 ]]; do
@@ -209,6 +225,11 @@ while [[ $# -gt 0 ]]; do
       shift
       [[ $# -gt 0 ]] || die "--image-name requires a value."
       IMAGE_NAME="$1"
+      ;;
+    --builder)
+      shift
+      [[ $# -gt 0 ]] || die "--builder requires a value."
+      BUILDER_NAME="$1"
       ;;
     --cache-dir)
       shift
@@ -272,6 +293,8 @@ if [[ "$SKIP_LOGIN" -eq 0 ]]; then
   docker_login_ghcr
 fi
 
-log "Building and pushing GPU image with local cache '${CACHE_DIR}'."
-run_build "$CACHE_DIR" "$PLATFORM"
+ensure_builder "$BUILDER_NAME"
+
+log "Building and pushing GPU image with Buildx builder '${BUILDER_NAME}' and local cache '${CACHE_DIR}'."
+run_build "$BUILDER_NAME" "$CACHE_DIR" "$PLATFORM"
 log "Publish complete."
