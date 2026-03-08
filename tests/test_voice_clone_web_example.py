@@ -11,7 +11,7 @@ from unittest import mock
 import grpc
 
 from dictator.speech.v1 import artifacts_pb2, common_pb2, voice_pb2
-from examples.voice_clone_web import app
+from demo.voice_clone_web import app
 
 
 class FakeUploadResponse:
@@ -108,6 +108,9 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
         html = app.load_index_html()
         self.assertIn("Read Genesis in your own cloned voice", html)
         self.assertIn("Eleven benevolent elephants", html)
+        self.assertNotIn("Dictator gRPC URL", html)
+        self.assertNotIn("Language Code", html)
+        self.assertIn("Record your voice sample", html)
 
     def test_parse_grpc_target_accepts_plain_and_secure_urls(self):
         self.assertEqual(app.parse_grpc_target("localhost:50051"), app.GrpcTarget("localhost:50051", False))
@@ -125,6 +128,11 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
         with self.assertRaisesRegex(app.ExampleRequestError, "include a host"):
             app.parse_grpc_target("grpc:///")
 
+    def test_resolve_bridge_target_uses_configured_bridge_target(self):
+        self.assertEqual(app.resolve_bridge_target("dictator-grpc:50051"), "dictator-grpc:50051")
+        with self.assertRaisesRegex(app.ExampleRequestError, "bridge target is not configured"):
+            app.resolve_bridge_target("")
+
     def test_build_auth_metadata_requires_token(self):
         self.assertEqual(app.build_auth_metadata("secret"), [("authorization", "Bearer secret")])
         with self.assertRaisesRegex(app.ExampleRequestError, "Auth token"):
@@ -133,13 +141,13 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
     def test_create_channel_selects_secure_and_insecure(self):
         insecure = object()
         secure = object()
-        with mock.patch("examples.voice_clone_web.app.grpc.insecure_channel", return_value=insecure) as insecure_channel:
+        with mock.patch("demo.voice_clone_web.app.grpc.insecure_channel", return_value=insecure) as insecure_channel:
             with mock.patch(
-                "examples.voice_clone_web.app.grpc.secure_channel",
+                "demo.voice_clone_web.app.grpc.secure_channel",
                 return_value=secure,
             ) as secure_channel:
                 with mock.patch(
-                    "examples.voice_clone_web.app.grpc.ssl_channel_credentials",
+                    "demo.voice_clone_web.app.grpc.ssl_channel_credentials",
                     return_value="creds",
                 ) as ssl_credentials:
                     self.assertIs(app.create_channel(app.GrpcTarget("localhost:50051", False)), insecure)
@@ -184,11 +192,11 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
         fake_voice = FakeVoiceStub(fake_channel)
 
         with mock.patch(
-            "examples.voice_clone_web.app.artifacts_pb2_grpc.ArtifactServiceStub",
+            "demo.voice_clone_web.app.artifacts_pb2_grpc.ArtifactServiceStub",
             return_value=fake_artifacts,
         ) as artifact_stub_ctor:
             with mock.patch(
-                "examples.voice_clone_web.app.voice_pb2_grpc.VoiceServiceStub",
+                "demo.voice_clone_web.app.voice_pb2_grpc.VoiceServiceStub",
                 return_value=fake_voice,
             ) as voice_stub_ctor:
                 result = app.synthesize_genesis_reading(
@@ -271,7 +279,6 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
 
     def test_handler_returns_binary_audio(self):
         payload = {
-            "dictatorUrl": "localhost:50051",
             "authToken": "secret",
             "languageCode": "en",
             "audioBase64": base64.b64encode(b"sample").decode("ascii"),
@@ -280,11 +287,17 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
         }
 
         def synthesizer(**kwargs):
-            self.assertEqual(kwargs["dictator_url"], "localhost:50051")
+            self.assertEqual(kwargs["dictator_url"], "dictator-grpc:50051")
             self.assertEqual(kwargs["audio_payload"], b"sample")
             return app.VoiceCloneResult("demo.wav", "audio/wav", b"rendered")
 
-        with running_server(app.build_handler(index_html="<html>ok</html>", synthesizer=synthesizer)) as port:
+        with running_server(
+            app.build_handler(
+                index_html="<html>ok</html>",
+                synthesizer=synthesizer,
+                default_dictator_url="dictator-grpc:50051",
+            )
+        ) as port:
             connection = http.client.HTTPConnection("127.0.0.1", port)
             connection.request(
                 "POST",
@@ -300,13 +313,17 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
         self.assertEqual(body, b"rendered")
 
     def test_handler_returns_bad_request_on_validation_error(self):
-        with running_server(app.build_handler(synthesizer=lambda **_: (_ for _ in ()).throw(app.ExampleRequestError("bad request")))) as port:
+        with running_server(
+            app.build_handler(
+                synthesizer=lambda **_: (_ for _ in ()).throw(app.ExampleRequestError("bad request")),
+                default_dictator_url="dictator-grpc:50051",
+            )
+        ) as port:
             connection = http.client.HTTPConnection("127.0.0.1", port)
             connection.request(
                 "POST",
                 "/api/clone",
                 body=json.dumps({
-                    "dictatorUrl": "localhost:50051",
                     "authToken": "secret",
                     "audioBase64": base64.b64encode(b"sample").decode("ascii"),
                 }).encode("utf-8"),
@@ -318,13 +335,17 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
         self.assertEqual(payload["error"], "bad request")
 
     def test_handler_maps_grpc_errors_to_bad_gateway(self):
-        with running_server(app.build_handler(synthesizer=lambda **_: (_ for _ in ()).throw(FakeRpcError()))) as port:
+        with running_server(
+            app.build_handler(
+                synthesizer=lambda **_: (_ for _ in ()).throw(FakeRpcError()),
+                default_dictator_url="dictator-grpc:50051",
+            )
+        ) as port:
             connection = http.client.HTTPConnection("127.0.0.1", port)
             connection.request(
                 "POST",
                 "/api/clone",
                 body=json.dumps({
-                    "dictatorUrl": "localhost:50051",
                     "authToken": "secret",
                     "audioBase64": base64.b64encode(b"sample").decode("ascii"),
                 }).encode("utf-8"),
@@ -348,7 +369,7 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
         args = parser.parse_args(["--host", "0.0.0.0", "--port", "9090"])
         self.assertEqual(args.host, "0.0.0.0")
         self.assertEqual(args.port, 9090)
-        with mock.patch("examples.voice_clone_web.app.serve") as serve:
+        with mock.patch("demo.voice_clone_web.app.serve") as serve:
             result = app.main(["--host", "0.0.0.0", "--port", "9090"])
         serve.assert_called_once_with(host="0.0.0.0", port=9090)
         self.assertEqual(result, 0)
@@ -367,7 +388,7 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
             def server_close(self):
                 events.append(("server_close",))
 
-        with mock.patch("examples.voice_clone_web.app.ThreadingHTTPServer", FakeServer):
+        with mock.patch("demo.voice_clone_web.app.ThreadingHTTPServer", FakeServer):
             with mock.patch("builtins.print") as printer:
                 app.serve(host="127.0.0.2", port=8181)
         self.assertEqual(events[0][0], "init")

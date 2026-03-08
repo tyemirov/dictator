@@ -11,9 +11,14 @@ x-dictator-command: &dictator-command
   - --config
   - /app/config.yml
 
+x-dictator-networks: &dictator-networks
+  default:
+    aliases:
+      - dictator-grpc
+
 x-dictator-environment: &dictator-environment
   DICTATOR_GRPC_AUTH_TOKEN: ${DICTATOR_GRPC_AUTH_TOKEN:?Set DICTATOR_GRPC_AUTH_TOKEN in .env or the shell environment}
-  HF_TOKEN: ${HF_TOKEN:-}
+  HF_TOKEN: ${HF_TOKEN:?Export HF_TOKEN in the shell environment}
 
 x-gpu-environment: &gpu-environment
   <<: *dictator-environment
@@ -34,6 +39,7 @@ services:
     ports:
       - "50051:50051"
     volumes: *dictator-volumes
+    networks: *dictator-networks
     command: *dictator-command
 
   dictator-gpu:
@@ -51,6 +57,7 @@ services:
     ports:
       - "50051:50051"
     volumes: *dictator-volumes
+    networks: *dictator-networks
     command: *dictator-command
     <<: *gpu-runtime
 
@@ -63,6 +70,7 @@ services:
     ports:
       - "50051:50051"
     volumes: *dictator-volumes
+    networks: *dictator-networks
     command: *dictator-command
     <<: *gpu-runtime
 
@@ -71,9 +79,13 @@ services:
     image: ${DICTATOR_IMAGE:-ghcr.io/tyemirov/dictator-gpu:latest}
     pull_policy: always
     restart: unless-stopped
+    environment:
+      VOICE_CLONE_DICTATOR_URL: dictator-grpc:50051
     expose:
       - "8080"
-    command: ["python", "-m", "examples.voice_clone_web.app", "--host", "0.0.0.0", "--port", "8080"]
+    volumes:
+      - ./demo/voice_clone_web:/app/demo/voice_clone_web:ro
+    command: ["python", "-m", "demo.voice_clone_web.app", "--host", "0.0.0.0", "--port", "8080"]
 
   voice-clone-web:
     profiles: ["voice-clone-demo"]
@@ -85,7 +97,19 @@ services:
     ports:
       - "${VOICE_CLONE_WEB_PORT:-8001}:8000"
     volumes:
-      - ./examples/voice_clone_web:/data:ro
+      - ./demo/voice_clone_web:/data:ro
+      - type: bind
+        source: ${TLS_CERT_HOST_PATH:-/tmp/dictator-missing-voice-clone-cert.pem}
+        target: /tls/cert.pem
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${TLS_KEY_HOST_PATH:-/tmp/dictator-missing-voice-clone-key.pem}
+        target: /tls/key.pem
+        read_only: true
+        bind:
+          create_host_path: false
     environment:
       GHTTP_SERVE_DIRECTORY: /data
       GHTTP_SERVE_PORT: "8000"
@@ -93,6 +117,8 @@ services:
       GHTTP_SERVE_NO_MARKDOWN: "true"
       GHTTP_SERVE_PROXIES: /api=http://voice-clone-bridge:8080
       GHTTP_SERVE_RESPONSE_HEADERS: /=Cache-Control:no-store
+      GHTTP_SERVE_TLS_CERTIFICATE: /tls/cert.pem
+      GHTTP_SERVE_TLS_PRIVATE_KEY: /tls/key.pem
       GHTTPD_DISABLE_DIR_INDEX: "1"
 
 volumes:

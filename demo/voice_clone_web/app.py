@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 from pathlib import Path
 from typing import Callable
 from urllib.parse import urlparse
@@ -23,6 +24,7 @@ UPLOAD_CHUNK_BYTES = 1024 * 1024
 DOWNLOAD_CHUNK_BYTES = 1024 * 1024
 DEFAULT_LANGUAGE_CODE = "en"
 DEFAULT_OUTPUT_FILENAME = "genesis-in-your-voice.wav"
+DICTATOR_URL_ENV = "VOICE_CLONE_DICTATOR_URL"
 
 VOICE_SAMPLE_PROMPT = (
     'Read this aloud, slowly and clearly: "The quick brown fox jumped over the lazy dog. '
@@ -81,6 +83,13 @@ def parse_grpc_target(raw_target: str) -> GrpcTarget:
     if not parsed.netloc:
         raise ExampleRequestError("Dictator URL must include a host.")
     return GrpcTarget(authority=parsed.netloc, secure=parsed.scheme in {"grpcs", "https"})
+
+
+def resolve_bridge_target(configured_target: str | None) -> str:
+    target = (configured_target or "").strip()
+    if target:
+        return target
+    raise ExampleRequestError("Dictator bridge target is not configured.")
 
 
 def build_auth_metadata(auth_token: str) -> list[tuple[str, str]]:
@@ -226,8 +235,10 @@ def build_handler(
     *,
     index_html: str | None = None,
     synthesizer: Callable[..., VoiceCloneResult] = synthesize_genesis_reading,
+    default_dictator_url: str | None = None,
 ):
     html = index_html if index_html is not None else load_index_html()
+    configured_default_dictator_url = (default_dictator_url if default_dictator_url is not None else os.getenv(DICTATOR_URL_ENV, "")).strip() or None
 
     class VoiceCloneDemoHandler(BaseHTTPRequestHandler):
         def _send_json(self, status: HTTPStatus, payload: dict[str, str]) -> None:
@@ -268,8 +279,9 @@ def build_handler(
             request_payload = self.rfile.read(content_length)
             try:
                 payload = decode_request_payload(request_payload)
+                dictator_url = resolve_bridge_target(configured_default_dictator_url)
                 result = synthesizer(
-                    dictator_url=str(payload.get("dictatorUrl", "")),
+                    dictator_url=dictator_url,
                     auth_token=str(payload.get("authToken", "")),
                     audio_payload=decode_audio_base64(str(payload.get("audioBase64", ""))),
                     audio_filename=str(payload.get("audioFilename", "voice-sample.webm")),
