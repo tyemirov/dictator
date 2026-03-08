@@ -10,7 +10,8 @@ Starts the browser voice-clone demo stack and serves the test page over HTTPS th
 
 By default this starts only the demo frontend + HTTP bridge. It expects a Dictator
 service that is already running on the same Compose network under the shared alias
-`dictator-grpc`. Use --with-dictator to also start the GHCR-backed GPU Dictator
+`dictator-grpc`, and it expects `DICTATOR_GRPC_AUTH_TOKEN` to be available in the
+Compose environment. Use --with-dictator to also start the GHCR-backed GPU Dictator
 service profile in the same Compose project.
 
 Options:
@@ -26,6 +27,7 @@ Environment:
   VOICE_CLONE_WEB_PORT  Host port for the demo page (default: 8001)
   TLS_CERT_HOST_PATH    Host path to the TLS certificate for ghttp
   TLS_KEY_HOST_PATH     Host path to the TLS private key for ghttp
+  DICTATOR_GRPC_AUTH_TOKEN Dictator auth token shared with the backend bridge
   DICTATOR_IMAGE        Override the Dictator image, e.g. ghcr.io/tyemirov/dictator-gpu:1.2.3
 
 If the TLS paths are not passed explicitly, the wrapper falls back to the repo-root .env file.
@@ -153,7 +155,6 @@ export TLS_CERT_HOST_PATH="$TLS_CERT_PATH"
 export TLS_KEY_HOST_PATH="$TLS_KEY_PATH"
 
 if [[ "$WITH_DICTATOR" -eq 0 ]]; then
-  export DICTATOR_GRPC_AUTH_TOKEN="${DICTATOR_GRPC_AUTH_TOKEN:-voice-clone-demo-placeholder-token}"
   export HF_TOKEN="${HF_TOKEN:-voice-clone-demo-placeholder-hf-token}"
 fi
 

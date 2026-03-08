@@ -9,7 +9,7 @@ soundfile
 numpy
 torchcodec==0.7.*
 openai-whisper
-pyannote.audio
+pyannote.audio==3.4.*
 librosa
 coqui-tts
 whisperx

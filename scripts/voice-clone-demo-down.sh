@@ -62,7 +62,6 @@ fi
 cd "${REPO_ROOT}"
 
 if [[ "$WITH_DICTATOR" -eq 0 ]]; then
-  export DICTATOR_GRPC_AUTH_TOKEN="${DICTATOR_GRPC_AUTH_TOKEN:-voice-clone-demo-placeholder-token}"
   export HF_TOKEN="${HF_TOKEN:-voice-clone-demo-placeholder-hf-token}"
 fi
 

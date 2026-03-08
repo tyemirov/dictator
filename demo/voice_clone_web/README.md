@@ -20,7 +20,7 @@ For the Dockerized demo stack, serve the page over HTTPS so microphone access al
 
 ## Expected inputs
 
-- `Auth Token`: the same token configured for Dictator
+- No browser-side auth token is required. The backend bridge reads `DICTATOR_GRPC_AUTH_TOKEN` from its environment.
 
 The browser does not choose the Dictator gRPC target. In Docker, the backend bridge talks to the internal alias `dictator-grpc:50051`, which is provided by the active Dictator service profile.
 

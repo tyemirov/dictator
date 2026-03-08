@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import logging
+import os
 import time
 from pathlib import Path
 from typing import Callable, Iterator
@@ -35,6 +36,7 @@ PUBLIC_SIZES = {"tiny", "base", "small", "medium", "large-v2", "large-v3"}
 DIARIZATION_MODEL_ID = "pyannote/speaker-diarization"
 DIARIZATION_MODEL_REVISION = "2.1"
 DIARIZATION_MODEL = f"{DIARIZATION_MODEL_ID}@{DIARIZATION_MODEL_REVISION}"
+DIARIZATION_TOKEN_ENV = "HF_TOKEN"
 PRE_ROLL_SEC = 0.2
 POST_ROLL_SEC = 0.2
 
@@ -49,6 +51,8 @@ def timed(tag: str) -> Iterator[None]:
 
 def configure_torch_runtime() -> None:
     """Apply runtime tweaks lazily so imports stay side-effect light."""
+    # Legacy pyannote 2.1 checkpoints require full pickle loads with Torch 2.6+.
+    os.environ.setdefault("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "1")
     if hasattr(torch, "backends") and hasattr(torch.backends, "cuda"):
         cuda_backend = getattr(torch.backends, "cuda", None)
         if cuda_backend is not None and hasattr(cuda_backend, "matmul"):
@@ -89,16 +93,27 @@ def pitch_variation(samples: np.ndarray) -> float:
     return float(rms.std())
 
 
+def require_diarization_token() -> str:
+    """Return the Hugging Face token needed to load the diarization pipeline."""
+    token = (os.getenv(DIARIZATION_TOKEN_ENV, "") or "").strip()
+    if not token:
+        raise RuntimeError(
+            f"{DIARIZATION_TOKEN_ENV} environment variable is required to load {DIARIZATION_MODEL}"
+        )
+    return token
+
+
 def load_diarization_pipeline() -> object:
     """Load the pyannote diarization pipeline."""
     configure_torch_runtime()
     from pyannote.audio import Pipeline
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    token = require_diarization_token()
     with timed("load_diarization_pipeline"):
         pipeline = Pipeline.from_pretrained(
-            DIARIZATION_MODEL_ID,
-            revision=DIARIZATION_MODEL_REVISION,
+            DIARIZATION_MODEL,
+            use_auth_token=token,
         )
         pipeline.to(device)
         return pipeline

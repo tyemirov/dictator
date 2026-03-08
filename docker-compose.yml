@@ -80,6 +80,7 @@ services:
     pull_policy: always
     restart: unless-stopped
     environment:
+      DICTATOR_GRPC_AUTH_TOKEN: ${DICTATOR_GRPC_AUTH_TOKEN:?Set DICTATOR_GRPC_AUTH_TOKEN in .env or the shell environment}
       VOICE_CLONE_DICTATOR_URL: dictator-grpc:50051
     expose:
       - "8080"
