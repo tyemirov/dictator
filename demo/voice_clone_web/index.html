@@ -319,8 +319,8 @@
         <div class="eyebrow">Dictator Example</div>
         <h1>Read Genesis in your own cloned voice</h1>
         <p>
-          Record a short sample, point the page at a running <strong>Dictator gRPC service</strong>,
-          and it will send back a WAV file of the opening of Genesis read back in your voice.
+          Record a short sample and the backend bridge will send it to a running <strong>Dictator gRPC service</strong>,
+          then return a WAV file of the opening of Genesis read back in your voice.
           Read the sample twice if you want a steadier clone.
         </p>
       </section>
@@ -360,11 +360,7 @@ Eleven benevolent elephants balanced on bright blue bicycles.</textarea>
           <div class="panel-title">
             <div class="eyebrow">Step 2</div>
             <h2>Generate Genesis</h2>
-            <p>Paste the Dictator auth token, then generate the reading after you have a recorded sample.</p>
-          </div>
-          <div>
-            <label for="auth-token">Auth Token</label>
-            <input id="auth-token" type="password" placeholder="Paste the Dictator token" />
+            <p>The backend bridge already has the Dictator auth token. Generate the reading after you have a recorded sample.</p>
           </div>
           <div class="actions">
             <button id="generate-voice" type="button" disabled>Make Genesis</button>
@@ -410,7 +406,6 @@ And God called the dry land Earth; and the gathering together of the waters call
       const recordedAudio = document.getElementById("recorded-audio");
       const generatedAudio = document.getElementById("generated-audio");
       const downloadLink = document.getElementById("download-link");
-      const authTokenInput = document.getElementById("auth-token");
 
       let recorder;
       let mediaStream;
@@ -524,7 +519,6 @@ And God called the dry land Earth; and the gathering together of the waters call
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
-              authToken: authTokenInput.value,
               audioFilename: `voice-sample.${recordedMimeType.includes("ogg") ? "ogg" : recordedMimeType.includes("mp4") ? "m4a" : "webm"}`,
               audioMediaType: recordedMimeType,
               audioBase64: await blobToBase64(recordedBlob)

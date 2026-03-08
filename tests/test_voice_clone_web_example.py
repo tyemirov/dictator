@@ -110,6 +110,7 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
         self.assertIn("Eleven benevolent elephants", html)
         self.assertNotIn("Dictator gRPC URL", html)
         self.assertNotIn("Language Code", html)
+        self.assertNotIn("Auth Token", html)
         self.assertIn("Record your voice sample", html)
 
     def test_parse_grpc_target_accepts_plain_and_secure_urls(self):
@@ -132,6 +133,11 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
         self.assertEqual(app.resolve_bridge_target("dictator-grpc:50051"), "dictator-grpc:50051")
         with self.assertRaisesRegex(app.ExampleRequestError, "bridge target is not configured"):
             app.resolve_bridge_target("")
+
+    def test_resolve_bridge_auth_token_uses_backend_configuration(self):
+        self.assertEqual(app.resolve_bridge_auth_token("secret"), "secret")
+        with self.assertRaisesRegex(app.ExampleRequestError, "bridge auth token is not configured"):
+            app.resolve_bridge_auth_token("")
 
     def test_build_auth_metadata_requires_token(self):
         self.assertEqual(app.build_auth_metadata("secret"), [("authorization", "Bearer secret")])
@@ -279,8 +285,6 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
 
     def test_handler_returns_binary_audio(self):
         payload = {
-            "authToken": "secret",
-            "languageCode": "en",
             "audioBase64": base64.b64encode(b"sample").decode("ascii"),
             "audioFilename": "voice.webm",
             "audioMediaType": "audio/webm",
@@ -288,6 +292,7 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
 
         def synthesizer(**kwargs):
             self.assertEqual(kwargs["dictator_url"], "dictator-grpc:50051")
+            self.assertEqual(kwargs["auth_token"], "bridge-secret")
             self.assertEqual(kwargs["audio_payload"], b"sample")
             return app.VoiceCloneResult("demo.wav", "audio/wav", b"rendered")
 
@@ -296,6 +301,7 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
                 index_html="<html>ok</html>",
                 synthesizer=synthesizer,
                 default_dictator_url="dictator-grpc:50051",
+                default_auth_token="bridge-secret",
             )
         ) as port:
             connection = http.client.HTTPConnection("127.0.0.1", port)
@@ -317,6 +323,7 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
             app.build_handler(
                 synthesizer=lambda **_: (_ for _ in ()).throw(app.ExampleRequestError("bad request")),
                 default_dictator_url="dictator-grpc:50051",
+                default_auth_token="bridge-secret",
             )
         ) as port:
             connection = http.client.HTTPConnection("127.0.0.1", port)
@@ -324,7 +331,6 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
                 "POST",
                 "/api/clone",
                 body=json.dumps({
-                    "authToken": "secret",
                     "audioBase64": base64.b64encode(b"sample").decode("ascii"),
                 }).encode("utf-8"),
                 headers={"Content-Type": "application/json"},
@@ -339,6 +345,7 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
             app.build_handler(
                 synthesizer=lambda **_: (_ for _ in ()).throw(FakeRpcError()),
                 default_dictator_url="dictator-grpc:50051",
+                default_auth_token="bridge-secret",
             )
         ) as port:
             connection = http.client.HTTPConnection("127.0.0.1", port)
@@ -346,7 +353,6 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
                 "POST",
                 "/api/clone",
                 body=json.dumps({
-                    "authToken": "secret",
                     "audioBase64": base64.b64encode(b"sample").decode("ascii"),
                 }).encode("utf-8"),
                 headers={"Content-Type": "application/json"},
@@ -355,6 +361,27 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
             payload = json.loads(response.read().decode("utf-8"))
         self.assertEqual(response.status, 502)
         self.assertIn("UNAUTHENTICATED", payload["error"])
+
+    def test_handler_reports_missing_backend_auth_token(self):
+        with running_server(
+            app.build_handler(
+                default_dictator_url="dictator-grpc:50051",
+                default_auth_token="",
+            )
+        ) as port:
+            connection = http.client.HTTPConnection("127.0.0.1", port)
+            connection.request(
+                "POST",
+                "/api/clone",
+                body=json.dumps({
+                    "audioBase64": base64.b64encode(b"sample").decode("ascii"),
+                }).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+            )
+            response = connection.getresponse()
+            payload = json.loads(response.read().decode("utf-8"))
+        self.assertEqual(response.status, 400)
+        self.assertEqual(payload["error"], "Dictator bridge auth token is not configured.")
 
     def test_handler_rejects_unknown_post(self):
         with running_server(app.build_handler(index_html="<html>ok</html>")) as port:

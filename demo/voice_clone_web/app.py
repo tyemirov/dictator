@@ -25,6 +25,7 @@ DOWNLOAD_CHUNK_BYTES = 1024 * 1024
 DEFAULT_LANGUAGE_CODE = "en"
 DEFAULT_OUTPUT_FILENAME = "genesis-in-your-voice.wav"
 DICTATOR_URL_ENV = "VOICE_CLONE_DICTATOR_URL"
+DICTATOR_AUTH_TOKEN_ENV = "DICTATOR_GRPC_AUTH_TOKEN"
 
 VOICE_SAMPLE_PROMPT = (
     'Read this aloud, slowly and clearly: "The quick brown fox jumped over the lazy dog. '
@@ -90,6 +91,13 @@ def resolve_bridge_target(configured_target: str | None) -> str:
     if target:
         return target
     raise ExampleRequestError("Dictator bridge target is not configured.")
+
+
+def resolve_bridge_auth_token(configured_token: str | None) -> str:
+    token = (configured_token or "").strip()
+    if token:
+        return token
+    raise ExampleRequestError("Dictator bridge auth token is not configured.")
 
 
 def build_auth_metadata(auth_token: str) -> list[tuple[str, str]]:
@@ -236,9 +244,15 @@ def build_handler(
     index_html: str | None = None,
     synthesizer: Callable[..., VoiceCloneResult] = synthesize_genesis_reading,
     default_dictator_url: str | None = None,
+    default_auth_token: str | None = None,
 ):
     html = index_html if index_html is not None else load_index_html()
-    configured_default_dictator_url = (default_dictator_url if default_dictator_url is not None else os.getenv(DICTATOR_URL_ENV, "")).strip() or None
+    configured_default_dictator_url = (
+        default_dictator_url if default_dictator_url is not None else os.getenv(DICTATOR_URL_ENV, "")
+    ).strip() or None
+    configured_auth_token = (
+        default_auth_token if default_auth_token is not None else os.getenv(DICTATOR_AUTH_TOKEN_ENV, "")
+    ).strip() or None
 
     class VoiceCloneDemoHandler(BaseHTTPRequestHandler):
         def _send_json(self, status: HTTPStatus, payload: dict[str, str]) -> None:
@@ -280,9 +294,10 @@ def build_handler(
             try:
                 payload = decode_request_payload(request_payload)
                 dictator_url = resolve_bridge_target(configured_default_dictator_url)
+                auth_token = resolve_bridge_auth_token(configured_auth_token)
                 result = synthesizer(
                     dictator_url=dictator_url,
-                    auth_token=str(payload.get("authToken", "")),
+                    auth_token=auth_token,
                     audio_payload=decode_audio_base64(str(payload.get("audioBase64", ""))),
                     audio_filename=str(payload.get("audioFilename", "voice-sample.webm")),
                     audio_media_type=str(payload.get("audioMediaType", "audio/webm")),

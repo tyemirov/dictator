@@ -206,9 +206,7 @@ Run the example after Dictator is already up:
 python -m demo.voice_clone_web.app --host 127.0.0.1 --port 8080
 ```
 
-Then open `http://127.0.0.1:8080` and provide:
-
-* `Auth Token`, matching `DICTATOR_GRPC_AUTH_TOKEN`
+Then open `http://127.0.0.1:8080` and record a voice sample. The browser does not hold the Dictator auth token; the backend bridge reads `DICTATOR_GRPC_AUTH_TOKEN` from its environment.
 
 The page asks the user to read:
 
@@ -232,7 +230,7 @@ Or use the wrapper:
   --tls-key /path/to/computercat-key.pem
 ```
 
-The wrapper is the easier path for the demo-only stack. It supplies harmless placeholder Dictator env values when you are only starting `voice-clone-web` + `voice-clone-bridge`, so you do not need a real `HF_TOKEN` unless you also ask it to start `dictator-ghcr`.
+The wrapper is the easier path for the demo-only stack. It still supplies a harmless placeholder `HF_TOKEN` when you are only starting `voice-clone-web` + `voice-clone-bridge`, but the bridge now requires a real `DICTATOR_GRPC_AUTH_TOKEN` because it authenticates to Dictator on the browser's behalf.
 It also falls back to the repo-root `.env` for `TLS_CERT_HOST_PATH` and `TLS_KEY_HOST_PATH`, so once those are set there you can run `./scripts/voice-clone-demo.sh` directly.
 The bridge always connects to the internal Docker alias `dictator-grpc:50051`. The Dictator service profiles expose that shared alias, so the demo talks to one stable hostname whether you run `dictator`, `dictator-gpu`, or `dictator-ghcr`.
 That means the demo-only wrapper expects a Dictator container to already be running in the same Compose project and network. If you want the wrapper to start Dictator too, use `--with-dictator`.
