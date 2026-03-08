@@ -126,6 +126,27 @@ This requires a host GPU plus the NVIDIA Container Toolkit so Docker can pass th
 docker compose -f compose.yml -f compose.gpu.yml up --build
 ```
 
+### Run the Published GPU Image from GHCR
+
+If you want local orchestration to always pull the released container instead of building from the checkout, use:
+
+```bash
+docker compose -f compose.ghcr.gpu.yml up
+```
+
+That Compose file uses `pull_policy: always` and defaults to:
+
+```text
+ghcr.io/tyemirov/dictator-gpu:latest
+```
+
+To pin a specific release tag instead of `latest`, override `DICTATOR_IMAGE`:
+
+```bash
+DICTATOR_IMAGE=ghcr.io/tyemirov/dictator-gpu:1.2.3 \
+docker compose -f compose.ghcr.gpu.yml up
+```
+
 The container starts the gRPC server with:
 
 ```bash
