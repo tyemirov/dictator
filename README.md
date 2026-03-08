@@ -156,6 +156,13 @@ If you want local orchestration to always pull the released container instead of
 docker compose -f compose.ghcr.gpu.yml up
 ```
 
+Or with the convenience wrappers:
+
+```bash
+./scripts/up.sh
+./scripts/down.sh
+```
+
 That Compose file uses `pull_policy: always` and defaults to:
 
 ```text
