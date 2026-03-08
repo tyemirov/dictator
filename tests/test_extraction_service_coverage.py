@@ -19,9 +19,10 @@ from dictator.extraction import service as extraction_service
 
 class _FakePipeline:
     @classmethod
-    def from_pretrained(cls, model_id):
+    def from_pretrained(cls, model_id, revision=None):
         pipeline = cls()
         pipeline.model_id = model_id
+        pipeline.revision = revision
         pipeline.device = None
         return pipeline
 
@@ -68,7 +69,8 @@ class ExtractionServiceCoverageTests(unittest.TestCase):
         ):
             pipeline = extraction_service.load_diarization_pipeline()
         configure.assert_called_once()
-        self.assertEqual(pipeline.model_id, extraction_service.DIARIZATION_MODEL)
+        self.assertEqual(pipeline.model_id, extraction_service.DIARIZATION_MODEL_ID)
+        self.assertEqual(pipeline.revision, extraction_service.DIARIZATION_MODEL_REVISION)
         self.assertEqual(pipeline.device, "device:cpu")
 
     def test_apply_filter_choose_window_and_trim_bounds(self):

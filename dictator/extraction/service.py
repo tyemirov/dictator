@@ -32,7 +32,9 @@ MAX_SPEECH_RATE = 4.0
 MAX_CENTROID_HZ = 4_000
 MIN_CENTROID_HZ = 500
 PUBLIC_SIZES = {"tiny", "base", "small", "medium", "large-v2", "large-v3"}
-DIARIZATION_MODEL = "pyannote/speaker-diarization@2.1"
+DIARIZATION_MODEL_ID = "pyannote/speaker-diarization"
+DIARIZATION_MODEL_REVISION = "2.1"
+DIARIZATION_MODEL = f"{DIARIZATION_MODEL_ID}@{DIARIZATION_MODEL_REVISION}"
 PRE_ROLL_SEC = 0.2
 POST_ROLL_SEC = 0.2
 
@@ -94,7 +96,10 @@ def load_diarization_pipeline() -> object:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     with timed("load_diarization_pipeline"):
-        pipeline = Pipeline.from_pretrained(DIARIZATION_MODEL)
+        pipeline = Pipeline.from_pretrained(
+            DIARIZATION_MODEL_ID,
+            revision=DIARIZATION_MODEL_REVISION,
+        )
         pipeline.to(device)
         return pipeline
 
