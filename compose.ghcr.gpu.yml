@@ -1,0 +1,26 @@
+services:
+  dictator:
+    image: ${DICTATOR_IMAGE:-ghcr.io/tyemirov/dictator-gpu:latest}
+    pull_policy: always
+    container_name: dictator-gpu
+    restart: unless-stopped
+    ports:
+      - "50051:50051"
+    volumes:
+      - ./config.yml:/app/config.yml:ro
+      - ./.env:/app/.env:ro
+      - dictator-artifacts:/app/.dictator-artifacts
+      - huggingface-cache:/home/app/.cache/huggingface
+      - whisper-cache:/home/app/.cache/whisper
+      - torch-cache:/home/app/.cache/torch
+    command: ["python", "serve.py", "--config", "/app/config.yml", "--env-file", "/app/.env"]
+    gpus: all
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+
+volumes:
+  dictator-artifacts:
+  huggingface-cache:
+  whisper-cache:
+  torch-cache:
