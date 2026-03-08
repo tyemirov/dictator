@@ -135,12 +135,13 @@ If you want Docker Compose to load service environment from a file, create a loc
 ```bash
 cp dictator.env.example .env
 # edit .env and set DICTATOR_GRPC_AUTH_TOKEN
-# set HF_TOKEN as well if you want diarization / speaker extraction
+# leave HF_TOKEN as ${HF_TOKEN} so Compose reads it from your shell
+export HF_TOKEN=...
 
 docker compose up --build
 ```
 
-The application itself does not read env files. It only reads process environment. `docker-compose.yml` uses Docker Compose interpolation, so `DICTATOR_GRPC_AUTH_TOKEN` and `HF_TOKEN` can come from `.env` or from your shell environment.
+The application itself does not read env files. It only reads process environment. `docker-compose.yml` uses Docker Compose interpolation, so `DICTATOR_GRPC_AUTH_TOKEN` can come from `.env` or your shell environment. Keep `HF_TOKEN=${HF_TOKEN}` in `.env` so the key exists there, but the actual Hugging Face token still comes from your shell environment. Compose fails fast if that exported `HF_TOKEN` is missing.
 
 ### Run with Compose on CUDA
 
@@ -190,7 +191,7 @@ The compose setup mounts persistent caches for Hugging Face, Whisper, and Torch 
 
 * The provided image is CPU-oriented. It includes the service prerequisites and will start the server, but heavy transcription/alignment/TTS workloads will be slow without GPU acceleration.
 * The container installs CPU `torch` / `torchaudio` wheels explicitly so it does not pull CUDA runtimes into a CPU deployment.
-* `HF_TOKEN` should be present in the container environment, via `.env` or your shell environment, if you want pyannote diarization and archival speaker extraction to download gated Hugging Face models on first run.
+* `HF_TOKEN` is required in the container environment and should be exported in your shell before starting Dictator.
 * Both `Dockerfile` and `Dockerfile.gpu` use multi-stage builds so compilers and other build-only packages stay out of the final runtime image.
 * `Dockerfile.gpu` installs the CUDA 12.8 Torch wheel set and is intended to run with the `gpu-local` profile in `docker-compose.yml`.
 * The GPU container still uses Python 3.11.8. The host provides the actual NVIDIA device through Docker; without that runtime integration, the image will build but CUDA execution will not be available.
@@ -202,32 +203,39 @@ The repo includes a browser example that records a short voice sample, calls the
 Run the example after Dictator is already up:
 
 ```bash
-python -m examples.voice_clone_web.app --host 127.0.0.1 --port 8080
+python -m demo.voice_clone_web.app --host 127.0.0.1 --port 8080
 ```
 
 Then open `http://127.0.0.1:8080` and provide:
 
-* `Dictator gRPC URL`, for example `localhost:50051` or `https://your-host:443`
 * `Auth Token`, matching `DICTATOR_GRPC_AUTH_TOKEN`
-* `Language Code`, usually `en`
 
 The page asks the user to read:
 
 > The quick brown fox jumped over the lazy dog. Eleven benevolent elephants balanced on bright blue bicycles.
 
-When the page is served from a non-local hostname, the `Dictator gRPC URL` field auto-fills to `<current-host>:50051`. So if you publish the page at `computercat.tyemirov.net`, it defaults to `computercat.tyemirov.net:50051`.
+The browser page no longer chooses the Dictator gRPC target. The backend bridge owns that connection and, in Docker, always talks to the internal alias `dictator-grpc:50051`.
 
-For a Dockerized test page using `ghttp` as the frontend and the existing Python HTTP bridge behind `/api`, start:
+For a Dockerized test page using `ghttp` as the frontend and the existing Python HTTP bridge behind `/api`, provide a local TLS certificate and key and start:
 
 ```bash
+TLS_CERT_HOST_PATH=/path/to/computercat-cert.pem \
+TLS_KEY_HOST_PATH=/path/to/computercat-key.pem \
 docker compose --profile voice-clone-demo up -d voice-clone-web voice-clone-bridge
 ```
 
 Or use the wrapper:
 
 ```bash
-./scripts/voice-clone-demo.sh
+./scripts/voice-clone-demo.sh \
+  --tls-cert /path/to/computercat-cert.pem \
+  --tls-key /path/to/computercat-key.pem
 ```
+
+The wrapper is the easier path for the demo-only stack. It supplies harmless placeholder Dictator env values when you are only starting `voice-clone-web` + `voice-clone-bridge`, so you do not need a real `HF_TOKEN` unless you also ask it to start `dictator-ghcr`.
+It also falls back to the repo-root `.env` for `TLS_CERT_HOST_PATH` and `TLS_KEY_HOST_PATH`, so once those are set there you can run `./scripts/voice-clone-demo.sh` directly.
+The bridge always connects to the internal Docker alias `dictator-grpc:50051`. The Dictator service profiles expose that shared alias, so the demo talks to one stable hostname whether you run `dictator`, `dictator-gpu`, or `dictator-ghcr`.
+That means the demo-only wrapper expects a Dictator container to already be running in the same Compose project and network. If you want the wrapper to start Dictator too, use `--with-dictator`.
 
 Stop it with:
 
@@ -235,18 +243,23 @@ Stop it with:
 ./scripts/voice-clone-demo-down.sh
 ```
 
-By default the demo stack publishes on port `8001`. The wrapper prints the public URL after startup and defaults that hostname to `computercat.tyemirov.net`. Override either value with `--host` / `--port` or `VOICE_CLONE_DEMO_HOST` / `VOICE_CLONE_WEB_PORT`.
+By default the demo stack publishes on port `8001`. The wrapper prints the public URL after startup as `https://computercat.tyemirov.net:8001/` unless you override the host or port with `--host` / `--port` or `VOICE_CLONE_DEMO_HOST` / `VOICE_CLONE_WEB_PORT`. The wrapper accepts the TLS files through `--tls-cert` / `--tls-key` or `TLS_CERT_HOST_PATH` / `TLS_KEY_HOST_PATH`.
 
 If Dictator is also running through the GHCR GPU stack on the same machine, you can launch both together:
 
 ```bash
+TLS_CERT_HOST_PATH=/path/to/computercat-cert.pem \
+TLS_KEY_HOST_PATH=/path/to/computercat-key.pem \
 docker compose --profile ghcr-gpu --profile voice-clone-demo up -d dictator-ghcr voice-clone-web voice-clone-bridge
 ```
 
 With the wrapper:
 
 ```bash
-./scripts/voice-clone-demo.sh --with-dictator
+./scripts/voice-clone-demo.sh \
+  --with-dictator \
+  --tls-cert /path/to/computercat-cert.pem \
+  --tls-key /path/to/computercat-key.pem
 ```
 
 And stop both with:
@@ -255,9 +268,9 @@ And stop both with:
 ./scripts/voice-clone-demo-down.sh --with-dictator
 ```
 
-The `ghttp` service proxies `/api/clone` to the local bridge container, so the browser stays same-origin while the bridge connects to the Dictator gRPC endpoint named in the page.
+The `ghttp` service proxies `/api/clone` to the local bridge container, so the browser stays same-origin while the bridge connects to Dictator over the internal Docker hostname `dictator-grpc:50051`.
 
-Example-specific notes live in [examples/voice_clone_web/README.md](./examples/voice_clone_web/README.md).
+Example-specific notes live in [demo/voice_clone_web/README.md](./demo/voice_clone_web/README.md).
 
 ---
 

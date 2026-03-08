@@ -73,6 +73,12 @@
         padding: 1.25rem;
       }
 
+      h2 {
+        margin: 0;
+        font-size: 1.55rem;
+        line-height: 1.05;
+      }
+
       label {
         display: block;
         margin-bottom: 0.35rem;
@@ -182,6 +188,124 @@
         color: rgba(32, 23, 21, 0.72);
       }
 
+      .panel-title {
+        display: grid;
+        gap: 0.25rem;
+      }
+
+      .panel-title p {
+        margin: 0;
+        color: rgba(32, 23, 21, 0.78);
+      }
+
+      .record-stage {
+        display: grid;
+        justify-items: center;
+        gap: 0.9rem;
+        text-align: center;
+      }
+
+      .record-button {
+        width: min(15rem, 60vw);
+        aspect-ratio: 1;
+        margin: 0 auto;
+        padding: 0;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at 32% 28%, #ff8d83, #cf2f24 58%, #77120f 100%);
+        box-shadow:
+          0 24px 42px rgba(119, 18, 15, 0.28),
+          inset 0 2px 16px rgba(255, 255, 255, 0.16);
+        position: relative;
+      }
+
+      .record-button::after {
+        content: "";
+        position: absolute;
+        inset: 14px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 250, 242, 0.24);
+      }
+
+      .record-button-face {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        justify-items: center;
+        gap: 0.75rem;
+      }
+
+      .record-icon {
+        width: 3.8rem;
+        height: 3.8rem;
+        color: #fffaf2;
+      }
+
+      .record-icon circle,
+      .record-icon path,
+      .record-icon rect,
+      .record-icon line {
+        fill: currentColor;
+        stroke: currentColor;
+        stroke-width: 4;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .record-icon.recording {
+        display: none;
+      }
+
+      .record-button.is-recording {
+        animation: pulse 1.5s ease-in-out infinite;
+      }
+
+      .record-button.is-recording .record-icon.idle {
+        display: none;
+      }
+
+      .record-button.is-recording .record-icon.recording {
+        display: block;
+      }
+
+      .record-button-text {
+        color: #fffaf2;
+        font-size: 1rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .record-state {
+        margin: 0;
+        max-width: 24rem;
+        font-size: 0.98rem;
+        line-height: 1.5;
+        color: rgba(32, 23, 21, 0.84);
+      }
+
+      .actions {
+        display: grid;
+        gap: 0.75rem;
+      }
+
+      @keyframes pulse {
+        0%, 100% {
+          transform: scale(1);
+          box-shadow:
+            0 24px 42px rgba(119, 18, 15, 0.28),
+            inset 0 2px 16px rgba(255, 255, 255, 0.16);
+        }
+        50% {
+          transform: scale(1.03);
+          box-shadow:
+            0 30px 52px rgba(119, 18, 15, 0.34),
+            0 0 0 14px rgba(207, 47, 36, 0.12),
+            inset 0 2px 16px rgba(255, 255, 255, 0.16);
+        }
+      }
+
       @media (max-width: 640px) {
         .buttons {
           grid-template-columns: 1fr;
@@ -203,32 +327,49 @@
 
       <section class="grid">
         <div class="panel stack">
-          <div>
-            <label for="dictator-url">Dictator gRPC URL</label>
-            <input id="dictator-url" value="localhost:50051" />
+          <div class="panel-title">
+            <div class="eyebrow">Step 1</div>
+            <h2>Record your voice sample</h2>
+            <p>Press the red button once to start. When it becomes a microphone, you are live. Press it again to stop.</p>
           </div>
-          <div>
-            <label for="auth-token">Auth Token</label>
-            <input id="auth-token" type="password" placeholder="Paste the Dictator token" />
+          <div class="record-stage">
+            <button id="record-toggle" class="record-button" type="button" aria-pressed="false">
+              <span class="record-button-face">
+                <svg class="record-icon idle" viewBox="0 0 64 64" aria-hidden="true">
+                  <circle cx="32" cy="32" r="15"></circle>
+                </svg>
+                <svg class="record-icon recording" viewBox="0 0 64 64" aria-hidden="true">
+                  <rect x="24" y="12" width="16" height="26" rx="8"></rect>
+                  <path d="M20 31c0 7 5 12 12 12s12-5 12-12"></path>
+                  <line x1="32" y1="43" x2="32" y2="52"></line>
+                  <line x1="26" y1="52" x2="38" y2="52"></line>
+                </svg>
+                <span id="record-button-text" class="record-button-text">Record</span>
+              </span>
+            </button>
+            <p id="record-state" class="record-state">Click the record button, read the sample slowly and clearly, then click the microphone to stop.</p>
           </div>
-          <div>
-            <label for="language-code">Language Code</label>
-            <input id="language-code" value="en" />
-          </div>
-          <div class="buttons">
-            <button id="start-recording" type="button">Start Recording</button>
-            <button id="stop-recording" class="secondary" type="button" disabled>Stop Recording</button>
-            <button id="generate-voice" type="button" disabled>Make Genesis</button>
-          </div>
-          <div id="status" class="status" aria-live="polite"></div>
-        </div>
-
-        <div class="panel stack">
           <div>
             <label for="sample-text">Read This Sample</label>
             <textarea id="sample-text" readonly>The quick brown fox jumped over the lazy dog.
 Eleven benevolent elephants balanced on bright blue bicycles.</textarea>
           </div>
+        </div>
+
+        <div class="panel stack">
+          <div class="panel-title">
+            <div class="eyebrow">Step 2</div>
+            <h2>Generate Genesis</h2>
+            <p>Paste the Dictator auth token, then generate the reading after you have a recorded sample.</p>
+          </div>
+          <div>
+            <label for="auth-token">Auth Token</label>
+            <input id="auth-token" type="password" placeholder="Paste the Dictator token" />
+          </div>
+          <div class="actions">
+            <button id="generate-voice" type="button" disabled>Make Genesis</button>
+          </div>
+          <div id="status" class="status" aria-live="polite"></div>
           <div>
             <label for="genesis-text">The Generated Reading</label>
             <textarea id="genesis-text" readonly>Genesis 1:1-10, King James Version.
@@ -262,15 +403,14 @@ And God called the dry land Earth; and the gathering together of the waters call
 
     <script>
       const statusNode = document.getElementById("status");
-      const startButton = document.getElementById("start-recording");
-      const stopButton = document.getElementById("stop-recording");
+      const recordButton = document.getElementById("record-toggle");
+      const recordButtonText = document.getElementById("record-button-text");
+      const recordStateNode = document.getElementById("record-state");
       const generateButton = document.getElementById("generate-voice");
       const recordedAudio = document.getElementById("recorded-audio");
       const generatedAudio = document.getElementById("generated-audio");
       const downloadLink = document.getElementById("download-link");
-      const dictatorUrlInput = document.getElementById("dictator-url");
       const authTokenInput = document.getElementById("auth-token");
-      const languageCodeInput = document.getElementById("language-code");
 
       let recorder;
       let mediaStream;
@@ -309,26 +449,24 @@ And God called the dry land Earth; and the gathering together of the waters call
         return match ? match[1] : "genesis-in-your-voice.wav";
       }
 
-      function isLocalHostname(hostname) {
-        return !hostname || hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]";
+      function setRecordingUi(isRecording) {
+        recordButton.classList.toggle("is-recording", isRecording);
+        recordButton.setAttribute("aria-pressed", isRecording ? "true" : "false");
+        recordButtonText.textContent = isRecording ? "Stop" : (recordedBlob ? "Record Again" : "Record");
+        recordStateNode.textContent = isRecording
+          ? "Recording now. Click the microphone again when you are done reading the sample."
+          : (recordedBlob
+            ? "Sample captured. You can record again for a stronger sample, or make Genesis now."
+            : "Click the record button, read the sample slowly and clearly, then click the microphone to stop.");
       }
 
-      function defaultDictatorUrl() {
-        const params = new URLSearchParams(window.location.search);
-        const queryTarget = (params.get("dictatorUrl") || "").trim();
-        if (queryTarget) {
-          return queryTarget;
-        }
-        const hostname = window.location.hostname;
-        if (isLocalHostname(hostname)) {
-          return "localhost:50051";
-        }
-        return `${hostname}:50051`;
-      }
+      setRecordingUi(false);
 
-      dictatorUrlInput.value = defaultDictatorUrl();
-
-      startButton.addEventListener("click", async () => {
+      recordButton.addEventListener("click", async () => {
+        if (recorder && recorder.state !== "inactive") {
+          recorder.stop();
+          return;
+        }
         if (!navigator.mediaDevices || !window.MediaRecorder) {
           setStatus("This browser cannot record audio. Use a recent Chromium, Firefox, or Safari release.", "error");
           return;
@@ -351,24 +489,25 @@ And God called the dry land Earth; and the gathering together of the waters call
             if (mediaStream) {
               mediaStream.getTracks().forEach((track) => track.stop());
             }
+            recorder = null;
+            mediaStream = null;
+            setRecordingUi(false);
             setStatus("Recording captured. Generate the Genesis reading when ready.", "ok");
           });
-          recorder.start();
-          startButton.disabled = true;
-          stopButton.disabled = false;
+          recordedBlob = null;
           generateButton.disabled = true;
+          recorder.start();
+          setRecordingUi(true);
           setStatus("Recording. Read the sample text twice for a steadier voice clone.");
         } catch (error) {
+          recorder = null;
+          if (mediaStream) {
+            mediaStream.getTracks().forEach((track) => track.stop());
+          }
+          mediaStream = null;
+          setRecordingUi(false);
           setStatus(error.message || "Microphone access failed.", "error");
         }
-      });
-
-      stopButton.addEventListener("click", () => {
-        if (recorder && recorder.state !== "inactive") {
-          recorder.stop();
-        }
-        startButton.disabled = false;
-        stopButton.disabled = true;
       });
 
       generateButton.addEventListener("click", async () => {
@@ -385,9 +524,7 @@ And God called the dry land Earth; and the gathering together of the waters call
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
-              dictatorUrl: dictatorUrlInput.value,
               authToken: authTokenInput.value,
-              languageCode: languageCodeInput.value || "en",
               audioFilename: `voice-sample.${recordedMimeType.includes("ogg") ? "ogg" : recordedMimeType.includes("mp4") ? "m4a" : "webm"}`,
               audioMediaType: recordedMimeType,
               audioBase64: await blobToBase64(recordedBlob)

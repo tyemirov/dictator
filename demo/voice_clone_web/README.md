@@ -7,16 +7,22 @@ This example serves a small browser UI that records a short voice sample, sends 
 Start Dictator first, then run:
 
 ```bash
-python -m examples.voice_clone_web.app --host 127.0.0.1 --port 8080
+python -m demo.voice_clone_web.app --host 127.0.0.1 --port 8080
 ```
 
 Open `http://127.0.0.1:8080` in a browser with microphone access.
 
+For the Dockerized demo stack, serve the page over HTTPS so microphone access also works on non-localhost hosts. The repository wrapper does that with `ghttp` plus a local TLS certificate and key:
+
+```bash
+./scripts/voice-clone-demo.sh --tls-cert /path/to/computercat-cert.pem --tls-key /path/to/computercat-key.pem
+```
+
 ## Expected inputs
 
-- `Dictator gRPC URL`: `localhost:50051`, `grpc://localhost:50051`, or `https://your-host:443`
 - `Auth Token`: the same token configured for Dictator
-- `Language Code`: defaults to `en`
+
+The browser does not choose the Dictator gRPC target. In Docker, the backend bridge talks to the internal alias `dictator-grpc:50051`, which is provided by the active Dictator service profile.
 
 The page asks the user to read:
 
