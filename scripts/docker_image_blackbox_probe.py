@@ -4,17 +4,15 @@
 from __future__ import annotations
 
 import contextlib
-import math
+import os
 from pathlib import Path
 import socket
-import struct
 import subprocess
 import sys
 import tempfile
 import time
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
-import wave
 
 import grpc
 from grpc_health.v1 import health_pb2, health_pb2_grpc
@@ -23,78 +21,36 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from dictator.runtime import InflightLimiter, MetricsRegistry
 from dictator.speech.v1 import artifacts_pb2, artifacts_pb2_grpc, voice_pb2, voice_pb2_grpc
-from dictator.storage import LocalArtifactStore
-from dictator.synthesis.models import SpeechSegment, SynthesisResult
-from dictator.transport.grpc.config import ServerConfig
-from dictator.transport.grpc.server import build_server
-from dictator.transport.grpc.services import ServiceContext
 
 
 AUTH_TOKEN = "docker-image-blackbox-secret"
-SAMPLE_RATE = 24_000
+DIARIZATION_TOKEN_ENV = "HF_TOKEN"
+PROBE_SAMPLE_TEXT = (
+    "The quick brown fox jumped over the lazy dog. "
+    "Eleven benevolent elephants balanced on bright blue bicycles. "
+    "She sells sea shells by the seashore."
+)
 
 
 def assert_dependency_imports() -> None:
     import librosa  # noqa: F401
-    import pyannote.audio  # noqa: F401
+    import pyannote.audio
     import soundfile  # noqa: F401
     import whisper  # noqa: F401
     import whisperx  # noqa: F401
     from TTS.api import TTS  # noqa: F401
 
+    assert pyannote.audio.__version__.startswith("3.4."), pyannote.audio.__version__
+
 
 def assert_default_entrypoint_starts() -> None:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        artifact_root = Path(tmpdir) / "artifacts"
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-            probe.bind(("127.0.0.1", 0))
-            port = probe.getsockname()[1]
-
-        config_path = Path(tmpdir) / "config.yml"
-        config_path.write_text(
-            "\n".join(
-                (
-                    "grpc:",
-                    "  host: 127.0.0.1",
-                    f"  port: {port}",
-                    f"  artifact_root: {artifact_root}",
-                    f"  auth_token: {AUTH_TOKEN}",
-                )
+    with running_default_entrypoint() as port:
+        with contextlib.closing(grpc.insecure_channel(f"127.0.0.1:{port}")) as channel:
+            response = health_pb2_grpc.HealthStub(channel).Check(
+                health_pb2.HealthCheckRequest(service="")
             )
-            + "\n",
-            encoding="utf-8",
-        )
-
-        process = subprocess.Popen(
-            ["python", "serve.py", "--config", str(config_path)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        try:
-            deadline = time.time() + 15.0
-            last_error: Exception | None = None
-            while time.time() < deadline:
-                with contextlib.closing(grpc.insecure_channel(f"127.0.0.1:{port}")) as channel:
-                    try:
-                        grpc.channel_ready_future(channel).result(timeout=1)
-                        response = health_pb2_grpc.HealthStub(channel).Check(
-                            health_pb2.HealthCheckRequest(service="")
-                        )
-                        assert response.status == health_pb2.HealthCheckResponse.SERVING
-                        return
-                    except Exception as exc:  # pragma: no cover - exercised in container only
-                        last_error = exc
-                        time.sleep(0.25)
-            raise AssertionError(f"default container entrypoint did not become healthy: {last_error!r}")
-        finally:
-            process.terminate()
-            try:
-                process.wait(timeout=10)
-            except subprocess.TimeoutExpired:  # pragma: no cover - defensive cleanup
-                process.kill()
-                process.wait(timeout=10)
+            assert response.status == health_pb2.HealthCheckResponse.SERVING
 
 
 def assert_diarization_loader_call_shape() -> None:
@@ -108,15 +64,29 @@ def assert_diarization_loader_call_shape() -> None:
     with (
         patch.object(extraction_service, "configure_torch_runtime"),
         patch.object(extraction_service, "torch", fake_torch),
+        patch.object(extraction_service, "require_diarization_token", return_value="hf-token"),
         patch("pyannote.audio.Pipeline.from_pretrained", return_value=fake_pipeline) as from_pretrained,
     ):
         loaded = extraction_service.load_diarization_pipeline()
     assert loaded is fake_pipeline
     from_pretrained.assert_called_once_with(
-        extraction_service.DIARIZATION_MODEL_ID,
-        revision=extraction_service.DIARIZATION_MODEL_REVISION,
+        extraction_service.DIARIZATION_MODEL,
+        use_auth_token="hf-token",
     )
     fake_pipeline.to.assert_called_once_with("device:cpu")
+
+
+def assert_real_diarization_pipeline_loads() -> None:
+    from dictator.extraction import service as extraction_service
+
+    token = (os.environ.get(DIARIZATION_TOKEN_ENV, "") or "").strip()
+    if not token:
+        raise AssertionError(
+            f"{DIARIZATION_TOKEN_ENV} must be set so the Docker image probe can load the real diarization pipeline."
+        )
+
+    pipeline = extraction_service.load_diarization_pipeline()
+    assert pipeline is not None, "real diarization pipeline did not load"
 
 
 def assert_whisper_loader_call_shape() -> None:
@@ -158,88 +128,88 @@ def assert_xtts_loader_call_shape() -> None:
     assert loaded.model_id == "xtts-model"
     assert loaded.device == "cpu"
 
+@contextlib.contextmanager
+def running_default_entrypoint() -> contextlib.AbstractContextManager[int]:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        artifact_root = Path(tmpdir) / "artifacts"
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.bind(("127.0.0.1", 0))
+            port = probe.getsockname()[1]
 
-def build_wav_bytes(duration_seconds: float = 0.25, frequency_hz: float = 440.0) -> bytes:
-    frame_count = int(SAMPLE_RATE * duration_seconds)
-    pcm = bytearray()
-    for index in range(frame_count):
-        value = int(0.2 * 32767 * math.sin(2.0 * math.pi * frequency_hz * (index / SAMPLE_RATE)))
-        pcm.extend(struct.pack("<h", value))
-
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as handle:
-        temp_path = Path(handle.name)
-    try:
-        with wave.open(str(temp_path), "wb") as wav_file:
-            wav_file.setnchannels(1)
-            wav_file.setsampwidth(2)
-            wav_file.setframerate(SAMPLE_RATE)
-            wav_file.writeframes(bytes(pcm))
-        return temp_path.read_bytes()
-    finally:
-        temp_path.unlink(missing_ok=True)
-
-
-class FakeReferenceExtractionService:
-    def extract(self, request, model=None, diarization_pipeline=None):
-        assert request.output_path is not None
-        request.output_path.write_bytes(request.input_path.read_bytes())
-        from dictator.extraction.models import ReferenceExtractionResult
-
-        return ReferenceExtractionResult(
-            raw_words=({"content": "hello", "start": 0.0, "end": 0.2},),
-            dominant_speaker_words=({"content": "hello", "start": 0.0, "end": 0.2},),
-            window_start_seconds=0.0,
-            window_end_seconds=0.25,
-            trim_start_seconds=0.0,
-            trim_end_seconds=0.25,
-            output_path=request.output_path,
+        config_path = Path(tmpdir) / "config.yml"
+        config_path.write_text(
+            "\n".join(
+                (
+                    "grpc:",
+                    "  host: 127.0.0.1",
+                    f"  port: {port}",
+                    f"  artifact_root: {artifact_root}",
+                    f"  auth_token: {AUTH_TOKEN}",
+                )
+            )
+            + "\n",
+            encoding="utf-8",
         )
 
-
-class FakeSynthesisService:
-    def synthesise(self, speaker_wav, chunks, cap_seconds, language_code):
-        temp_dir = Path(tempfile.mkdtemp(prefix="dictator_blackbox_tts_"))
-        wav_paths = []
-        segments = []
-        start_seconds = 0.0
-        for index, chunk in enumerate(chunks):
-            wav_path = temp_dir / f"{index:04d}.wav"
-            wav_path.write_bytes(build_wav_bytes(duration_seconds=0.15))
-            end_seconds = start_seconds + 0.15
-            wav_paths.append(wav_path)
-            segments.append(SpeechSegment(text=chunk, start_seconds=start_seconds, end_seconds=end_seconds))
-            start_seconds = end_seconds
-        return SynthesisResult(
-            temp_dir=temp_dir,
-            wav_paths=tuple(wav_paths),
-            segments=tuple(segments),
+        process = subprocess.Popen(
+            ["python", "serve.py", "--config", str(config_path)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
+        try:
+            deadline = time.time() + 15.0
+            last_error: Exception | None = None
+            while time.time() < deadline:
+                with contextlib.closing(grpc.insecure_channel(f"127.0.0.1:{port}")) as channel:
+                    try:
+                        grpc.channel_ready_future(channel).result(timeout=1)
+                        yield port
+                        return
+                    except Exception as exc:  # pragma: no cover - exercised in container only
+                        last_error = exc
+                        time.sleep(0.25)
+            raise AssertionError(f"default container entrypoint did not become healthy: {last_error!r}")
+        finally:
+            process.terminate()
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:  # pragma: no cover - defensive cleanup
+                process.kill()
+                process.wait(timeout=10)
 
 
-class FakeRuntime:
-    def get_reference_extraction_service(self):
-        return FakeReferenceExtractionService()
+def synthesize_probe_sample_wav(temp_dir: Path) -> Path:
+    sample_path = temp_dir / "probe-sample.wav"
+    subprocess.run(
+        [
+            "espeak-ng",
+            "-v",
+            "en-us",
+            "-s",
+            "130",
+            "-w",
+            str(sample_path),
+            PROBE_SAMPLE_TEXT,
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if not sample_path.exists():
+        raise AssertionError(f"Probe sample WAV was not created: {sample_path}")
+    return sample_path
 
-    def get_synthesis_service(self):
-        return FakeSynthesisService()
 
-    def get_whisper_model(self, model_size: str):
-        return object()
-
-    def get_diarization_pipeline(self):
-        return object()
-
-
-def upload_artifact(stub, payload: bytes, *, metadata):
+def upload_artifact(stub, payload: bytes, *, filename: str, metadata):
     def request_iter():
         yield artifacts_pb2.UploadArtifactChunk(
             metadata=artifacts_pb2.UploadArtifactMetadata(
-                filename="sample.wav",
+                filename=filename,
                 media_type="audio/wav",
             )
         )
-        for index in range(0, len(payload), 1024):
-            yield artifacts_pb2.UploadArtifactChunk(content=payload[index : index + 1024])
+        for index in range(0, len(payload), 1024 * 1024):
+            yield artifacts_pb2.UploadArtifactChunk(content=payload[index : index + 1024 * 1024])
 
     return stub.UploadArtifact(request_iter(), metadata=metadata).artifact
 
@@ -256,24 +226,15 @@ def download_artifact(stub, artifact_id: str, *, metadata) -> bytes:
 
 
 def assert_grpc_voice_roundtrip() -> None:
+    metadata = (("authorization", f"Bearer {AUTH_TOKEN}"),)
+
     with tempfile.TemporaryDirectory() as tmpdir:
-        artifact_root = Path(tmpdir) / "artifacts"
-        service_context = ServiceContext(
-            artifact_store=LocalArtifactStore(artifact_root),
-            execution_runtime=FakeRuntime(),
-            metrics=MetricsRegistry(),
-            limiter=InflightLimiter(4),
-            auth_token=AUTH_TOKEN,
-            download_chunk_bytes=1024,
-        )
-        server = build_server(
-            ServerConfig(artifact_root=artifact_root, auth_token=AUTH_TOKEN),
-            service_context=service_context,
-        )
-        port = server.add_insecure_port("127.0.0.1:0")
-        server.start()
-        try:
-            metadata = (("authorization", f"Bearer {AUTH_TOKEN}"),)
+        sample_path = synthesize_probe_sample_wav(Path(tmpdir))
+        sample_payload = sample_path.read_bytes()
+        assert sample_payload.startswith(b"RIFF"), "probe sample is not a WAV file"
+        assert len(sample_payload) > 44, "probe sample WAV payload is empty"
+
+        with running_default_entrypoint() as port:
             with contextlib.closing(grpc.insecure_channel(f"127.0.0.1:{port}")) as channel:
                 grpc.channel_ready_future(channel).result(timeout=5)
                 health = health_pb2_grpc.HealthStub(channel).Check(health_pb2.HealthCheckRequest(service=""))
@@ -282,16 +243,31 @@ def assert_grpc_voice_roundtrip() -> None:
                 artifact_stub = artifacts_pb2_grpc.ArtifactServiceStub(channel)
                 voice_stub = voice_pb2_grpc.VoiceServiceStub(channel)
 
-                source_artifact = upload_artifact(artifact_stub, build_wav_bytes(), metadata=metadata)
+                source_artifact = upload_artifact(
+                    artifact_stub,
+                    sample_payload,
+                    filename=sample_path.name,
+                    metadata=metadata,
+                )
+                assert source_artifact.artifact_id
+
                 reference = voice_stub.ExtractReferenceSample(
                     voice_pb2.ExtractReferenceSampleRequest(
                         source_artifact_id=source_artifact.artifact_id,
                         language_code="en",
-                        duration_seconds=0.25,
+                        model_size="tiny",
+                        duration_seconds=5.0,
                     ),
                     metadata=metadata,
                 )
                 assert reference.sample_artifact.artifact_id
+                reference_payload = download_artifact(
+                    artifact_stub,
+                    reference.sample_artifact.artifact_id,
+                    metadata=metadata,
+                )
+                assert reference_payload.startswith(b"RIFF"), "reference sample is not a WAV file"
+                assert len(reference_payload) > 44, "reference sample WAV payload is empty"
 
                 synthesis = voice_stub.SynthesizeSpeech(
                     voice_pb2.SynthesizeSpeechRequest(
@@ -309,14 +285,13 @@ def assert_grpc_voice_roundtrip() -> None:
                 )
                 assert payload.startswith(b"RIFF"), "synthesized payload is not a WAV file"
                 assert len(payload) > 44, "synthesized WAV payload is empty"
-        finally:
-            server.stop(None)
 
 
 def main() -> int:
     assert_dependency_imports()
     assert_default_entrypoint_starts()
     assert_diarization_loader_call_shape()
+    assert_real_diarization_pipeline_loads()
     assert_whisper_loader_call_shape()
     assert_xtts_loader_call_shape()
     assert_grpc_voice_roundtrip()
