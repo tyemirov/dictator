@@ -17,3 +17,5 @@ htmlcov/
 qodana.yaml
 tools/
 bin/
+.buildx-cache-gpu/
+.buildx-cache-gpu-new/

@@ -85,16 +85,38 @@ docker build -t dictator:local .
 docker build -f Dockerfile.gpu -t dictator:gpu .
 ```
 
-### Automated GPU Release Image
+### GPU Release Flow
 
-Pushing a Git tag now triggers a GitHub Actions release workflow that:
+Pushing a semver Git tag like `1.2.3` or `v1.2.3` now triggers a GitHub Actions validation workflow that:
 
 * verifies the tagged commit is contained in `master`
 * reruns the unit test workflow on that tagged commit
-* requires a semver tag like `1.2.3` or `v1.2.3`
-* publishes the GPU container image to `ghcr.io/<owner>/<repo>-gpu` with semver Docker tags
 
-For a stable release tag like `v1.2.3`, the workflow publishes:
+The actual GPU image build and push now happens locally so Buildx layer cache can be reused across releases.
+
+To publish the GPU image for a checked-out tag:
+
+```bash
+git fetch --tags origin
+git checkout v1.2.3
+./scripts/publish_gpu_image.sh v1.2.3
+```
+
+Or through `make`:
+
+```bash
+make publish-gpu-image TAG=v1.2.3
+```
+
+The publish script:
+
+* requires a clean working tree
+* verifies the checked-out tag resolves to a commit contained in `origin/master`
+* runs `make ci` before publishing
+* reuses a persistent local Buildx cache in `.buildx-cache-gpu`
+* derives the default GHCR image as `ghcr.io/<owner>/<repo>-gpu`
+
+For a stable release tag like `v1.2.3`, it publishes:
 
 * `:1.2.3`
 * `:1.2`
@@ -102,9 +124,9 @@ For a stable release tag like `v1.2.3`, the workflow publishes:
 * `:latest`
 * `:v1.2.3`
 
-For prerelease tags like `v1.2.3-rc.1`, the workflow only publishes the exact version tags and does not move `:latest`.
+For prerelease tags like `v1.2.3-rc.1`, it only publishes the exact prerelease tags and does not move `:latest`.
 
-That workflow lives in `.github/workflows/release-gpu.yml` and uses the repository `GITHUB_TOKEN` to publish to GitHub Container Registry.
+If you are not already logged into `ghcr.io`, either run `docker login ghcr.io` first or set `GHCR_USERNAME` and `GHCR_TOKEN` before running the script.
 
 ### Run with Compose
 

@@ -1,6 +1,7 @@
 PYTHON ?= python
+TAG ?=
 
-.PHONY: test coverage ci
+.PHONY: test coverage ci publish-gpu-image
 
 test:
 	$(PYTHON) -m unittest discover -s tests -p 'test_*.py'
@@ -11,3 +12,6 @@ coverage:
 	$(PYTHON) -m coverage report -m
 
 ci: coverage
+
+publish-gpu-image:
+	./scripts/publish_gpu_image.sh $(TAG)
