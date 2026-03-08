@@ -85,6 +85,27 @@ docker build -t dictator:local .
 docker build -f Dockerfile.gpu -t dictator:gpu .
 ```
 
+### Automated GPU Release Image
+
+Pushing a Git tag now triggers a GitHub Actions release workflow that:
+
+* verifies the tagged commit is contained in `master`
+* reruns the unit test workflow on that tagged commit
+* requires a semver tag like `1.2.3` or `v1.2.3`
+* publishes the GPU container image to `ghcr.io/<owner>/<repo>-gpu` with semver Docker tags
+
+For a stable release tag like `v1.2.3`, the workflow publishes:
+
+* `:1.2.3`
+* `:1.2`
+* `:1`
+* `:latest`
+* `:v1.2.3`
+
+For prerelease tags like `v1.2.3-rc.1`, the workflow only publishes the exact version tags and does not move `:latest`.
+
+That workflow lives in `.github/workflows/release-gpu.yml` and uses the repository `GITHUB_TOKEN` to publish to GitHub Container Registry.
+
 ### Run with Compose
 
 Create `.env` from `.env.example`, then start the service:
