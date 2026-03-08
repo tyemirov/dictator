@@ -4,15 +4,16 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/down.sh [docker compose down args...]
+Usage: scripts/down.sh [docker compose rm args...]
 
-Stops the GHCR-backed GPU Compose stack started by scripts/up.sh.
+Stops and removes the GHCR-backed GPU service started by scripts/up.sh.
 EOF
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-COMPOSE_FILE="${REPO_ROOT}/compose.ghcr.gpu.yml"
+COMPOSE_ARGS=(--profile ghcr-gpu)
+SERVICES=(dictator-ghcr)
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage
@@ -26,4 +27,4 @@ fi
 
 cd "${REPO_ROOT}"
 
-docker compose -f "${COMPOSE_FILE}" down "$@"
+docker compose "${COMPOSE_ARGS[@]}" rm -f -s "$@" "${SERVICES[@]}"

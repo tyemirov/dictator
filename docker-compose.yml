@@ -1,0 +1,102 @@
+x-dictator-volumes: &dictator-volumes
+  - ./config.yml:/app/config.yml:ro
+  - dictator-artifacts:/app/.dictator-artifacts
+  - huggingface-cache:/home/app/.cache/huggingface
+  - whisper-cache:/home/app/.cache/whisper
+  - torch-cache:/home/app/.cache/torch
+
+x-dictator-command: &dictator-command
+  - python
+  - serve.py
+  - --config
+  - /app/config.yml
+
+x-dictator-environment: &dictator-environment
+  DICTATOR_GRPC_AUTH_TOKEN: ${DICTATOR_GRPC_AUTH_TOKEN:?Set DICTATOR_GRPC_AUTH_TOKEN in .env or the shell environment}
+  HF_TOKEN: ${HF_TOKEN:-}
+
+x-gpu-environment: &gpu-environment
+  <<: *dictator-environment
+  NVIDIA_VISIBLE_DEVICES: all
+  NVIDIA_DRIVER_CAPABILITIES: compute,utility
+
+x-gpu-runtime: &gpu-runtime
+  gpus: all
+
+services:
+  dictator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dictator:local
+    restart: unless-stopped
+    environment: *dictator-environment
+    ports:
+      - "50051:50051"
+    volumes: *dictator-volumes
+    command: *dictator-command
+
+  dictator-gpu:
+    profiles: ["gpu-local"]
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+      args:
+        TORCH_VERSION: "2.8.0"
+        TORCHAUDIO_VERSION: "2.8.0"
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cu128
+    image: dictator:gpu
+    restart: unless-stopped
+    environment: *gpu-environment
+    ports:
+      - "50051:50051"
+    volumes: *dictator-volumes
+    command: *dictator-command
+    <<: *gpu-runtime
+
+  dictator-ghcr:
+    profiles: ["ghcr-gpu"]
+    image: ${DICTATOR_IMAGE:-ghcr.io/tyemirov/dictator-gpu:latest}
+    pull_policy: always
+    restart: unless-stopped
+    environment: *gpu-environment
+    ports:
+      - "50051:50051"
+    volumes: *dictator-volumes
+    command: *dictator-command
+    <<: *gpu-runtime
+
+  voice-clone-bridge:
+    profiles: ["voice-clone-demo"]
+    image: ${DICTATOR_IMAGE:-ghcr.io/tyemirov/dictator-gpu:latest}
+    pull_policy: always
+    restart: unless-stopped
+    expose:
+      - "8080"
+    command: ["python", "-m", "examples.voice_clone_web.app", "--host", "0.0.0.0", "--port", "8080"]
+
+  voice-clone-web:
+    profiles: ["voice-clone-demo"]
+    image: ghcr.io/tyemirov/ghttp:latest
+    pull_policy: always
+    restart: unless-stopped
+    depends_on:
+      - voice-clone-bridge
+    ports:
+      - "${VOICE_CLONE_WEB_PORT:-8001}:8000"
+    volumes:
+      - ./examples/voice_clone_web:/data:ro
+    environment:
+      GHTTP_SERVE_DIRECTORY: /data
+      GHTTP_SERVE_PORT: "8000"
+      GHTTP_SERVE_LOGGING_TYPE: JSON
+      GHTTP_SERVE_NO_MARKDOWN: "true"
+      GHTTP_SERVE_PROXIES: /api=http://voice-clone-bridge:8080
+      GHTTP_SERVE_RESPONSE_HEADERS: /=Cache-Control:no-store
+      GHTTPD_DISABLE_DIR_INDEX: "1"
+
+volumes:
+  dictator-artifacts:
+  huggingface-cache:
+  whisper-cache:
+  torch-cache:

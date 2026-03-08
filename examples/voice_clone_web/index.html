@@ -309,6 +309,25 @@ And God called the dry land Earth; and the gathering together of the waters call
         return match ? match[1] : "genesis-in-your-voice.wav";
       }
 
+      function isLocalHostname(hostname) {
+        return !hostname || hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]";
+      }
+
+      function defaultDictatorUrl() {
+        const params = new URLSearchParams(window.location.search);
+        const queryTarget = (params.get("dictatorUrl") || "").trim();
+        if (queryTarget) {
+          return queryTarget;
+        }
+        const hostname = window.location.hostname;
+        if (isLocalHostname(hostname)) {
+          return "localhost:50051";
+        }
+        return `${hostname}:50051`;
+      }
+
+      dictatorUrlInput.value = defaultDictatorUrl();
+
       startButton.addEventListener("click", async () => {
         if (!navigator.mediaDevices || !window.MediaRecorder) {
           setStatus("This browser cannot record audio. Use a recent Chromium, Firefox, or Safari release.", "error");

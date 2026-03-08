@@ -82,4 +82,4 @@ EXPOSE 50051
 
 VOLUME ["/app/.dictator-artifacts", "/home/app/.cache/huggingface", "/home/app/.cache/whisper", "/home/app/.cache/torch"]
 
-CMD ["python", "serve.py", "--config", "/app/config.yml", "--env-file", "/app/.env"]
+CMD ["python", "serve.py", "--config", "/app/config.yml"]
