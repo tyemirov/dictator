@@ -29,11 +29,10 @@ class ServerConfigTests(unittest.TestCase):
         self.assertEqual(config.artifact_root, Path("~/dictator-artifacts").expanduser())
         self.assertEqual(config.auth_token, "secret")
 
-    def test_from_sources_reads_config_file_and_env_file(self):
+    def test_from_sources_reads_config_file_and_process_env(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             config_file = root / "config.yml"
-            env_file = root / ".env"
             config_file.write_text(
                 "\n".join(
                     [
@@ -50,15 +49,9 @@ class ServerConfigTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            env_file.write_text(
-                "DICTATOR_GRPC_AUTH_TOKEN=secret\n",
-                encoding="utf-8",
-            )
-
             config = ServerConfig.from_sources(
                 config_file=config_file,
-                env_file=env_file,
-                env={},
+                env={"DICTATOR_GRPC_AUTH_TOKEN": "secret"},
             )
 
         self.assertEqual(config.host, "127.0.0.1")
@@ -87,9 +80,29 @@ class ServerConfigTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "DICTATOR_GRPC_AUTH_TOKEN"):
                 ServerConfig.from_sources(
                     config_file=config_file,
-                    env_file=root / ".env",
                     env={},
                 )
+
+    def test_from_sources_reads_process_environment_without_env_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_file = root / "config.yml"
+            config_file.write_text(
+                "\n".join(
+                    [
+                        "grpc:",
+                        "  auth_token: ${DICTATOR_GRPC_AUTH_TOKEN}",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            config = ServerConfig.from_sources(
+                config_file=config_file,
+                env={"DICTATOR_GRPC_AUTH_TOKEN": "secret"},
+            )
+
+        self.assertEqual(config.auth_token, "secret")
 
 
 if __name__ == "__main__":

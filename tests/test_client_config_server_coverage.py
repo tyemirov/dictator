@@ -109,17 +109,9 @@ class ClientConfigServerCoverageTests(unittest.TestCase):
         self.assertEqual(config.auth_token, None)
         self.assertEqual(config.artifact_root, Path("~/artifacts").expanduser())
 
-    def test_load_env_file_and_load_config_mapping_edge_cases(self):
-        self.assertEqual(grpc_config.load_env_file(None), {})
+    def test_load_config_mapping_edge_cases(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
-            env_file = root / ".env"
-            env_file.write_text("# comment\nexport A=1\nB='two'\n", encoding="utf-8")
-            self.assertEqual(grpc_config.load_env_file(env_file), {"A": "1", "B": "two"})
-            env_file.write_text("BROKEN\n", encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "invalid env line"):
-                grpc_config.load_env_file(env_file)
-
             config_file = root / "config.yml"
             config_file.write_text(
                 "grpc:\n"
@@ -162,13 +154,11 @@ class ClientConfigServerCoverageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             config_file = root / "config.yml"
-            env_file = root / ".env"
             config_file.write_text("grpc:\n  host: 127.0.0.1\n", encoding="utf-8")
-            env_file.write_text("", encoding="utf-8")
             with (
-                patch("sys.argv", ["serve.py", "--config", str(config_file), "--env-file", str(env_file)]),
+                patch("sys.argv", ["serve.py", "--config", str(config_file)]),
                 patch("serve.serve"),
-                patch.dict("serve.os.environ", {}, clear=True),
+                patch.dict("dictator.transport.grpc.config.os.environ", {}, clear=True),
             ):
                 with self.assertRaisesRegex(ValueError, "auth token must be configured"):
                     serve.main()

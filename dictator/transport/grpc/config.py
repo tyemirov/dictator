@@ -25,7 +25,6 @@ DOWNLOAD_CHUNK_BYTES_ENV = "DICTATOR_GRPC_DOWNLOAD_CHUNK_BYTES"
 ARTIFACT_ROOT_ENV = "DICTATOR_GRPC_ARTIFACT_ROOT"
 AUTH_TOKEN_ENV = "DICTATOR_GRPC_AUTH_TOKEN"
 DEFAULT_CONFIG_PATH = Path("config.yml")
-DEFAULT_ENV_FILE = Path(".env")
 
 _ENV_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _FIELD_NAMES = {
@@ -66,27 +65,6 @@ def _parse_scalar(value: str) -> object:
         return float(stripped)
     except ValueError:
         return stripped
-
-
-def load_env_file(env_file: Path | None) -> dict[str, str]:
-    if env_file is None or not env_file.exists():
-        return {}
-    values: dict[str, str] = {}
-    for raw_line in env_file.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("export "):
-            line = line[7:].strip()
-        key, sep, raw_value = line.partition("=")
-        if not sep:
-            raise ValueError(f"invalid env line: {raw_line}")
-        key = key.strip()
-        value = raw_value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
-            value = value[1:-1]
-        values[key] = value
-    return values
 
 
 def _resolve_env_placeholders(value: object, env: Mapping[str, str]) -> object:
@@ -224,11 +202,9 @@ class ServerConfig:
         cls,
         *,
         config_file: Path | None = DEFAULT_CONFIG_PATH,
-        env_file: Path | None = DEFAULT_ENV_FILE,
         env: Mapping[str, str] | None = None,
     ) -> "ServerConfig":
-        merged_env = dict(load_env_file(env_file))
-        merged_env.update(os.environ if env is None else env)
+        merged_env = dict(os.environ if env is None else env)
         config = cls.from_env(merged_env)
         file_overrides = _load_config_mapping(config_file, merged_env)
         if file_overrides:

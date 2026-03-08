@@ -23,7 +23,6 @@ def _default_target_from_config(config: ServerConfig) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, default=Path("config.yml"))
-    parser.add_argument("--env-file", type=Path, default=Path(".env"))
     parser.add_argument("--target", default=None, help="gRPC target host:port")
     parser.add_argument("--input", required=True, type=Path, help="input audio file")
     parser.add_argument("--model", default="base", help="transcription model size")
@@ -33,10 +32,7 @@ def main() -> None:
     parser.add_argument("--include-words", action="store_true")
     args = parser.parse_args()
 
-    base = ServerConfig.from_sources(
-        config_file=args.config,
-        env_file=args.env_file,
-    )
+    base = ServerConfig.from_sources(config_file=args.config)
     target = args.target or _default_target_from_config(base)
     auth_token = args.auth_token if args.auth_token is not None else base.auth_token
 

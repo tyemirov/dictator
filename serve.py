@@ -5,23 +5,14 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 from pathlib import Path
 
-from dictator.transport.grpc import ServerConfig, load_env_file, serve
-
-
-def _apply_env_file(env_file: Path) -> int:
-    loaded = load_env_file(env_file)
-    for key, value in loaded.items():
-        os.environ.setdefault(key, value)
-    return len(loaded)
+from dictator.transport.grpc import ServerConfig, serve
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, default=Path("config.yml"))
-    parser.add_argument("--env-file", type=Path, default=Path(".env"))
     parser.add_argument("--host", default=None)
     parser.add_argument("--port", type=int, default=None)
     parser.add_argument("--artifact-root", type=Path, default=None)
@@ -38,18 +29,13 @@ def main() -> None:
         datefmt="%H:%M:%S",
     )
     logging.info(
-        "loading gRPC config from %s (exists=%s), env file %s (exists=%s)",
+        "loading gRPC config from %s (exists=%s)",
         args.config,
         args.config.exists(),
-        args.env_file,
-        args.env_file.exists(),
     )
-    loaded_env_count = _apply_env_file(args.env_file)
-    logging.info("loaded %d env vars into process environment", loaded_env_count)
 
     base = ServerConfig.from_sources(
         config_file=args.config,
-        env_file=args.env_file,
     )
     config = ServerConfig(
         host=args.host or base.host,

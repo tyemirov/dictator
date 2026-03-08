@@ -11,7 +11,6 @@ from dictator.transport.grpc.config import (
     _parse_positive_int,
     _parse_scalar,
     _resolve_env_placeholders,
-    load_env_file,
 )
 from dictator.transport.grpc.server import serve
 
@@ -32,19 +31,9 @@ class GrpcConfigServerCoverageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "missing required env var TOKEN"):
             _resolve_env_placeholders("${TOKEN}", {})
 
-    def test_load_env_file_and_config_mapping_branches(self):
-        self.assertEqual(load_env_file(None), {})
+    def test_config_mapping_branches(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
-            env_file = root / ".env"
-            env_file.write_text("# comment\nexport TOKEN='secret'\nPLAIN=value\n", encoding="utf-8")
-            self.assertEqual(load_env_file(env_file), {"TOKEN": "secret", "PLAIN": "value"})
-
-            invalid_env = root / "invalid.env"
-            invalid_env.write_text("BROKEN\n", encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "invalid env line"):
-                load_env_file(invalid_env)
-
             config_file = root / "config.yml"
             config_file.write_text("host: 127.0.0.1\nport: 50052\nunknown: keep\n", encoding="utf-8")
             self.assertEqual(_load_config_mapping(config_file, {}), {"host": "127.0.0.1", "port": 50052})
