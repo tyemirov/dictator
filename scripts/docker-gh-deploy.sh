@@ -165,13 +165,17 @@ run_build() {
     --file Dockerfile.gpu
     --platform "$platform"
     --push
-    --cache-from "type=local,src=${cache_dir}"
     --cache-to "type=local,dest=${new_cache_dir},mode=max"
   )
   local image_tag
 
   rm -rf "$new_cache_dir"
-  mkdir -p "$cache_dir"
+
+  if [[ -f "${cache_dir}/index.json" ]]; then
+    cmd+=(--cache-from "type=local,src=${cache_dir}")
+  else
+    log "No existing local Buildx cache at '${cache_dir}'; building cold."
+  fi
 
   for image_tag in "${IMAGE_TAGS[@]}"; do
     cmd+=(--tag "$image_tag")
