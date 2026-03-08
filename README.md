@@ -130,22 +130,24 @@ If you are not already logged into `ghcr.io`, either run `docker login ghcr.io` 
 
 ### Run with Compose
 
-Create `.env` from `.env.example`, then start the service:
+If you want Docker Compose to load service environment from a file, create a local `.env` from `dictator.env.example`, then start the service:
 
 ```bash
-cp .env.example .env
+cp dictator.env.example .env
 # edit .env and set DICTATOR_GRPC_AUTH_TOKEN
-# set HF_TOKEN as well if you need diarization / speaker extraction
+# set HF_TOKEN as well if you want diarization / speaker extraction
 
 docker compose up --build
 ```
+
+The application itself does not read env files. It only reads process environment. `docker-compose.yml` uses Docker Compose interpolation, so `DICTATOR_GRPC_AUTH_TOKEN` and `HF_TOKEN` can come from `.env` or from your shell environment.
 
 ### Run with Compose on CUDA
 
 This requires a host GPU plus the NVIDIA Container Toolkit so Docker can pass the device through.
 
 ```bash
-docker compose -f compose.yml -f compose.gpu.yml up --build
+docker compose --profile gpu-local up --build dictator-gpu
 ```
 
 ### Run the Published GPU Image from GHCR
@@ -153,7 +155,7 @@ docker compose -f compose.yml -f compose.gpu.yml up --build
 If you want local orchestration to always pull the released container instead of building from the checkout, use:
 
 ```bash
-docker compose -f compose.ghcr.gpu.yml up
+docker compose --profile ghcr-gpu up dictator-ghcr
 ```
 
 Or with the convenience wrappers:
@@ -163,7 +165,7 @@ Or with the convenience wrappers:
 ./scripts/down.sh
 ```
 
-That Compose file uses `pull_policy: always` and defaults to:
+The GHCR GPU service profile uses `pull_policy: always` and defaults to:
 
 ```text
 ghcr.io/tyemirov/dictator-gpu:latest
@@ -173,13 +175,13 @@ To pin a specific release tag instead of `latest`, override `DICTATOR_IMAGE`:
 
 ```bash
 DICTATOR_IMAGE=ghcr.io/tyemirov/dictator-gpu:1.2.3 \
-docker compose -f compose.ghcr.gpu.yml up
+docker compose --profile ghcr-gpu up dictator-ghcr
 ```
 
 The container starts the gRPC server with:
 
 ```bash
-python serve.py --config /app/config.yml --env-file /app/.env
+python serve.py --config /app/config.yml
 ```
 
 The compose setup mounts persistent caches for Hugging Face, Whisper, and Torch models, plus `.dictator-artifacts` for generated service artifacts.
@@ -188,9 +190,9 @@ The compose setup mounts persistent caches for Hugging Face, Whisper, and Torch 
 
 * The provided image is CPU-oriented. It includes the service prerequisites and will start the server, but heavy transcription/alignment/TTS workloads will be slow without GPU acceleration.
 * The container installs CPU `torch` / `torchaudio` wheels explicitly so it does not pull CUDA runtimes into a CPU deployment.
-* `HF_TOKEN` should be present in `.env` if you want pyannote diarization and archival speaker extraction to download gated Hugging Face models on first run.
+* `HF_TOKEN` should be present in the container environment, via `.env` or your shell environment, if you want pyannote diarization and archival speaker extraction to download gated Hugging Face models on first run.
 * Both `Dockerfile` and `Dockerfile.gpu` use multi-stage builds so compilers and other build-only packages stay out of the final runtime image.
-* `Dockerfile.gpu` installs the CUDA 12.8 Torch wheel set and is intended to run with `compose.gpu.yml`.
+* `Dockerfile.gpu` installs the CUDA 12.8 Torch wheel set and is intended to run with the `gpu-local` profile in `docker-compose.yml`.
 * The GPU container still uses Python 3.11.8. The host provides the actual NVIDIA device through Docker; without that runtime integration, the image will build but CUDA execution will not be available.
 
 ## Browser Voice Clone Demo
@@ -212,6 +214,48 @@ Then open `http://127.0.0.1:8080` and provide:
 The page asks the user to read:
 
 > The quick brown fox jumped over the lazy dog. Eleven benevolent elephants balanced on bright blue bicycles.
+
+When the page is served from a non-local hostname, the `Dictator gRPC URL` field auto-fills to `<current-host>:50051`. So if you publish the page at `computercat.tyemirov.net`, it defaults to `computercat.tyemirov.net:50051`.
+
+For a Dockerized test page using `ghttp` as the frontend and the existing Python HTTP bridge behind `/api`, start:
+
+```bash
+docker compose --profile voice-clone-demo up -d voice-clone-web voice-clone-bridge
+```
+
+Or use the wrapper:
+
+```bash
+./scripts/voice-clone-demo.sh
+```
+
+Stop it with:
+
+```bash
+./scripts/voice-clone-demo-down.sh
+```
+
+By default the demo stack publishes on port `8001`. The wrapper prints the public URL after startup and defaults that hostname to `computercat.tyemirov.net`. Override either value with `--host` / `--port` or `VOICE_CLONE_DEMO_HOST` / `VOICE_CLONE_WEB_PORT`.
+
+If Dictator is also running through the GHCR GPU stack on the same machine, you can launch both together:
+
+```bash
+docker compose --profile ghcr-gpu --profile voice-clone-demo up -d dictator-ghcr voice-clone-web voice-clone-bridge
+```
+
+With the wrapper:
+
+```bash
+./scripts/voice-clone-demo.sh --with-dictator
+```
+
+And stop both with:
+
+```bash
+./scripts/voice-clone-demo-down.sh --with-dictator
+```
+
+The `ghttp` service proxies `/api/clone` to the local bridge container, so the browser stays same-origin while the bridge connects to the Dictator gRPC endpoint named in the page.
 
 Example-specific notes live in [examples/voice_clone_web/README.md](./examples/voice_clone_web/README.md).
 
