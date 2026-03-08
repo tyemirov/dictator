@@ -19,10 +19,10 @@ from dictator.extraction import service as extraction_service
 
 class _FakePipeline:
     @classmethod
-    def from_pretrained(cls, model_id, revision=None):
+    def from_pretrained(cls, model_id, use_auth_token=None):
         pipeline = cls()
         pipeline.model_id = model_id
-        pipeline.revision = revision
+        pipeline.token = use_auth_token
         pipeline.device = None
         return pipeline
 
@@ -49,6 +49,7 @@ class ExtractionServiceCoverageTests(unittest.TestCase):
             extraction_service.configure_torch_runtime()
         self.assertTrue(fake_torch.backends.cuda.matmul.allow_tf32)
         self.assertTrue(fake_torch.backends.cudnn.allow_tf32)
+        self.assertEqual(extraction_service.os.environ["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"], "1")
         self.assertEqual(filterwarnings.call_count, 3)
 
     def test_signal_quality_helpers_and_pipeline_loading(self):
@@ -66,12 +67,17 @@ class ExtractionServiceCoverageTests(unittest.TestCase):
             patch.object(extraction_service, "torch", fake_torch),
             patch.dict(sys.modules, {"pyannote.audio": types.SimpleNamespace(Pipeline=_FakePipeline)}),
             patch.object(extraction_service, "configure_torch_runtime") as configure,
+            patch.object(extraction_service.os, "getenv", return_value="hf-token"),
         ):
             pipeline = extraction_service.load_diarization_pipeline()
         configure.assert_called_once()
-        self.assertEqual(pipeline.model_id, extraction_service.DIARIZATION_MODEL_ID)
-        self.assertEqual(pipeline.revision, extraction_service.DIARIZATION_MODEL_REVISION)
+        self.assertEqual(pipeline.model_id, extraction_service.DIARIZATION_MODEL)
+        self.assertEqual(pipeline.token, "hf-token")
         self.assertEqual(pipeline.device, "device:cpu")
+
+        with patch.object(extraction_service.os, "getenv", return_value=""):
+            with self.assertRaisesRegex(RuntimeError, "HF_TOKEN"):
+                extraction_service.require_diarization_token()
 
     def test_apply_filter_choose_window_and_trim_bounds(self):
         segments = (SpeakerSegment("S1", 0.0, 2.0, "a"), SpeakerSegment("S2", 2.0, 3.0, "b"))

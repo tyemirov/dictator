@@ -278,14 +278,21 @@ class ServiceLogicCoverageTests(unittest.TestCase):
         fake_pipeline = types.SimpleNamespace(to=MagicMock())
         from_pretrained = MagicMock(return_value=fake_pipeline)
         fake_pyannote = types.SimpleNamespace(Pipeline=types.SimpleNamespace(from_pretrained=from_pretrained))
-        with patch.dict(sys.modules, {"pyannote": types.ModuleType("pyannote"), "pyannote.audio": fake_pyannote}):
+        with (
+            patch.dict(sys.modules, {"pyannote": types.ModuleType("pyannote"), "pyannote.audio": fake_pyannote}),
+            patch.object(extraction_module, "require_diarization_token", return_value="hf-token"),
+        ):
             loaded = extraction_module.load_diarization_pipeline()
         self.assertIs(loaded, fake_pipeline)
         from_pretrained.assert_called_once_with(
-            extraction_module.DIARIZATION_MODEL_ID,
-            revision=extraction_module.DIARIZATION_MODEL_REVISION,
+            extraction_module.DIARIZATION_MODEL,
+            use_auth_token="hf-token",
         )
         fake_pipeline.to.assert_called_once_with("device:cpu")
+
+        with patch.object(extraction_module.os, "getenv", return_value=""):
+            with self.assertRaisesRegex(RuntimeError, "HF_TOKEN"):
+                extraction_module.require_diarization_token()
 
         with patch.object(extraction_module, "run_diarization", return_value=(SpeakerSegment("S1", 0.0, 1.0),)):
             with patch.object(extraction_module, "assign_words_to_speakers", return_value=(DiarizedWord("hello", 0.0, 0.4, "S2"),)):
