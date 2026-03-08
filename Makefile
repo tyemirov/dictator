@@ -14,4 +14,4 @@ coverage:
 ci: coverage
 
 publish-gpu-image:
-	./scripts/publish_gpu_image.sh $(TAG)
+	./scripts/docker-gh-deploy.sh $(TAG)

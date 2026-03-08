@@ -4,9 +4,17 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/publish_gpu_image.sh [options] <git-tag>
+Usage: scripts/docker-gh-deploy.sh [options] [git-tag]
 
-Builds and pushes the GPU container image to GHCR from the tagged commit at HEAD.
+Builds the GPU Docker image locally and pushes it to GHCR.
+
+If no git tag is provided, the script requires HEAD to be checked out at an exact
+tag and uses that tag automatically.
+
+Examples:
+  ./scripts/docker-gh-deploy.sh v1.2.3
+  ./scripts/docker-gh-deploy.sh --dry-run
+  ./scripts/docker-gh-deploy.sh --image-name ghcr.io/acme/dictator-gpu v1.2.3
 
 Options:
   --dry-run        Validate inputs and print the Docker tags without building
@@ -222,7 +230,10 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-[[ -n "$GIT_TAG" ]] || die "A git tag is required."
+if [[ -z "$GIT_TAG" ]]; then
+  GIT_TAG="$(git describe --tags --exact-match 2>/dev/null || true)"
+  [[ -n "$GIT_TAG" ]] || die "No git tag provided and HEAD is not checked out at an exact tag."
+fi
 
 require_cmd git
 

@@ -99,7 +99,7 @@ To publish the GPU image for a checked-out tag:
 ```bash
 git fetch --tags origin
 git checkout v1.2.3
-./scripts/publish_gpu_image.sh v1.2.3
+./scripts/docker-gh-deploy.sh v1.2.3
 ```
 
 Or through `make`:
