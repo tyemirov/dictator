@@ -31,4 +31,4 @@ The page asks the user to read:
 > On cold mornings I want strong coffee, warm light, and ten quiet minutes to think.
 > If you know me well, you can hear the difference between my polite voice, my tired voice, and the one I use when I am truly delighted.
 
-It then asks Dictator to read back one of three preset passages in the user's voice: Genesis, the opening of Alice's Adventures in Wonderland, or Robert Frost's "Stopping by Woods on a Snowy Evening."
+It then asks Dictator to read back one of three preset passages in the user's voice: Genesis, the opening of Alice's Adventures in Wonderland, or Robert Frost's "Stopping by Woods on a Snowy Evening." The page can target XTTS, Qwen3-TTS, or CosyVoice 3.

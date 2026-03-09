@@ -379,6 +379,7 @@ class GrpcServicesUnitTests(unittest.TestCase):
     def test_voice_servicer_branches(self):
         servicer = VoiceServiceServicer(self.context)
         self.assertEqual(servicer._resolve_synthesis_engine(voice_pb2.SYNTHESIS_ENGINE_QWEN3), SynthesisEngine.QWEN3)
+        self.assertEqual(servicer._resolve_synthesis_engine(voice_pb2.SYNTHESIS_ENGINE_COSYVOICE3), SynthesisEngine.COSYVOICE3)
         with self.assertRaisesRegex(ValidationError, "synthesis_engine must be set"):
             servicer._resolve_synthesis_engine(voice_pb2.SYNTHESIS_ENGINE_UNSPECIFIED)
         self.assertEqual(
@@ -449,6 +450,7 @@ class GrpcServicesUnitTests(unittest.TestCase):
             )
         self.assertEqual(response.chunk_count, 1)
         self.assertFalse(response.timeline_artifact_id)
+        self.assertEqual(self.runtime.synthesis_service.calls[0].speaker_artifact_id, self.audio_record.artifact_id)
         self.assertEqual(len(cleanup_calls), 1)
 
         timeline_result = types.SimpleNamespace(

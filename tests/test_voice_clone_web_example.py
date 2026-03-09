@@ -115,6 +115,7 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
         self.assertIn("the one I use when I am truly delighted", html)
         self.assertIn('data-engine="xtts"', html)
         self.assertIn('data-engine="qwen3"', html)
+        self.assertIn('data-engine="cosyvoice3"', html)
         self.assertIn('option value="alice"', html)
         self.assertIn('option value="woods"', html)
         self.assertNotIn("Dictator gRPC URL", html)
@@ -157,9 +158,14 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
 
     def test_resolve_synthesis_engine_uses_defaults_and_rejects_unknown_values(self):
         self.assertEqual(app.resolve_synthesis_engine("qwen3").engine_id, "qwen3")
+        self.assertEqual(app.resolve_synthesis_engine("cosyvoice3").engine_id, "cosyvoice3")
         self.assertEqual(app.resolve_synthesis_engine("").engine_id, app.DEFAULT_SYNTHESIS_ENGINE_ID)
         self.assertEqual(
             app.resolve_synthesis_engine("qwen3").speaker_transcript_text,
+            app.VOICE_SAMPLE_TEXT,
+        )
+        self.assertEqual(
+            app.resolve_synthesis_engine("cosyvoice3").speaker_transcript_text,
             app.VOICE_SAMPLE_TEXT,
         )
         self.assertIsNone(app.resolve_synthesis_engine("xtts").speaker_transcript_text)
@@ -292,6 +298,36 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
 
         synth_request, _ = fake_voice.synthesize_calls[0]
         self.assertEqual(synth_request.synthesis_engine, voice_pb2.SYNTHESIS_ENGINE_QWEN3)
+        self.assertEqual(synth_request.speaker_transcript_text, app.VOICE_SAMPLE_TEXT)
+
+    def test_synthesize_selected_reading_uses_sample_transcript_for_cosyvoice3(self):
+        fake_channel = FakeChannel()
+        fake_artifacts = FakeArtifactStub(fake_channel)
+        fake_voice = FakeVoiceStub(fake_channel)
+
+        with mock.patch(
+            "demo.voice_clone_web.app.artifacts_pb2_grpc.ArtifactServiceStub",
+            return_value=fake_artifacts,
+        ):
+            with mock.patch(
+                "demo.voice_clone_web.app.voice_pb2_grpc.VoiceServiceStub",
+                return_value=fake_voice,
+            ):
+                with mock.patch(
+                    "demo.voice_clone_web.app.normalise_recorded_audio",
+                    return_value=(b"wav-bytes", "voice-sample.wav", "audio/wav"),
+                ):
+                    app.synthesize_selected_reading(
+                        dictator_url="dictator-grpc:50051",
+                        auth_token="secret",
+                        audio_payload=b"sample-bytes",
+                        audio_filename="voice.webm",
+                        audio_media_type="audio/webm",
+                        synthesis_engine_id="cosyvoice3",
+                    )
+
+        synth_request, _ = fake_voice.synthesize_calls[0]
+        self.assertEqual(synth_request.synthesis_engine, voice_pb2.SYNTHESIS_ENGINE_COSYVOICE3)
         self.assertEqual(synth_request.speaker_transcript_text, app.VOICE_SAMPLE_TEXT)
 
     def test_synthesize_selected_reading_requires_audio(self):

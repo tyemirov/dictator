@@ -18,9 +18,11 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
             return SynthesisEngine.XTTS
         if engine_value == voice_pb2.SYNTHESIS_ENGINE_QWEN3:
             return SynthesisEngine.QWEN3
+        if engine_value == voice_pb2.SYNTHESIS_ENGINE_COSYVOICE3:
+            return SynthesisEngine.COSYVOICE3
         raise ValidationError(
             "dictator.grpc.voice.synthesis_engine_required",
-            "synthesis_engine must be set to XTTS or QWEN3",
+            "synthesis_engine must be set to XTTS, QWEN3, or COSYVOICE3",
         )
 
     def _resolve_speaker_transcript_text(self, request) -> str | None:
@@ -92,6 +94,7 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
                         text=text,
                         language_code=request.language_code or "en",
                         cap_seconds=cap_seconds,
+                        speaker_artifact_id=request.speaker_artifact_id,
                         speaker_transcript_text=speaker_transcript_text,
                     )
                 )

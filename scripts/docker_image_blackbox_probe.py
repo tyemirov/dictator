@@ -33,11 +33,31 @@ PROBE_SAMPLE_TEXT = (
 )
 
 
+def assert_baked_model_paths() -> None:
+    for env_name in (
+        "DICTATOR_XTTS_MODEL_ID",
+        "DICTATOR_QWEN3_TTS_MODEL_ID",
+        "DICTATOR_COSYVOICE3_MODEL_DIR",
+    ):
+        path = Path(os.environ.get(env_name, "")).expanduser()
+        assert path.is_dir(), f"{env_name} does not point to a baked model directory: {path}"
+    wetext_cache_dir = (
+        Path(os.environ.get("MODELSCOPE_CACHE", "~/.cache/modelscope")).expanduser()
+        / "hub"
+        / "pengzhendong"
+        / "wetext"
+    )
+    assert wetext_cache_dir.is_dir(), f"wetext frontend cache is missing: {wetext_cache_dir}"
+
+
 def assert_dependency_imports() -> None:
+    import pkg_resources  # noqa: F401
+    from cosyvoice.cli.cosyvoice import AutoModel  # noqa: F401
     import librosa  # noqa: F401
     import pyannote.audio
     import qwen_tts  # noqa: F401
     import soundfile  # noqa: F401
+    from wetext import Normalizer  # noqa: F401
     import whisper  # noqa: F401
     import whisperx  # noqa: F401
     from TTS.api import TTS  # noqa: F401
@@ -110,8 +130,9 @@ def assert_xtts_loader_call_shape() -> None:
     from dictator.synthesis import service as synthesis_service
 
     class FakeTTS:
-        def __init__(self, model_id: str) -> None:
-            self.model_id = model_id
+        def __init__(self, *args, **kwargs) -> None:
+            self.args = args
+            self.kwargs = kwargs
             self.device = None
 
         def to(self, device: str):
@@ -119,6 +140,21 @@ def assert_xtts_loader_call_shape() -> None:
             return self
 
     fake_torch = SimpleNamespace(cuda=SimpleNamespace(is_available=lambda: False))
+    with tempfile.TemporaryDirectory() as tmpdir:
+        model_dir = Path(tmpdir) / "xtts"
+        model_dir.mkdir()
+        (model_dir / "config.json").write_text("{}", encoding="utf-8")
+        with (
+            patch.dict("sys.modules", {"torch": fake_torch}),
+            patch("TTS.api.TTS", FakeTTS),
+        ):
+            backend = synthesis_service.XTTSBackend(model_id=str(model_dir))
+            loaded = backend.load()
+        assert isinstance(loaded, FakeTTS)
+        assert loaded.kwargs["model_dir"] == str(model_dir)
+        assert loaded.kwargs["progress_bar"] is False
+        assert loaded.device == "cpu"
+
     with (
         patch.dict("sys.modules", {"torch": fake_torch}),
         patch("TTS.api.TTS", FakeTTS),
@@ -126,7 +162,7 @@ def assert_xtts_loader_call_shape() -> None:
         backend = synthesis_service.XTTSBackend(model_id="xtts-model")
         loaded = backend.load()
     assert isinstance(loaded, FakeTTS)
-    assert loaded.model_id == "xtts-model"
+    assert loaded.args == ("xtts-model",)
     assert loaded.device == "cpu"
 
 @contextlib.contextmanager
@@ -290,6 +326,7 @@ def assert_grpc_voice_roundtrip() -> None:
 
 
 def main() -> int:
+    assert_baked_model_paths()
     assert_dependency_imports()
     assert_default_entrypoint_starts()
     assert_diarization_loader_call_shape()

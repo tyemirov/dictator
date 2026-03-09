@@ -433,6 +433,12 @@ If you know me well, you can hear the difference between my polite voice, my tir
                   <span class="toggle-button-note">Reference audio plus transcript</span>
                 </span>
               </button>
+              <button id="engine-cosyvoice3" class="toggle-button" type="button" data-engine="cosyvoice3" aria-pressed="false">
+                <span class="toggle-button-copy">
+                  <span class="toggle-button-title">CosyVoice 3</span>
+                  <span class="toggle-button-note">Modern zero-shot contender</span>
+                </span>
+              </button>
             </div>
           </div>
           <div>
@@ -580,7 +586,7 @@ And miles to go before I sleep.`
       }
 
       function setSelectedEngine(engineId) {
-        selectedEngine = engineId === "qwen3" ? "qwen3" : "xtts";
+        selectedEngine = ["xtts", "qwen3", "cosyvoice3"].includes(engineId) ? engineId : "xtts";
         engineButtons.forEach((button) => {
           const isActive = button.dataset.engine === selectedEngine;
           button.classList.toggle("is-active", isActive);
