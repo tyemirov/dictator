@@ -232,6 +232,11 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 self.assertEqual(synthesis_service.backends[SynthesisEngine.XTTS], "tts-backend")
                 self.assertEqual(synthesis_service.backends[SynthesisEngine.QWEN3], "qwen-backend")
                 self.assertIs(synthesis_service, runtime.get_synthesis_service())
+                sys.modules["dictator.synthesis.service"].Qwen3TTSBackend.assert_called_once_with(
+                    model_id=runtime._synthesis_config.qwen3_model_id,
+                    dtype=runtime._synthesis_config.qwen3_dtype,
+                    text_token_budget=runtime._synthesis_config.qwen3_text_token_budget,
+                )
 
                 alignment_service = runtime.get_alignment_service()
                 self.assertEqual(alignment_service.backend, "align-backend")
@@ -247,13 +252,6 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 self.assertEqual(subtitle_service.alignment_service.backend, "align-backend")
 
                 self.assertIsInstance(runtime.get_reference_extraction_service(), FakeReferenceExtractionService)
-
-    def test_speech_execution_runtime_logs_fast_attention_startup(self):
-        with patch("dictator.runtime.service_runtime.logging.info") as info:
-            SpeechExecutionRuntime(
-                synthesis_config=SynthesisConfig(qwen3_attn_implementation="flash_attention_2")
-            )
-        info.assert_called()
 
     def test_synthesis_config_reads_qwen_text_budget(self):
         config = SynthesisConfig.from_env(

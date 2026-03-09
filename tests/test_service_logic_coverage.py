@@ -177,7 +177,6 @@ class ServiceLogicCoverageTests(unittest.TestCase):
         ):
             qwen_backend = backend_module.Qwen3TTSBackend(
                 model_id="qwen-model",
-                attn_implementation="flash_attention_2",
                 dtype="float32",
                 text_token_budget=1,
             )
@@ -235,28 +234,6 @@ class ServiceLogicCoverageTests(unittest.TestCase):
         self.assertFalse(fake_qwen_model.prompt_calls[0]["x_vector_only_mode"])
         self.assertEqual(fake_qwen_model.generate_calls[0]["language"], "Russian")
         self.assertEqual(fake_qwen_model.generate_calls[0]["voice_clone_prompt"], "voice-clone-prompt")
-
-        with patch.dict(
-            sys.modules,
-            {
-                "torch": fake_torch,
-                "qwen_tts": types.SimpleNamespace(Qwen3TTSModel=types.SimpleNamespace(from_pretrained=MagicMock(return_value=fake_qwen_model))),
-            },
-        ):
-            with self.assertRaisesRegex(ValidationError, "requires DICTATOR_QWEN3_TTS_ATTN_IMPLEMENTATION=flash_attention_2"):
-                backend_module.Qwen3TTSBackend(model_id="qwen-model").load()
-
-        with self.assertRaisesRegex(ValidationError, "requires DICTATOR_QWEN3_TTS_ATTN_IMPLEMENTATION=flash_attention_2"):
-            backend_module.Qwen3TTSBackend(model_id="qwen-model").open_session(
-                SynthesisRequest(
-                    engine=SynthesisEngine.QWEN3,
-                    speaker_wav=Path("speaker.wav"),
-                    text="Hello",
-                    language_code="ru",
-                    cap_seconds=None,
-                    speaker_transcript_text="sample transcript",
-                )
-            )
 
         with self.assertRaisesRegex(ValidationError, "speaker_transcript_text"):
             backend_module.Qwen3TTSBackend(model_id="qwen-model").open_session(

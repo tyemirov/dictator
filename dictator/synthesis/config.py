@@ -13,7 +13,6 @@ QWEN3_FAST_ATTENTION_IMPLEMENTATION = "flash_attention_2"
 
 XTTS_MODEL_ID_ENV = "DICTATOR_XTTS_MODEL_ID"
 QWEN3_MODEL_ID_ENV = "DICTATOR_QWEN3_TTS_MODEL_ID"
-QWEN3_ATTN_IMPLEMENTATION_ENV = "DICTATOR_QWEN3_TTS_ATTN_IMPLEMENTATION"
 QWEN3_DTYPE_ENV = "DICTATOR_QWEN3_TTS_DTYPE"
 QWEN3_TEXT_TOKEN_BUDGET_ENV = "DICTATOR_QWEN3_TTS_TEXT_TOKEN_BUDGET"
 
@@ -41,19 +40,16 @@ class SynthesisConfig:
 
     xtts_model_id: str = DEFAULT_XTTS_MODEL_ID
     qwen3_model_id: str = DEFAULT_QWEN3_MODEL_ID
-    qwen3_attn_implementation: str | None = None
     qwen3_dtype: str = "auto"
     qwen3_text_token_budget: int = DEFAULT_QWEN3_TEXT_TOKEN_BUDGET
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "SynthesisConfig":
         source = dict(os.environ if env is None else env)
-        qwen3_attn_implementation = source.get(QWEN3_ATTN_IMPLEMENTATION_ENV, "").strip() or None
         qwen3_dtype = source.get(QWEN3_DTYPE_ENV, "auto").strip().lower() or "auto"
         return cls(
             xtts_model_id=source.get(XTTS_MODEL_ID_ENV, DEFAULT_XTTS_MODEL_ID).strip() or DEFAULT_XTTS_MODEL_ID,
             qwen3_model_id=source.get(QWEN3_MODEL_ID_ENV, DEFAULT_QWEN3_MODEL_ID).strip() or DEFAULT_QWEN3_MODEL_ID,
-            qwen3_attn_implementation=qwen3_attn_implementation,
             qwen3_dtype=qwen3_dtype,
             qwen3_text_token_budget=_positive_int_from_env(
                 source,
@@ -61,7 +57,3 @@ class SynthesisConfig:
                 DEFAULT_QWEN3_TEXT_TOKEN_BUDGET,
             ),
         )
-
-    @property
-    def qwen3_fast_attention_enabled(self) -> bool:
-        return self.qwen3_attn_implementation == QWEN3_FAST_ATTENTION_IMPLEMENTATION

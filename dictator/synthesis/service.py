@@ -16,7 +16,6 @@ from .config import (
     DEFAULT_QWEN3_MODEL_ID,
     DEFAULT_QWEN3_TEXT_TOKEN_BUDGET,
     DEFAULT_XTTS_MODEL_ID,
-    QWEN3_ATTN_IMPLEMENTATION_ENV,
     QWEN3_FAST_ATTENTION_IMPLEMENTATION,
     SynthesisConfig,
 )
@@ -267,30 +266,16 @@ class Qwen3TTSBackend:
         self,
         *,
         model_id: str = DEFAULT_QWEN3_MODEL_ID,
-        attn_implementation: str | None = None,
         dtype: str = "auto",
         text_token_budget: int = DEFAULT_QWEN3_TEXT_TOKEN_BUDGET,
     ) -> None:
         self.model_id = model_id
-        self.attn_implementation = attn_implementation
         self.dtype = dtype
         self.text_token_budget = text_token_budget
         self._model = None
         self._load_lock = threading.Lock()
         self._prompt_cache: dict[tuple[str, str, str], object] = {}
         self._prompt_cache_lock = threading.Lock()
-
-    def _require_fast_attention(self) -> None:
-        if self.attn_implementation == QWEN3_FAST_ATTENTION_IMPLEMENTATION:
-            return
-        raise ValidationError(
-            "dictator.synthesis.qwen3.fast_attention_required",
-            (
-                "qwen3 synthesis requires "
-                f"{QWEN3_ATTN_IMPLEMENTATION_ENV}={QWEN3_FAST_ATTENTION_IMPLEMENTATION}; "
-                f"configured={self.attn_implementation or 'default'}"
-            ),
-        )
 
     def _resolve_dtype(self, torch):
         name = self.dtype.lower()
@@ -308,7 +293,6 @@ class Qwen3TTSBackend:
         return mapping[name]
 
     def load(self):
-        self._require_fast_attention()
         if self._model is not None:
             return self._model
         with self._load_lock:
@@ -319,15 +303,14 @@ class Qwen3TTSBackend:
                 load_kwargs = {
                     "device_map": "cuda:0" if torch.cuda.is_available() else "cpu",
                     "dtype": self._resolve_dtype(torch),
+                    "attn_implementation": QWEN3_FAST_ATTENTION_IMPLEMENTATION,
                 }
-                if self.attn_implementation:
-                    load_kwargs["attn_implementation"] = self.attn_implementation
                 logging.info(
                     "loading qwen3 model %s on %s dtype=%s attn_implementation=%s",
                     self.model_id,
                     load_kwargs["device_map"],
                     self.dtype,
-                    self.attn_implementation or "default",
+                    QWEN3_FAST_ATTENTION_IMPLEMENTATION,
                 )
                 self._model = Qwen3TTSModel.from_pretrained(self.model_id, **load_kwargs)
                 logging.info("qwen3 fast attention is enabled via %s", QWEN3_FAST_ATTENTION_IMPLEMENTATION)
@@ -407,7 +390,6 @@ class SpeechSynthesisService:
                 SynthesisEngine.XTTS: XTTSBackend(model_id=synthesis_config.xtts_model_id),
                 SynthesisEngine.QWEN3: Qwen3TTSBackend(
                     model_id=synthesis_config.qwen3_model_id,
-                    attn_implementation=synthesis_config.qwen3_attn_implementation,
                     dtype=synthesis_config.qwen3_dtype,
                     text_token_budget=synthesis_config.qwen3_text_token_budget,
                 ),
