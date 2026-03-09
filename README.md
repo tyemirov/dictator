@@ -7,7 +7,7 @@ Two small, self-contained Python utilities:
 | Script           | Purpose                                                                                                                                                                                                                                       |
 |------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **`extract.py`** | Carve out the **clearest window** (default 20 s) from a noisy archival recording using Whisper ASR confidence + SNR heuristics, with a speaker-diarization model provided by `pyannote.audio`, then output a peak-normalised 24 kHz mono WAV. |
-| **`main.py`**    | Feed that reference sample (or any WAV/MP3) to either **[XTTS-v2]** or **Qwen3-TTS** and synthesise arbitrarily long speech from plain text – again to a peak-normalised 24 kHz mono WAV.                                                   |
+| **`main.py`**    | Feed that reference sample (or any WAV/MP3) to **[XTTS-v2]**, **Qwen3-TTS**, or **CosyVoice 3** and synthesise arbitrarily long speech from plain text – again to a peak-normalised 24 kHz mono WAV.                                      |
 
 ---
 
@@ -336,15 +336,16 @@ usage: main.py --sample WAV/MP3 --text TXT --output WAV [options]
 optional arguments
   --length 10s|3m|1.5h   cap final audio; stops on last full sentence
   --language CODE       TTS language code (default: en)
-  --engine {xtts,qwen3} choose the synthesis engine (default: xtts)
-  --sample-text TEXT    reference transcript for the sample audio; required for qwen3
+  --engine {xtts,qwen3,cosyvoice3} choose the synthesis engine (default: xtts)
+  --sample-text TEXT    reference transcript for the sample audio; required for qwen3 and cosyvoice3
   --speech JSON        write JSON timeline with text/metadata
   --force                overwrite existing output
 ```
 
 * Input text is **cleaned** (Unicode NFKC, whitespace collapsed).
 * `xtts` uses the existing byte-budget chunking tuned for XTTS-v2.
-* `qwen3` uses the full speaker sample plus its transcript and splits on sentence boundaries.
+* `qwen3` uses the full speaker sample plus its transcript and packs sentences by tokenizer budget.
+* `cosyvoice3` uses the full speaker sample plus its transcript and synthesises sentence-by-sentence through the official zero-shot API. It requires a local CosyVoice 3 install plus `DICTATOR_COSYVOICE3_MODEL_DIR`.
 * Synthesis stops when the next sentence would exceed `--length`.
 * All chunks concatenated with FFmpeg, `dynaudnorm` + –1 dBFS, 24 kHz mono.
 * When `--speech` is provided, a JSON file is written containing:

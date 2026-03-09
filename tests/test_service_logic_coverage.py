@@ -235,6 +235,83 @@ class ServiceLogicCoverageTests(unittest.TestCase):
         self.assertEqual(fake_qwen_model.generate_calls[0]["language"], "Russian")
         self.assertEqual(fake_qwen_model.generate_calls[0]["voice_clone_prompt"], "voice-clone-prompt")
 
+        fake_cosyvoice_model = types.SimpleNamespace(
+            sample_rate=24000,
+            zero_shot_calls=[],
+        )
+
+        class FakeTensor:
+            def __init__(self, values):
+                self._values = np.array(values, dtype=np.float32)
+
+            def detach(self):
+                return self
+
+            def cpu(self):
+                return self
+
+            def numpy(self):
+                return self._values
+
+        def inference_zero_shot(text, prompt_text, prompt_wav, stream=False):
+            fake_cosyvoice_model.zero_shot_calls.append(
+                {
+                    "text": text,
+                    "prompt_text": prompt_text,
+                    "prompt_wav": prompt_wav,
+                    "stream": stream,
+                }
+            )
+            return iter(
+                [
+                    {"tts_speech": None},
+                    {"tts_speech": np.array([[0.1, -0.1]], dtype=np.float32)},
+                    {"tts_speech": FakeTensor([[0.2, -0.2]])},
+                ]
+            )
+
+        fake_cosyvoice_model.inference_zero_shot = inference_zero_shot
+        fake_cosyvoice_factory = MagicMock(return_value=fake_cosyvoice_model)
+        with tempfile.TemporaryDirectory() as cosy_dir:
+            with patch.dict(
+                sys.modules,
+                {
+                    "soundfile": types.SimpleNamespace(write=MagicMock()),
+                    "cosyvoice": types.ModuleType("cosyvoice"),
+                    "cosyvoice.cli": types.ModuleType("cosyvoice.cli"),
+                    "cosyvoice.cli.cosyvoice": types.SimpleNamespace(AutoModel=fake_cosyvoice_factory),
+                },
+            ):
+                cosy_backend = backend_module.CosyVoice3Backend(model_dir=cosy_dir)
+                self.assertIs(cosy_backend.load(), fake_cosyvoice_model)
+                cosy_request = SynthesisRequest(
+                    engine=SynthesisEngine.COSYVOICE3,
+                    speaker_wav=Path("speaker.wav"),
+                    text="Hello. Again?",
+                    language_code="en",
+                    cap_seconds=None,
+                    speaker_transcript_text="sample transcript",
+                )
+                cosy_session = cosy_backend.open_session(cosy_request)
+                self.assertEqual(
+                    [chunk.text for chunk in cosy_session.build_chunks("Hello. Again?")],
+                    ["Hello.", "Again?"],
+                )
+                self.assertEqual(
+                    [chunk.text for chunk in cosy_session.refine_chunk(backend_module.SynthesisChunk.from_text("Hello."))],
+                    ["Hello."],
+                )
+                cosy_chunk = cosy_session.synthesise_chunk("Hello.")
+                self.assertGreater(cosy_chunk.duration_seconds, 0.0)
+                cosy_session.synthesise_to_file("Hello.", Path("out.wav"))
+        fake_cosyvoice_factory.assert_called_once_with(model_dir=cosy_dir)
+        self.assertEqual(
+            fake_cosyvoice_model.zero_shot_calls[0]["prompt_text"],
+            "You are a helpful assistant.<|endofprompt|>sample transcript",
+        )
+        self.assertEqual(fake_cosyvoice_model.zero_shot_calls[0]["prompt_wav"], "speaker.wav")
+        self.assertFalse(fake_cosyvoice_model.zero_shot_calls[0]["stream"])
+
         with self.assertRaisesRegex(ValidationError, "speaker_transcript_text"):
             backend_module.Qwen3TTSBackend(model_id="qwen-model").open_session(
                 SynthesisRequest(
@@ -242,6 +319,16 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                     speaker_wav=Path("speaker.wav"),
                     text="Hello",
                     language_code="ru",
+                    cap_seconds=None,
+                )
+            )
+        with self.assertRaisesRegex(ValidationError, "speaker_transcript_text"):
+            backend_module.CosyVoice3Backend(model_dir="missing-model").open_session(
+                SynthesisRequest(
+                    engine=SynthesisEngine.COSYVOICE3,
+                    speaker_wav=Path("speaker.wav"),
+                    text="Hello",
+                    language_code="en",
                     cap_seconds=None,
                 )
             )
@@ -255,6 +342,12 @@ class ServiceLogicCoverageTests(unittest.TestCase):
             backend_module.Qwen3TTSBackend(model_id="qwen-model", dtype="float8")._resolve_dtype(fake_torch)
         with self.assertRaisesRegex(ValueError, "cannot be empty"):
             backend_module.SynthesisChunk.from_units(("", " "))
+        with self.assertRaisesRegex(DependencyError, "model_dir does not exist"):
+            backend_module.CosyVoice3Backend(model_dir="missing-model").load()
+
+        with tempfile.TemporaryDirectory() as cosy_dir:
+            with self.assertRaisesRegex(DependencyError, "CosyVoice3 is unavailable"):
+                backend_module.CosyVoice3Backend(model_dir=cosy_dir).load()
 
         with patch.dict(sys.modules, {"soundfile": types.SimpleNamespace(write=MagicMock())}):
             with self.assertRaisesRegex(ValueError, "returned no audio"):
@@ -263,6 +356,12 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                     voice_clone_prompt="prompt",
                     language_name="Russian",
                     text_token_budget=16,
+                ).synthesise_to_file("Hello", Path("out.wav"))
+            with self.assertRaisesRegex(ValueError, "returned no audio"):
+                backend_module.CosyVoice3SynthesisSession(
+                    types.SimpleNamespace(sample_rate=24000, inference_zero_shot=lambda *args, **kwargs: iter([])),
+                    speaker_wav=Path("speaker.wav"),
+                    speaker_transcript_text="sample transcript",
                 ).synthesise_to_file("Hello", Path("out.wav"))
 
         class FakeBackend:

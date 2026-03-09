@@ -147,6 +147,12 @@ SYNTHESIS_ENGINES = {
         proto_value=voice_pb2.SYNTHESIS_ENGINE_QWEN3,
         speaker_transcript_text=VOICE_SAMPLE_TEXT,
     ),
+    "cosyvoice3": SynthesisEngineOption(
+        engine_id="cosyvoice3",
+        label="CosyVoice 3",
+        proto_value=voice_pb2.SYNTHESIS_ENGINE_COSYVOICE3,
+        speaker_transcript_text=VOICE_SAMPLE_TEXT,
+    ),
 }
 
 

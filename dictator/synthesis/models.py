@@ -13,6 +13,7 @@ class SynthesisEngine(str, Enum):
 
     XTTS = "xtts"
     QWEN3 = "qwen3"
+    COSYVOICE3 = "cosyvoice3"
 
 
 @dataclass(frozen=True)
