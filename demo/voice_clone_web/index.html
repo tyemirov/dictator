@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Genesis Voice Demo</title>
+    <title>Voice Clone Demo</title>
     <style>
       :root {
         --paper: #f4ecdc;
@@ -89,13 +89,15 @@
       }
 
       input,
+      select,
       textarea,
       button {
         width: 100%;
         font: inherit;
       }
 
-      input {
+      input,
+      select {
         padding: 0.8rem 0.9rem;
         border-radius: 12px;
         border: 1px solid rgba(32, 23, 21, 0.18);
@@ -327,10 +329,10 @@
     <main>
       <section class="hero">
         <div class="eyebrow">Dictator Example</div>
-        <h1>Read Genesis in your own cloned voice</h1>
+        <h1>Read classic passages in your own cloned voice</h1>
         <p>
           Record a short sample and the backend bridge will send it to a running <strong>Dictator gRPC service</strong>,
-          then return a WAV file of the opening of Genesis read back in your voice.
+          then return a WAV file of the passage you choose read back in your voice.
           Read the sample twice if you want a steadier clone.
         </p>
       </section>
@@ -363,25 +365,34 @@
             <div id="sample-text-label">
               <label>Read This Sample</label>
             </div>
-            <div id="sample-text" class="sample-script" aria-labelledby="sample-text-label">The quick brown fox jumped over the lazy dog while seven silver swans drifted across the lake at dawn.
-Eleven benevolent elephants balanced on bright blue bicycles and sang softly beside the river.
-She sells sea shells by the seashore, and Peter Piper picked a peck of pickled peppers.</div>
+            <div id="sample-text" class="sample-script" aria-labelledby="sample-text-label">I grew up near a busy street, so even now I sleep best with a little noise in the distance.
+My friends know I speak quickly when I am excited, slow down when I am serious, and laugh before I finish the punch line.
+On cold mornings I want strong coffee, warm light, and ten quiet minutes to think.
+If you know me well, you can hear the difference between my polite voice, my tired voice, and the one I use when I am truly delighted.</div>
           </div>
         </div>
 
         <div class="panel stack">
           <div class="panel-title">
             <div class="eyebrow">Step 2</div>
-            <h2>Generate Genesis</h2>
-            <p>The backend bridge already has the Dictator auth token. Generate the reading after you have a recorded sample.</p>
+            <h2>Choose What To Render</h2>
+            <p>The backend bridge already has the Dictator auth token. Pick a passage, then generate the reading from your full recorded sample.</p>
+          </div>
+          <div>
+            <label for="render-preset">Choose The Text</label>
+            <select id="render-preset">
+              <option value="genesis">Genesis</option>
+              <option value="alice">Alice in Wonderland</option>
+              <option value="woods">Dark Woods</option>
+            </select>
           </div>
           <div class="actions">
-            <button id="generate-voice" type="button" disabled>Make Genesis</button>
+            <button id="generate-voice" type="button" disabled>Make Reading</button>
           </div>
           <div id="status" class="status" aria-live="polite"></div>
           <div>
-            <label for="genesis-text">The Generated Reading</label>
-            <textarea id="genesis-text" readonly>Genesis 1:1-10, King James Version.
+            <label for="render-text">Selected Reading</label>
+            <textarea id="render-text" readonly>Genesis 1:1-10, King James Version.
 In the beginning God created the heaven and the earth.
 And the earth was without form, and void; and darkness was upon the face of the deep.
 And the Spirit of God moved upon the face of the waters.
@@ -403,7 +414,7 @@ And God called the dry land Earth; and the gathering together of the waters call
           <audio id="recorded-audio" controls></audio>
         </div>
         <div class="panel stack">
-          <div class="eyebrow">Genesis Playback</div>
+          <div class="eyebrow">Generated Playback</div>
           <audio id="generated-audio" controls></audio>
           <a id="download-link" class="download" download="genesis-in-your-voice.wav" hidden>Download WAV</a>
         </div>
@@ -415,6 +426,8 @@ And God called the dry land Earth; and the gathering together of the waters call
       const recordButton = document.getElementById("record-toggle");
       const recordButtonText = document.getElementById("record-button-text");
       const recordStateNode = document.getElementById("record-state");
+      const renderPresetSelect = document.getElementById("render-preset");
+      const renderText = document.getElementById("render-text");
       const generateButton = document.getElementById("generate-voice");
       const recordedAudio = document.getElementById("recorded-audio");
       const generatedAudio = document.getElementById("generated-audio");
@@ -424,6 +437,58 @@ And God called the dry land Earth; and the gathering together of the waters call
       let mediaStream;
       let recordedBlob;
       let recordedMimeType = "audio/webm";
+
+      const renderPresets = {
+        genesis: {
+          label: "Genesis",
+          filename: "genesis-in-your-voice.wav",
+          text: `Genesis 1:1-10, King James Version.
+In the beginning God created the heaven and the earth.
+And the earth was without form, and void; and darkness was upon the face of the deep.
+And the Spirit of God moved upon the face of the waters.
+And God said, Let there be light: and there was light.
+And God saw the light, that it was good: and God divided the light from the darkness.
+And God called the light Day, and the darkness he called Night. And the evening and the morning were the first day.
+And God said, Let there be a firmament in the midst of the waters, and let it divide the waters from the waters.
+And God made the firmament, and divided the waters which were under the firmament from the waters which were above the firmament: and it was so.
+And God called the firmament Heaven. And the evening and the morning were the second day.
+And God said, Let the waters under the heaven be gathered together unto one place, and let the dry land appear: and it was so.
+And God called the dry land Earth; and the gathering together of the waters called he Seas: and God saw that it was good.`
+        },
+        alice: {
+          label: "Alice in Wonderland",
+          filename: "alice-in-your-voice.wav",
+          text: `Alice's Adventures in Wonderland, Chapter I.
+Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do.
+Once or twice she had peeped into the book her sister was reading, but it had no pictures or conversations in it.
+"And what is the use of a book," thought Alice, "without pictures or conversations?"
+So she was considering in her own mind, as well as she could, whether the pleasure of making a daisy-chain would be worth the trouble of getting up and picking the daisies.`
+        },
+        woods: {
+          label: "Dark Woods",
+          filename: "dark-woods-in-your-voice.wav",
+          text: `Stopping by Woods on a Snowy Evening, by Robert Frost.
+Whose woods these are I think I know.
+His house is in the village though;
+He will not see me stopping here
+To watch his woods fill up with snow.
+
+My little horse must think it queer
+To stop without a farmhouse near
+Between the woods and frozen lake
+The darkest evening of the year.
+
+He gives his harness bells a shake
+To ask if there is some mistake.
+The only other sound's the sweep
+Of easy wind and downy flake.
+
+The woods are lovely, dark and deep,
+But I have promises to keep,
+And miles to go before I sleep,
+And miles to go before I sleep.`
+        }
+      };
 
       function setStatus(message, kind = "") {
         statusNode.textContent = message;
@@ -451,10 +516,18 @@ And God called the dry land Earth; and the gathering together of the waters call
         return btoa(binary);
       }
 
-      function parseDownloadFilename(response) {
+      function currentRenderPreset() {
+        return renderPresets[renderPresetSelect.value] || renderPresets.genesis;
+      }
+
+      function syncRenderPresetUi() {
+        renderText.value = currentRenderPreset().text;
+      }
+
+      function parseDownloadFilename(response, fallbackFilename) {
         const header = response.headers.get("Content-Disposition") || "";
         const match = header.match(/filename="([^"]+)"/i);
-        return match ? match[1] : "genesis-in-your-voice.wav";
+        return match ? match[1] : fallbackFilename;
       }
 
       function setRecordingUi(isRecording) {
@@ -464,10 +537,18 @@ And God called the dry land Earth; and the gathering together of the waters call
         recordStateNode.textContent = isRecording
           ? "Recording now. Click the microphone again when you are done reading the sample."
           : (recordedBlob
-            ? "Sample captured. You can record again for a stronger sample, or make Genesis now."
+            ? "Sample captured. You can record again for a stronger sample, or make the selected reading now."
             : "Click the record button, read the sample slowly and clearly, then click the microphone to stop.");
       }
 
+      renderPresetSelect.addEventListener("change", () => {
+        syncRenderPresetUi();
+        if (!recordedBlob) {
+          setStatus(`Selected ${currentRenderPreset().label}. Record a sample when ready.`);
+        }
+      });
+
+      syncRenderPresetUi();
       setRecordingUi(false);
 
       recordButton.addEventListener("click", async () => {
@@ -500,13 +581,13 @@ And God called the dry land Earth; and the gathering together of the waters call
             recorder = null;
             mediaStream = null;
             setRecordingUi(false);
-            setStatus("Recording captured. Generate the Genesis reading when ready.", "ok");
+            setStatus("Recording captured. Generate the selected reading when ready.", "ok");
           });
           recordedBlob = null;
           generateButton.disabled = true;
           recorder.start();
           setRecordingUi(true);
-          setStatus("Recording. Read the sample text twice for a steadier voice clone.");
+          setStatus("Recording. Read the full sample in your natural voice for the strongest clone.");
         } catch (error) {
           recorder = null;
           if (mediaStream) {
@@ -520,18 +601,20 @@ And God called the dry land Earth; and the gathering together of the waters call
 
       generateButton.addEventListener("click", async () => {
         if (!recordedBlob) {
-          setStatus("Record a sample before generating Genesis.", "error");
+          setStatus("Record a sample before generating the selected reading.", "error");
           return;
         }
         try {
+          const selectedPreset = currentRenderPreset();
           generateButton.disabled = true;
-          setStatus("Uploading your sample to Dictator and generating the cloned reading...");
+          setStatus(`Uploading your sample to Dictator and generating ${selectedPreset.label}...`);
           const response = await fetch("/api/clone", {
             method: "POST",
             headers: {
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
+              renderPreset: renderPresetSelect.value,
               audioFilename: `voice-sample.${recordedMimeType.includes("ogg") ? "ogg" : recordedMimeType.includes("mp4") ? "m4a" : "webm"}`,
               audioMediaType: recordedMimeType,
               audioBase64: await blobToBase64(recordedBlob)
@@ -551,12 +634,12 @@ And God called the dry land Earth; and the gathering together of the waters call
           }
           const audioBlob = await response.blob();
           const audioUrl = URL.createObjectURL(audioBlob);
-          const filename = parseDownloadFilename(response);
+          const filename = parseDownloadFilename(response, selectedPreset.filename);
           generatedAudio.src = audioUrl;
           downloadLink.href = audioUrl;
           downloadLink.download = filename;
           downloadLink.hidden = false;
-          setStatus("Genesis is ready. Play it back or download the WAV.", "ok");
+          setStatus(`${selectedPreset.label} is ready. Play it back or download the WAV.`, "ok");
         } catch (error) {
           setStatus(error.message || "Generation failed.", "error");
         } finally {

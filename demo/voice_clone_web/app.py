@@ -10,11 +10,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
+import tempfile
 from typing import Callable
 from urllib.parse import urlparse
 
 import grpc
 
+from dictator.audio.ffmpeg_ops import audio_to_wav
 from dictator.speech.v1 import artifacts_pb2, artifacts_pb2_grpc, voice_pb2, voice_pb2_grpc
 
 INDEX_HTML_PATH = Path(__file__).with_name("index.html")
@@ -23,15 +25,16 @@ DEFAULT_PORT = 8080
 UPLOAD_CHUNK_BYTES = 1024 * 1024
 DOWNLOAD_CHUNK_BYTES = 1024 * 1024
 DEFAULT_LANGUAGE_CODE = "en"
-DEFAULT_OUTPUT_FILENAME = "genesis-in-your-voice.wav"
+DEFAULT_OUTPUT_FILENAME = "reading-in-your-voice.wav"
 DICTATOR_URL_ENV = "VOICE_CLONE_DICTATOR_URL"
 DICTATOR_AUTH_TOKEN_ENV = "DICTATOR_GRPC_AUTH_TOKEN"
 
 VOICE_SAMPLE_PROMPT = (
-    'Read this aloud, slowly and clearly: "The quick brown fox jumped over the lazy dog while seven '
-    'silver swans drifted across the lake at dawn. Eleven benevolent elephants balanced on bright '
-    'blue bicycles and sang softly beside the river. She sells sea shells by the seashore, and '
-    'Peter Piper picked a peck of pickled peppers."'
+    'Read this aloud, slowly and clearly: "I grew up near a busy street, so even now I sleep best '
+    'with a little noise in the distance. My friends know I speak quickly when I am excited, slow '
+    'down when I am serious, and laugh before I finish the punch line. On cold mornings I want '
+    'strong coffee, warm light, and ten quiet minutes to think. If you know me well, you can hear '
+    'the difference between my polite voice, my tired voice, and the one I use when I am truly delighted."'
 )
 
 GENESIS_EXCERPT = """Genesis 1:1-10, King James Version.
@@ -47,6 +50,33 @@ And God called the firmament Heaven. And the evening and the morning were the se
 And God said, Let the waters under the heaven be gathered together unto one place, and let the dry land appear: and it was so.
 And God called the dry land Earth; and the gathering together of the waters called he Seas: and God saw that it was good.
 """
+
+ALICE_EXCERPT = """Alice's Adventures in Wonderland, Chapter I.
+Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do.
+Once or twice she had peeped into the book her sister was reading, but it had no pictures or conversations in it.
+"And what is the use of a book," thought Alice, "without pictures or conversations?"
+So she was considering in her own mind, as well as she could, whether the pleasure of making a daisy-chain would be worth the trouble of getting up and picking the daisies."""
+
+WOODS_EXCERPT = """Stopping by Woods on a Snowy Evening, by Robert Frost.
+Whose woods these are I think I know.
+His house is in the village though;
+He will not see me stopping here
+To watch his woods fill up with snow.
+
+My little horse must think it queer
+To stop without a farmhouse near
+Between the woods and frozen lake
+The darkest evening of the year.
+
+He gives his harness bells a shake
+To ask if there is some mistake.
+The only other sound's the sweep
+Of easy wind and downy flake.
+
+The woods are lovely, dark and deep,
+But I have promises to keep,
+And miles to go before I sleep,
+And miles to go before I sleep."""
 
 
 class ExampleRequestError(ValueError):
@@ -64,6 +94,37 @@ class VoiceCloneResult:
     filename: str
     media_type: str
     content: bytes
+
+
+@dataclass(frozen=True)
+class RenderPreset:
+    preset_id: str
+    label: str
+    filename: str
+    text: str
+
+
+DEFAULT_RENDER_PRESET_ID = "genesis"
+RENDER_PRESETS = {
+    "genesis": RenderPreset(
+        preset_id="genesis",
+        label="Genesis",
+        filename="genesis-in-your-voice.wav",
+        text=GENESIS_EXCERPT,
+    ),
+    "alice": RenderPreset(
+        preset_id="alice",
+        label="Alice in Wonderland",
+        filename="alice-in-your-voice.wav",
+        text=ALICE_EXCERPT,
+    ),
+    "woods": RenderPreset(
+        preset_id="woods",
+        label="Dark Woods",
+        filename="dark-woods-in-your-voice.wav",
+        text=WOODS_EXCERPT,
+    ),
+}
 
 
 def load_index_html() -> str:
@@ -100,6 +161,14 @@ def resolve_bridge_auth_token(configured_token: str | None) -> str:
     if token:
         return token
     raise ExampleRequestError("Dictator bridge auth token is not configured.")
+
+
+def resolve_render_preset(raw_preset_id: str | None) -> RenderPreset:
+    preset_id = (raw_preset_id or DEFAULT_RENDER_PRESET_ID).strip() or DEFAULT_RENDER_PRESET_ID
+    preset = RENDER_PRESETS.get(preset_id)
+    if preset is None:
+        raise ExampleRequestError(f"Unknown reading selection: {preset_id}")
+    return preset
 
 
 def build_auth_metadata(auth_token: str) -> list[tuple[str, str]]:
@@ -164,54 +233,61 @@ def download_artifact(
     return VoiceCloneResult(filename=filename, media_type=media_type, content=bytes(content))
 
 
-def synthesize_genesis_reading(
+def synthesize_selected_reading(
     *,
     dictator_url: str,
     auth_token: str,
     audio_payload: bytes,
     audio_filename: str,
     audio_media_type: str,
+    render_preset_id: str = DEFAULT_RENDER_PRESET_ID,
     language_code: str = DEFAULT_LANGUAGE_CODE,
     channel_factory: Callable[[GrpcTarget], grpc.Channel] = create_channel,
 ) -> VoiceCloneResult:
     if not audio_payload:
         raise ExampleRequestError("A recorded voice sample is required.")
+    render_preset = resolve_render_preset(render_preset_id)
     target = parse_grpc_target(dictator_url)
     metadata = build_auth_metadata(auth_token)
+    speaker_payload, speaker_filename, speaker_media_type = normalise_recorded_audio(
+        audio_payload,
+        audio_filename,
+        audio_media_type,
+    )
     channel = channel_factory(target)
     try:
         artifact_stub = artifacts_pb2_grpc.ArtifactServiceStub(channel)
         voice_stub = voice_pb2_grpc.VoiceServiceStub(channel)
         source_artifact_id = upload_artifact(
             artifact_stub,
-            filename=audio_filename or "voice-sample.webm",
-            media_type=audio_media_type or "audio/webm",
-            payload=audio_payload,
-            metadata=metadata,
-        )
-        reference_response = voice_stub.ExtractReferenceSample(
-            voice_pb2.ExtractReferenceSampleRequest(
-                source_artifact_id=source_artifact_id,
-                language_code=language_code,
-                duration_seconds=8.0,
-            ),
+            filename=speaker_filename,
+            media_type=speaker_media_type,
+            payload=speaker_payload,
             metadata=metadata,
         )
         synthesis_response = voice_stub.SynthesizeSpeech(
             voice_pb2.SynthesizeSpeechRequest(
-                speaker_artifact_id=reference_response.sample_artifact.artifact_id,
-                text=GENESIS_EXCERPT,
+                speaker_artifact_id=source_artifact_id,
+                text=render_preset.text,
                 language_code=language_code,
             ),
             metadata=metadata,
         )
-        return download_artifact(
+        result = download_artifact(
             artifact_stub,
             artifact_id=synthesis_response.audio_artifact.artifact_id,
             metadata=metadata,
         )
+        return VoiceCloneResult(
+            filename=render_preset.filename,
+            media_type=result.media_type,
+            content=result.content,
+        )
     finally:
         channel.close()
+
+
+synthesize_genesis_reading = synthesize_selected_reading
 
 
 def decode_request_payload(raw_body: bytes) -> dict[str, str]:
@@ -236,6 +312,29 @@ def decode_audio_base64(value: str) -> bytes:
         raise ExampleRequestError("Recorded audio must be base64 encoded.") from exc
 
 
+def normalise_recorded_audio(
+    audio_payload: bytes,
+    audio_filename: str,
+    audio_media_type: str,
+) -> tuple[bytes, str, str]:
+    if not audio_payload:
+        raise ExampleRequestError("A recorded voice sample is required.")
+
+    source_name = Path((audio_filename or "").strip() or "voice-sample.webm").name or "voice-sample.webm"
+    source_stem = Path(source_name).stem or "voice-sample"
+    with tempfile.TemporaryDirectory(prefix="voice_clone_demo_") as tmpdir:
+        source_path = Path(tmpdir) / source_name
+        output_path = Path(tmpdir) / f"{source_stem}.wav"
+        source_path.write_bytes(audio_payload)
+        try:
+            audio_to_wav(source_path, output_path)
+        except Exception as exc:  # pragma: no cover - integration safety
+            raise ExampleRequestError(
+                f"Recorded audio could not be converted to WAV from {audio_media_type or 'the provided media type'}."
+            ) from exc
+        return output_path.read_bytes(), output_path.name, "audio/wav"
+
+
 def choose_download_filename(filename: str) -> str:
     cleaned = Path((filename or "").strip() or DEFAULT_OUTPUT_FILENAME).name
     return cleaned or DEFAULT_OUTPUT_FILENAME
@@ -244,7 +343,7 @@ def choose_download_filename(filename: str) -> str:
 def build_handler(
     *,
     index_html: str | None = None,
-    synthesizer: Callable[..., VoiceCloneResult] = synthesize_genesis_reading,
+    synthesizer: Callable[..., VoiceCloneResult] = synthesize_selected_reading,
     default_dictator_url: str | None = None,
     default_auth_token: str | None = None,
 ):
@@ -303,6 +402,7 @@ def build_handler(
                     audio_payload=decode_audio_base64(str(payload.get("audioBase64", ""))),
                     audio_filename=str(payload.get("audioFilename", "voice-sample.webm")),
                     audio_media_type=str(payload.get("audioMediaType", "audio/webm")),
+                    render_preset_id=str(payload.get("renderPreset", DEFAULT_RENDER_PRESET_ID)),
                     language_code=str(payload.get("languageCode", DEFAULT_LANGUAGE_CODE))
                     or DEFAULT_LANGUAGE_CODE,
                 )

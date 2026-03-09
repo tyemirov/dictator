@@ -51,13 +51,19 @@ class FfmpegOpsTests(unittest.TestCase):
         self.assertEqual(decoded.tolist(), [1, -2, 3])
         stream.output.assert_called_once_with("pipe:", format="s16le", ac=1, ar=22050)
 
-    def test_mp3_to_wav_builds_expected_ffmpeg_pipeline(self):
+    def test_audio_to_wav_builds_expected_ffmpeg_pipeline(self):
         stream = MagicMock()
         stream.output.return_value.overwrite_output.return_value.run.return_value = None
         with patch.object(ffmpeg_ops.ffmpeg, "input", return_value=stream, create=True):
-            ffmpeg_ops.mp3_to_wav(Path("sample.mp3"), Path("sample.wav"), target_sample_rate=24000)
+            ffmpeg_ops.audio_to_wav(Path("sample.webm"), Path("sample.wav"), target_sample_rate=24000)
 
         stream.output.assert_called_once_with("sample.wav", ar=24000, ac=1, acodec="pcm_s16le")
+
+    def test_mp3_to_wav_delegates_to_audio_to_wav(self):
+        with patch.object(ffmpeg_ops, "audio_to_wav") as audio_to_wav:
+            ffmpeg_ops.mp3_to_wav(Path("sample.mp3"), Path("sample.wav"), target_sample_rate=24000)
+
+        audio_to_wav.assert_called_once_with(Path("sample.mp3"), Path("sample.wav"), target_sample_rate=24000)
 
     def test_normalised_concat_stream_applies_concat_norm_and_cap(self):
         inputs = [_FakeAudioStream("a"), _FakeAudioStream("b")]

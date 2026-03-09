@@ -23,18 +23,27 @@ def decode_pcm(source_path: Path, sample_rate: int = PCM_SAMPLE_RATE):
     return np.frombuffer(buffer, dtype=np.int16)
 
 
-def mp3_to_wav(
+def audio_to_wav(
     src: Path,
     dst: Path,
     target_sample_rate: int = TARGET_SAMPLE_RATE,
 ) -> None:
-    """Convert an MP3 input into mono PCM WAV."""
+    """Convert an audio input into mono PCM WAV."""
     (
         ffmpeg.input(str(src))
         .output(str(dst), ar=target_sample_rate, ac=1, acodec="pcm_s16le")
         .overwrite_output()
         .run(quiet=True)
     )
+
+
+def mp3_to_wav(
+    src: Path,
+    dst: Path,
+    target_sample_rate: int = TARGET_SAMPLE_RATE,
+) -> None:
+    """Backward-compatible wrapper for converting audio into mono PCM WAV."""
+    audio_to_wav(src, dst, target_sample_rate=target_sample_rate)
 
 
 def _normalised_concat_stream(

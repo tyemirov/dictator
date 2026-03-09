@@ -1,6 +1,6 @@
-# Genesis voice clone demo
+# Voice clone demo
 
-This example serves a small browser UI that records a short voice sample, sends it to a running Dictator gRPC service, extracts a reference speaker sample, synthesizes a Genesis excerpt, and returns the resulting WAV file to the browser.
+This example serves a small browser UI that records a short voice sample, sends it to a running Dictator gRPC service, converts the browser recording to WAV, synthesizes one of several preset passages from the full recorded sample, and returns the resulting WAV file to the browser.
 
 ## Run it
 
@@ -26,8 +26,9 @@ The browser does not choose the Dictator gRPC target. In Docker, the backend bri
 
 The page asks the user to read:
 
-> The quick brown fox jumped over the lazy dog while seven silver swans drifted across the lake at dawn.
-> Eleven benevolent elephants balanced on bright blue bicycles and sang softly beside the river.
-> She sells sea shells by the seashore, and Peter Piper picked a peck of pickled peppers.
+> I grew up near a busy street, so even now I sleep best with a little noise in the distance.
+> My friends know I speak quickly when I am excited, slow down when I am serious, and laugh before I finish the punch line.
+> On cold mornings I want strong coffee, warm light, and ten quiet minutes to think.
+> If you know me well, you can hear the difference between my polite voice, my tired voice, and the one I use when I am truly delighted.
 
-It then asks Dictator to read a King James Version Genesis excerpt back in the user's voice.
+It then asks Dictator to read back one of three preset passages in the user's voice: Genesis, the opening of Alice's Adventures in Wonderland, or Robert Frost's "Stopping by Woods on a Snowy Evening."
