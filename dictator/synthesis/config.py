@@ -8,7 +8,7 @@ from typing import Mapping
 
 DEFAULT_XTTS_MODEL_ID = "tts_models/multilingual/multi-dataset/xtts_v2"
 DEFAULT_QWEN3_MODEL_ID = "Qwen/Qwen3-TTS-12Hz-0.6B-Base"
-DEFAULT_COSYVOICE3_MODEL_DIR = "pretrained_models/Fun-CosyVoice3-0.5B"
+DEFAULT_COSYVOICE3_MODEL_DIR = "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
 DEFAULT_QWEN3_TEXT_TOKEN_BUDGET = 192
 QWEN3_FAST_ATTENTION_IMPLEMENTATION = "flash_attention_2"
 

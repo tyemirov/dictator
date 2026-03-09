@@ -3,6 +3,7 @@ FROM python:3.11.8-slim-bookworm AS builder
 ARG TORCH_VERSION=2.8.0
 ARG TORCHAUDIO_VERSION=2.8.0
 ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cu128
+ARG COSYVOICE3_REPO_REF=04bcadc6340e266b4ba09f4474b4668c444aa063
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -11,8 +12,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH=/opt/venv/bin:$PATH \
     HOME=/home/app \
     COQUI_TOS_AGREED=1 \
+    COSYVOICE_ROOT=/opt/cosyvoice \
+    DICTATOR_MODEL_ROOT=/opt/models \
     HF_HOME=/home/app/.cache/huggingface \
     HUGGINGFACE_HUB_CACHE=/home/app/.cache/huggingface/hub \
+    MODELSCOPE_CACHE=/opt/modelscope \
+    WETEXT_MODEL_DIR=/opt/modelscope/hub/pengzhendong/wetext \
     WHISPER_CACHE_DIR=/home/app/.cache/whisper \
     TORCH_HOME=/home/app/.cache/torch
 
@@ -31,7 +36,10 @@ RUN useradd --create-home --shell /bin/bash app
 
 WORKDIR /app
 
-COPY requirements.txt /app/requirements.txt
+COPY requirements.txt requirements-cosyvoice3.txt /app/
+COPY scripts/install_cosyvoice3_runtime.sh /app/scripts/install_cosyvoice3_runtime.sh
+COPY scripts/patch_cosyvoice3_runtime.py /app/scripts/patch_cosyvoice3_runtime.py
+COPY scripts/prefetch_synthesis_models.py /app/scripts/prefetch_synthesis_models.py
 
 RUN python -m venv ${VIRTUAL_ENV} && \
     python -m pip install --upgrade pip setuptools wheel && \
@@ -40,7 +48,9 @@ RUN python -m venv ${VIRTUAL_ENV} && \
         --extra-index-url https://pypi.org/simple \
         torch==${TORCH_VERSION} \
         torchaudio==${TORCHAUDIO_VERSION} && \
-    python -m pip install --no-cache-dir -r /app/requirements.txt
+    python -m pip install --no-cache-dir -r /app/requirements.txt && \
+    COSYVOICE3_REPO_REF=${COSYVOICE3_REPO_REF} bash /app/scripts/install_cosyvoice3_runtime.sh ${COSYVOICE_ROOT} /app/requirements-cosyvoice3.txt /app/scripts/patch_cosyvoice3_runtime.py && \
+    python /app/scripts/prefetch_synthesis_models.py --output-root ${DICTATOR_MODEL_ROOT}
 
 FROM python:3.11.8-slim-bookworm
 
@@ -51,8 +61,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH=/opt/venv/bin:$PATH \
     HOME=/home/app \
     COQUI_TOS_AGREED=1 \
+    COSYVOICE_ROOT=/opt/cosyvoice \
+    DICTATOR_MODEL_ROOT=/opt/models \
+    DICTATOR_XTTS_MODEL_ID=/opt/models/xtts \
+    DICTATOR_QWEN3_TTS_MODEL_ID=/opt/models/qwen3 \
+    DICTATOR_COSYVOICE3_MODEL_DIR=/opt/models/cosyvoice3 \
+    PYTHONPATH=/opt/cosyvoice:/opt/cosyvoice/third_party/Matcha-TTS \
     HF_HOME=/home/app/.cache/huggingface \
     HUGGINGFACE_HUB_CACHE=/home/app/.cache/huggingface/hub \
+    MODELSCOPE_CACHE=/opt/modelscope \
+    WETEXT_MODEL_DIR=/opt/modelscope/hub/pengzhendong/wetext \
     WHISPER_CACHE_DIR=/home/app/.cache/whisper \
     TORCH_HOME=/home/app/.cache/torch
 
@@ -69,14 +87,18 @@ RUN useradd --create-home --shell /bin/bash app
 WORKDIR /app
 
 COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /opt/cosyvoice /opt/cosyvoice
+COPY --from=builder /opt/models /opt/models
+COPY --from=builder /opt/modelscope /opt/modelscope
 COPY . /app
 
 RUN mkdir -p \
     /app/.dictator-artifacts \
     /home/app/.cache/huggingface \
     /home/app/.cache/whisper \
-    /home/app/.cache/torch && \
-    chown -R app:app /app /home/app
+    /home/app/.cache/torch \
+    /opt/modelscope && \
+    chown -R app:app /app /home/app /opt/modelscope
 
 USER app
 

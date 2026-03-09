@@ -143,6 +143,22 @@ class XTTSBackend:
         self._tts = None
         self._load_lock = threading.Lock()
 
+    def _load_local_model(self, model_path: Path, *, device: str):
+        from TTS.api import TTS
+
+        config_path = model_path / "config.json" if model_path.is_dir() else model_path.parent / "config.json"
+        if not config_path.is_file():
+            raise DependencyError(
+                "dictator.synthesis.xtts.config_missing",
+                f"XTTS config.json was not found for local model path {model_path}",
+            )
+        logging.info("loading xtts model from %s on %s", model_path, device)
+        return TTS(
+            model_path=str(model_path),
+            config_path=str(config_path),
+            progress_bar=False,
+        ).to(device)
+
     def load(self):
         if self._tts is not None:
             return self._tts
@@ -152,8 +168,12 @@ class XTTSBackend:
                 from TTS.api import TTS
 
                 device = "cuda" if torch.cuda.is_available() else "cpu"
-                logging.info("loading xtts model %s on %s", self.model_id, device)
-                self._tts = TTS(self.model_id).to(device)
+                model_ref = Path(self.model_id)
+                if model_ref.exists():
+                    self._tts = self._load_local_model(model_ref, device=device)
+                else:
+                    logging.info("loading xtts model %s on %s", self.model_id, device)
+                    self._tts = TTS(self.model_id).to(device)
         return self._tts
 
     def open_session(self, request: SynthesisRequest) -> SynthesisSession:
@@ -447,11 +467,11 @@ class CosyVoice3Backend:
             return self._model
         with self._load_lock:
             if self._model is None:
-                model_path = Path(self.model_dir)
-                if not model_path.exists():
+                model_ref = self.model_dir.strip()
+                if not model_ref:
                     raise DependencyError(
-                        "dictator.synthesis.cosyvoice3.model_dir_missing",
-                        f"CosyVoice3 model_dir does not exist: {model_path}",
+                        "dictator.synthesis.cosyvoice3.model_dir_empty",
+                        "CosyVoice3 model_dir cannot be empty",
                     )
                 try:
                     from cosyvoice.cli.cosyvoice import AutoModel
@@ -460,8 +480,8 @@ class CosyVoice3Backend:
                         "dictator.synthesis.cosyvoice3.unavailable",
                         "CosyVoice3 is unavailable; install the official CosyVoice repository and its dependencies.",
                     ) from exc
-                logging.info("loading cosyvoice3 model from %s", model_path)
-                self._model = AutoModel(model_dir=str(model_path))
+                logging.info("loading cosyvoice3 model from %s", model_ref)
+                self._model = AutoModel(model_dir=model_ref)
         return self._model
 
     def open_session(self, request: SynthesisRequest) -> SynthesisSession:
