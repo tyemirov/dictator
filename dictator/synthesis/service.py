@@ -143,33 +143,48 @@ class XTTSBackend:
         self._tts = None
         self._load_lock = threading.Lock()
 
+    @staticmethod
+    def _resolve_local_checkpoint_path(model_path: Path) -> Path:
+        if model_path.is_file():
+            return model_path
+        candidate_names = (
+            "model.pth",
+            "model_file.pth",
+            "best_model.pth",
+        )
+        for candidate_name in candidate_names:
+            candidate_path = model_path / candidate_name
+            if candidate_path.is_file():
+                return candidate_path
+        fallback_candidates = sorted(
+            path for path in model_path.glob("*.pth") if path.name != "speakers_xtts.pth"
+        )
+        if len(fallback_candidates) == 1:
+            return fallback_candidates[0]
+        raise DependencyError(
+            "dictator.synthesis.xtts.checkpoint_missing",
+            f"XTTS checkpoint file was not found for local model path {model_path}",
+        )
+
     def _load_local_model(self, model_path: Path, *, device: str):
         from TTS.api import TTS
+        from TTS.utils.synthesizer import Synthesizer
 
-        if model_path.is_dir():
-            config_path = model_path / "config.json"
-            if not config_path.is_file():
-                raise DependencyError(
-                    "dictator.synthesis.xtts.config_missing",
-                    f"XTTS config.json was not found for local model path {model_path}",
-                )
-            logging.info("loading xtts model directory %s on %s", model_path, device)
-            return TTS(
-                model_dir=str(model_path),
-                progress_bar=False,
-            ).to(device)
-        config_path = model_path.parent / "config.json"
+        bundle_dir = model_path if model_path.is_dir() else model_path.parent
+        config_path = bundle_dir / "config.json"
         if not config_path.is_file():
             raise DependencyError(
                 "dictator.synthesis.xtts.config_missing",
                 f"XTTS config.json was not found for local model path {model_path}",
             )
-        logging.info("loading xtts checkpoint %s on %s", model_path, device)
-        return TTS(
-            model_path=str(model_path),
-            config_path=str(config_path),
-            progress_bar=False,
-        ).to(device)
+        checkpoint_path = self._resolve_local_checkpoint_path(bundle_dir)
+        logging.info("loading xtts local bundle %s via %s on %s", bundle_dir, checkpoint_path, device)
+        tts = TTS(progress_bar=False, gpu=device == "cuda")
+        tts.synthesizer = Synthesizer(
+            model_dir=str(bundle_dir),
+            use_cuda=device == "cuda",
+        )
+        return tts
 
     def load(self):
         if self._tts is not None:

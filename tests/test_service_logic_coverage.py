@@ -146,10 +146,13 @@ class ServiceLogicCoverageTests(unittest.TestCase):
             )
 
         local_tts_factory = MagicMock(return_value=FakeTTS())
+        local_synth_factory = MagicMock(return_value=object())
         with tempfile.TemporaryDirectory() as tmpdir:
             local_model_dir = Path(tmpdir) / "xtts"
             local_model_dir.mkdir()
+            (local_model_dir / "model.pth").write_bytes(b"checkpoint")
             (local_model_dir / "config.json").write_text("{}", encoding="utf-8")
+            (local_model_dir / "speakers_xtts.pth").write_bytes(b"speakers")
             with (
                 patch.dict(
                     sys.modules,
@@ -157,30 +160,74 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                         "torch": types.SimpleNamespace(cuda=types.SimpleNamespace(is_available=lambda: False)),
                         "TTS": types.ModuleType("TTS"),
                         "TTS.api": types.SimpleNamespace(TTS=local_tts_factory),
+                        "TTS.utils": types.ModuleType("TTS.utils"),
+                        "TTS.utils.synthesizer": types.SimpleNamespace(Synthesizer=local_synth_factory),
                     },
                 ),
             ):
                 backend = backend_module.XTTSBackend(model_id=str(local_model_dir))
                 fake_local_tts = backend.load()
             local_tts_factory.assert_called_once_with(
-                model_dir=str(local_model_dir),
                 progress_bar=False,
+                gpu=False,
             )
-            self.assertEqual(fake_local_tts.device, "cpu")
+            local_synth_factory.assert_called_once_with(
+                model_dir=str(local_model_dir),
+                use_cuda=False,
+            )
+            self.assertIs(fake_local_tts.synthesizer, local_synth_factory.return_value)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             missing_config_model_dir = Path(tmpdir) / "xtts-missing-config"
             missing_config_model_dir.mkdir()
+            (missing_config_model_dir / "model.pth").write_bytes(b"checkpoint")
             with patch.dict(
                 sys.modules,
                 {
                     "TTS": types.ModuleType("TTS"),
                     "TTS.api": types.SimpleNamespace(TTS=local_tts_factory),
+                    "TTS.utils": types.ModuleType("TTS.utils"),
+                    "TTS.utils.synthesizer": types.SimpleNamespace(Synthesizer=local_synth_factory),
                 },
             ):
                 backend = backend_module.XTTSBackend(model_id=str(missing_config_model_dir))
                 with self.assertRaisesRegex(DependencyError, "XTTS config.json was not found"):
                     backend._load_local_model(missing_config_model_dir, device="cpu")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            missing_checkpoint_dir = Path(tmpdir) / "xtts-missing-checkpoint"
+            missing_checkpoint_dir.mkdir()
+            (missing_checkpoint_dir / "config.json").write_text("{}", encoding="utf-8")
+            with patch.dict(
+                sys.modules,
+                {
+                    "TTS": types.ModuleType("TTS"),
+                    "TTS.api": types.SimpleNamespace(TTS=local_tts_factory),
+                    "TTS.utils": types.ModuleType("TTS.utils"),
+                    "TTS.utils.synthesizer": types.SimpleNamespace(Synthesizer=local_synth_factory),
+                },
+            ):
+                backend = backend_module.XTTSBackend(model_id=str(missing_checkpoint_dir))
+                with self.assertRaisesRegex(DependencyError, "XTTS checkpoint file was not found"):
+                    backend._load_local_model(missing_checkpoint_dir, device="cpu")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            direct_checkpoint = Path(tmpdir) / "direct_model.pth"
+            direct_checkpoint.write_bytes(b"checkpoint")
+            self.assertEqual(
+                backend_module.XTTSBackend._resolve_local_checkpoint_path(direct_checkpoint),
+                direct_checkpoint,
+            )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fallback_checkpoint_dir = Path(tmpdir) / "xtts-fallback-checkpoint"
+            fallback_checkpoint_dir.mkdir()
+            fallback_checkpoint = fallback_checkpoint_dir / "custom_checkpoint.pth"
+            fallback_checkpoint.write_bytes(b"checkpoint")
+            self.assertEqual(
+                backend_module.XTTSBackend._resolve_local_checkpoint_path(fallback_checkpoint_dir),
+                fallback_checkpoint,
+            )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             checkpoint_dir = Path(tmpdir) / "xtts-checkpoint-missing-config"
@@ -192,6 +239,8 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                 {
                     "TTS": types.ModuleType("TTS"),
                     "TTS.api": types.SimpleNamespace(TTS=local_tts_factory),
+                    "TTS.utils": types.ModuleType("TTS.utils"),
+                    "TTS.utils.synthesizer": types.SimpleNamespace(Synthesizer=local_synth_factory),
                 },
             ):
                 backend = backend_module.XTTSBackend(model_id=str(checkpoint_path))
@@ -199,6 +248,7 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                     backend._load_local_model(checkpoint_path, device="cpu")
 
         checkpoint_tts_factory = MagicMock(return_value=FakeTTS())
+        checkpoint_synth_factory = MagicMock(return_value=object())
         with tempfile.TemporaryDirectory() as tmpdir:
             checkpoint_dir = Path(tmpdir) / "xtts-checkpoint"
             checkpoint_dir.mkdir()
@@ -210,16 +260,21 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                 {
                     "TTS": types.ModuleType("TTS"),
                     "TTS.api": types.SimpleNamespace(TTS=checkpoint_tts_factory),
+                    "TTS.utils": types.ModuleType("TTS.utils"),
+                    "TTS.utils.synthesizer": types.SimpleNamespace(Synthesizer=checkpoint_synth_factory),
                 },
             ):
                 backend = backend_module.XTTSBackend(model_id=str(checkpoint_path))
                 fake_checkpoint_tts = backend._load_local_model(checkpoint_path, device="cpu")
             checkpoint_tts_factory.assert_called_once_with(
-                model_path=str(checkpoint_path),
-                config_path=str(checkpoint_dir / "config.json"),
                 progress_bar=False,
+                gpu=False,
             )
-            self.assertEqual(fake_checkpoint_tts.device, "cpu")
+            checkpoint_synth_factory.assert_called_once_with(
+                model_dir=str(checkpoint_dir),
+                use_cuda=False,
+            )
+            self.assertIs(fake_checkpoint_tts.synthesizer, checkpoint_synth_factory.return_value)
 
         fake_qwen_model = types.SimpleNamespace(
             prompt_calls=[],

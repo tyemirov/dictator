@@ -140,20 +140,28 @@ def assert_xtts_loader_call_shape() -> None:
             return self
 
     fake_torch = SimpleNamespace(cuda=SimpleNamespace(is_available=lambda: False))
+    fake_synthesizer = object()
     with tempfile.TemporaryDirectory() as tmpdir:
         model_dir = Path(tmpdir) / "xtts"
         model_dir.mkdir()
+        (model_dir / "model.pth").write_bytes(b"checkpoint")
         (model_dir / "config.json").write_text("{}", encoding="utf-8")
+        (model_dir / "speakers_xtts.pth").write_bytes(b"speakers")
         with (
             patch.dict("sys.modules", {"torch": fake_torch}),
             patch("TTS.api.TTS", FakeTTS),
+            patch("TTS.utils.synthesizer.Synthesizer", return_value=fake_synthesizer) as synth_factory,
         ):
             backend = synthesis_service.XTTSBackend(model_id=str(model_dir))
             loaded = backend.load()
         assert isinstance(loaded, FakeTTS)
-        assert loaded.kwargs["model_dir"] == str(model_dir)
         assert loaded.kwargs["progress_bar"] is False
-        assert loaded.device == "cpu"
+        assert loaded.kwargs["gpu"] is False
+        assert loaded.synthesizer is fake_synthesizer
+        synth_factory.assert_called_once_with(
+            model_dir=str(model_dir),
+            use_cuda=False,
+        )
 
     with (
         patch.dict("sys.modules", {"torch": fake_torch}),
