@@ -113,6 +113,8 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
         self.assertIn("Read classic passages in your own cloned voice", html)
         self.assertIn("I grew up near a busy street", html)
         self.assertIn("the one I use when I am truly delighted", html)
+        self.assertIn('data-engine="xtts"', html)
+        self.assertIn('data-engine="qwen3"', html)
         self.assertIn('option value="alice"', html)
         self.assertIn('option value="woods"', html)
         self.assertNotIn("Dictator gRPC URL", html)
@@ -152,6 +154,17 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
         self.assertEqual(app.resolve_render_preset("").preset_id, app.DEFAULT_RENDER_PRESET_ID)
         with self.assertRaisesRegex(app.ExampleRequestError, "Unknown reading selection"):
             app.resolve_render_preset("unknown")
+
+    def test_resolve_synthesis_engine_uses_defaults_and_rejects_unknown_values(self):
+        self.assertEqual(app.resolve_synthesis_engine("qwen3").engine_id, "qwen3")
+        self.assertEqual(app.resolve_synthesis_engine("").engine_id, app.DEFAULT_SYNTHESIS_ENGINE_ID)
+        self.assertEqual(
+            app.resolve_synthesis_engine("qwen3").speaker_transcript_text,
+            app.VOICE_SAMPLE_TEXT,
+        )
+        self.assertIsNone(app.resolve_synthesis_engine("xtts").speaker_transcript_text)
+        with self.assertRaisesRegex(app.ExampleRequestError, "Unknown synthesis engine"):
+            app.resolve_synthesis_engine("other")
 
     def test_build_auth_metadata_requires_token(self):
         self.assertEqual(app.build_auth_metadata("secret"), [("authorization", "Bearer secret")])
@@ -243,11 +256,43 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
         self.assertEqual(fake_voice.extract_calls, [])
         synth_request, synth_metadata = fake_voice.synthesize_calls[0]
         self.assertEqual(synth_request.speaker_artifact_id, "source-artifact")
+        self.assertEqual(synth_request.synthesis_engine, voice_pb2.SYNTHESIS_ENGINE_XTTS)
+        self.assertEqual(synth_request.speaker_transcript_text, "")
         self.assertIn("Alice was beginning to get very tired", synth_request.text)
         self.assertEqual(synth_metadata, [("authorization", "Bearer secret")])
         self.assertEqual(result.content, b"hello world")
         self.assertEqual(result.filename, "alice-in-your-voice.wav")
         self.assertTrue(fake_channel.closed)
+
+    def test_synthesize_selected_reading_uses_sample_transcript_for_qwen3(self):
+        fake_channel = FakeChannel()
+        fake_artifacts = FakeArtifactStub(fake_channel)
+        fake_voice = FakeVoiceStub(fake_channel)
+
+        with mock.patch(
+            "demo.voice_clone_web.app.artifacts_pb2_grpc.ArtifactServiceStub",
+            return_value=fake_artifacts,
+        ):
+            with mock.patch(
+                "demo.voice_clone_web.app.voice_pb2_grpc.VoiceServiceStub",
+                return_value=fake_voice,
+            ):
+                with mock.patch(
+                    "demo.voice_clone_web.app.normalise_recorded_audio",
+                    return_value=(b"wav-bytes", "voice-sample.wav", "audio/wav"),
+                ):
+                    app.synthesize_selected_reading(
+                        dictator_url="dictator-grpc:50051",
+                        auth_token="secret",
+                        audio_payload=b"sample-bytes",
+                        audio_filename="voice.webm",
+                        audio_media_type="audio/webm",
+                        synthesis_engine_id="qwen3",
+                    )
+
+        synth_request, _ = fake_voice.synthesize_calls[0]
+        self.assertEqual(synth_request.synthesis_engine, voice_pb2.SYNTHESIS_ENGINE_QWEN3)
+        self.assertEqual(synth_request.speaker_transcript_text, app.VOICE_SAMPLE_TEXT)
 
     def test_synthesize_selected_reading_requires_audio(self):
         with self.assertRaisesRegex(app.ExampleRequestError, "voice sample"):
@@ -332,6 +377,7 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
 
     def test_handler_returns_binary_audio(self):
         payload = {
+            "synthesisEngine": "qwen3",
             "renderPreset": "alice",
             "audioBase64": base64.b64encode(b"sample").decode("ascii"),
             "audioFilename": "voice.webm",
@@ -343,6 +389,7 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
             self.assertEqual(kwargs["auth_token"], "bridge-secret")
             self.assertEqual(kwargs["audio_payload"], b"sample")
             self.assertEqual(kwargs["render_preset_id"], "alice")
+            self.assertEqual(kwargs["synthesis_engine_id"], "qwen3")
             return app.VoiceCloneResult("demo.wav", "audio/wav", b"rendered")
 
         with running_server(
