@@ -15,6 +15,7 @@ from dictator.diarization.models import DiarizeAudioResult, DiarizedUtterance, D
 from dictator.runtime import DependencyError, InflightLimiter, MetricsRegistry, ProcessingError, ServiceRequestError, ValidationError
 from dictator.speech.v1 import alignment_pb2, artifacts_pb2, subtitle_pb2, transcription_pb2, voice_pb2
 from dictator.storage import LocalArtifactStore
+from dictator.synthesis.models import SynthesisEngine
 from dictator.transport.grpc.services import (
     AlignmentServiceServicer,
     ArtifactServiceServicer,
@@ -147,6 +148,10 @@ class FakeSynthesisService:
 
     def synthesise(self, **kwargs):
         self.calls.append(kwargs)
+        return self.result
+
+    def synthesise_text(self, request):
+        self.calls.append(request)
         return self.result
 
 
@@ -373,6 +378,27 @@ class GrpcServicesUnitTests(unittest.TestCase):
 
     def test_voice_servicer_branches(self):
         servicer = VoiceServiceServicer(self.context)
+        self.assertEqual(servicer._resolve_synthesis_engine(voice_pb2.SYNTHESIS_ENGINE_QWEN3), SynthesisEngine.QWEN3)
+        with self.assertRaisesRegex(ValidationError, "synthesis_engine must be set"):
+            servicer._resolve_synthesis_engine(voice_pb2.SYNTHESIS_ENGINE_UNSPECIFIED)
+        self.assertEqual(
+            servicer._resolve_speaker_transcript_text(
+                types.SimpleNamespace(
+                    speaker_transcript_artifact_id=self.text_record.artifact_id,
+                    speaker_transcript_text="",
+                )
+            ),
+            "hello world",
+        )
+        self.assertEqual(
+            servicer._resolve_speaker_transcript_text(
+                types.SimpleNamespace(
+                    speaker_transcript_artifact_id="",
+                    speaker_transcript_text="sample transcript",
+                )
+            ),
+            "sample transcript",
+        )
         with patch.dict(
             sys.modules,
             {
@@ -389,7 +415,10 @@ class GrpcServicesUnitTests(unittest.TestCase):
 
         with self.assertRaises(RpcAbort):
             servicer.SynthesizeSpeech(
-                voice_pb2.SynthesizeSpeechRequest(speaker_artifact_id=self.audio_record.artifact_id),
+                voice_pb2.SynthesizeSpeechRequest(
+                    speaker_artifact_id=self.audio_record.artifact_id,
+                    synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_XTTS,
+                ),
                 FakeContext(metadata=(("x-dictator-token", "secret"),)),
             )
 
@@ -414,6 +443,7 @@ class GrpcServicesUnitTests(unittest.TestCase):
                     speaker_artifact_id=self.audio_record.artifact_id,
                     text_artifact_id=self.text_record.artifact_id,
                     include_timeline=False,
+                    synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_XTTS,
                 ),
                 FakeContext(metadata=(("x-dictator-token", "secret"),)),
             )
@@ -439,6 +469,7 @@ class GrpcServicesUnitTests(unittest.TestCase):
                     speaker_artifact_id=self.audio_record.artifact_id,
                     text="hello",
                     include_timeline=True,
+                    synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_XTTS,
                 ),
                 FakeContext(metadata=(("x-dictator-token", "secret"),)),
             )

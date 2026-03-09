@@ -18,6 +18,7 @@ from dictator.diarization.models import (
 )
 from dictator.runtime import DependencyError, ProcessingError, ValidationError
 from dictator.subtitles.models import RenderSubtitlesRequest, TimedWord
+from dictator.synthesis.models import SynthesisEngine, SynthesisRequest
 from dictator.subtitles.service import (
     SubtitleService,
     _coerce_word_bounds as subtitle_coerce_word_bounds,
@@ -137,6 +138,97 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                 backend.synthesise_to_file("hello", Path("speaker.wav"), "en", output_path)
             self.assertEqual(fake_tts.device, "cpu")
             self.assertEqual(fake_tts.calls[0]["language"], "en")
+            self.assertEqual(
+                backend_module.XTTSSynthesisSession(fake_tts, speaker_wav=Path("speaker.wav"), language_code="en").build_chunks("One."),
+                ["One."],
+            )
+
+        fake_qwen_model = types.SimpleNamespace(
+            prompt_calls=[],
+            generate_calls=[],
+        )
+
+        def create_voice_clone_prompt(**kwargs):
+            fake_qwen_model.prompt_calls.append(kwargs)
+            return "voice-clone-prompt"
+
+        def generate_voice_clone(**kwargs):
+            fake_qwen_model.generate_calls.append(kwargs)
+            return ([np.array([0.1, -0.1], dtype=np.float32)], 24000)
+
+        fake_qwen_model.create_voice_clone_prompt = create_voice_clone_prompt
+        fake_qwen_model.generate_voice_clone = generate_voice_clone
+        fake_qwen_factory = MagicMock(return_value=fake_qwen_model)
+        fake_torch = types.SimpleNamespace(
+            cuda=types.SimpleNamespace(is_available=lambda: False),
+            bfloat16="bfloat16",
+            float16="float16",
+            float32="float32",
+        )
+        with patch.dict(
+            sys.modules,
+            {
+                "torch": fake_torch,
+                "qwen_tts": types.SimpleNamespace(Qwen3TTSModel=types.SimpleNamespace(from_pretrained=fake_qwen_factory)),
+                "soundfile": types.SimpleNamespace(write=MagicMock()),
+            },
+        ):
+            qwen_backend = backend_module.Qwen3TTSBackend(
+                model_id="qwen-model",
+                attn_implementation="flash_attention_2",
+                dtype="float32",
+            )
+            self.assertIs(qwen_backend.load(), fake_qwen_model)
+            self.assertIs(qwen_backend.load(), fake_qwen_model)
+            qwen_request = SynthesisRequest(
+                engine=SynthesisEngine.QWEN3,
+                speaker_wav=Path("speaker.wav"),
+                text="Hello. Again?",
+                language_code="ru-RU",
+                cap_seconds=None,
+                speaker_transcript_text="sample transcript",
+            )
+            qwen_session = qwen_backend.open_session(qwen_request)
+            self.assertEqual(qwen_session.build_chunks("Hello. Again?"), ["Hello.", "Again?"])
+            qwen_session.synthesise_to_file("Hello.", Path("out.wav"))
+        fake_qwen_factory.assert_called_once_with(
+            "qwen-model",
+            device_map="cpu",
+            dtype="float32",
+            attn_implementation="flash_attention_2",
+        )
+        self.assertEqual(fake_qwen_model.prompt_calls[0]["ref_audio"], "speaker.wav")
+        self.assertEqual(fake_qwen_model.prompt_calls[0]["ref_text"], "sample transcript")
+        self.assertFalse(fake_qwen_model.prompt_calls[0]["x_vector_only_mode"])
+        self.assertEqual(fake_qwen_model.generate_calls[0]["language"], "Russian")
+        self.assertEqual(fake_qwen_model.generate_calls[0]["voice_clone_prompt"], "voice-clone-prompt")
+
+        with self.assertRaisesRegex(ValidationError, "speaker_transcript_text"):
+            backend_module.Qwen3TTSBackend(model_id="qwen-model").open_session(
+                SynthesisRequest(
+                    engine=SynthesisEngine.QWEN3,
+                    speaker_wav=Path("speaker.wav"),
+                    text="Hello",
+                    language_code="ru",
+                    cap_seconds=None,
+                )
+            )
+        with self.assertRaisesRegex(ValidationError, "does not support"):
+            backend_module._qwen3_language_name("sv")
+        self.assertEqual(
+            backend_module.Qwen3TTSBackend(model_id="qwen-model", dtype="auto")._resolve_dtype(fake_torch),
+            "float32",
+        )
+        with self.assertRaisesRegex(ValueError, "unsupported qwen3 dtype"):
+            backend_module.Qwen3TTSBackend(model_id="qwen-model", dtype="float8")._resolve_dtype(fake_torch)
+
+        with patch.dict(sys.modules, {"soundfile": types.SimpleNamespace(write=MagicMock())}):
+            with self.assertRaisesRegex(ValueError, "returned no audio"):
+                backend_module.Qwen3SynthesisSession(
+                    types.SimpleNamespace(generate_voice_clone=lambda **kwargs: ([], 24000)),
+                    voice_clone_prompt="prompt",
+                    language_name="Russian",
+                ).synthesise_to_file("Hello", Path("out.wav"))
 
         class FakeBackend:
             def synthesise_to_file(self, text, speaker_wav, language_code, output_path):
@@ -159,6 +251,58 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                     Path("speaker.wav"), ["one"], 0.5, "en"
                 )
 
+        class FakeSession:
+            def __init__(self):
+                self.calls = []
+
+            def build_chunks(self, text):
+                self.calls.append(("build_chunks", text))
+                return ["One.", "Two."]
+
+            def synthesise_to_file(self, text, output_path):
+                self.calls.append(("synthesise_to_file", text))
+                output_path.write_bytes(text.encode("utf-8"))
+
+        class FakeSessionBackend:
+            engine = SynthesisEngine.QWEN3
+
+            def __init__(self):
+                self.requests = []
+                self.session = FakeSession()
+
+            def open_session(self, request):
+                self.requests.append(request)
+                return self.session
+
+        soundfile_module = types.SimpleNamespace(
+            info=MagicMock(
+                side_effect=[
+                    types.SimpleNamespace(frames=24000, samplerate=24000),
+                    types.SimpleNamespace(frames=24000, samplerate=24000),
+                ]
+            )
+        )
+        fake_session_backend = FakeSessionBackend()
+        with patch.dict(sys.modules, {"soundfile": soundfile_module}):
+            result = backend_module.SpeechSynthesisService(
+                backends={SynthesisEngine.QWEN3: fake_session_backend}
+            ).synthesise_text(
+                SynthesisRequest(
+                    engine=SynthesisEngine.QWEN3,
+                    speaker_wav=Path("speaker.wav"),
+                    text=" One.\nTwo. ",
+                    language_code="ru",
+                    cap_seconds=None,
+                    speaker_transcript_text="sample transcript",
+                )
+            )
+        self.assertEqual(fake_session_backend.requests[0].text, "One.Two.")
+        self.assertEqual(result.segments[1].text, "Two.")
+        self.assertEqual(
+            backend_module.LegacySynthesisSession(FakeBackend(), speaker_wav=Path("speaker.wav"), language_code="en").build_chunks("One."),
+            ["One."],
+        )
+
         with tempfile.TemporaryDirectory() as tmpdir:
             temp_dir = Path(tmpdir) / "tts"
             temp_dir.mkdir()
@@ -166,6 +310,22 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                 types.SimpleNamespace(temp_dir=temp_dir)
             )
             self.assertFalse(temp_dir.exists())
+
+        with self.assertRaisesRegex(ValueError, "set backend or backends"):
+            backend_module.SpeechSynthesisService(backend=FakeBackend(), backends={SynthesisEngine.XTTS: FakeBackend()})
+        with self.assertRaisesRegex(ValidationError, "unsupported synthesis engine"):
+            backend_module.SpeechSynthesisService(backends={})._resolve_backend(SynthesisEngine.XTTS)
+        with self.assertRaisesRegex(ValueError, "does not support synthesis sessions"):
+            backend_module.SpeechSynthesisService(backends={SynthesisEngine.XTTS: object()})._open_session(
+                object(),
+                SynthesisRequest(
+                    engine=SynthesisEngine.XTTS,
+                    speaker_wav=Path("speaker.wav"),
+                    text="Hello",
+                    language_code="en",
+                    cap_seconds=None,
+                ),
+            )
 
         fake_result = types.SimpleNamespace(
             wav_paths=(Path("a.wav"),),

@@ -12,6 +12,7 @@ openai-whisper
 pyannote.audio==3.4.*
 librosa
 coqui-tts
+qwen-tts==0.1.1
 whisperx
 
 # gRPC transport

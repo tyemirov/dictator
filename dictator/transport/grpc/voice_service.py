@@ -7,11 +7,29 @@ from pathlib import Path
 
 from dictator.runtime import ValidationError
 from dictator.speech.v1 import voice_pb2, voice_pb2_grpc
+from dictator.synthesis.models import SynthesisEngine, SynthesisRequest
 
 from .base import BaseServicer
 
 
 class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
+    def _resolve_synthesis_engine(self, engine_value: int) -> SynthesisEngine:
+        if engine_value == voice_pb2.SYNTHESIS_ENGINE_XTTS:
+            return SynthesisEngine.XTTS
+        if engine_value == voice_pb2.SYNTHESIS_ENGINE_QWEN3:
+            return SynthesisEngine.QWEN3
+        raise ValidationError(
+            "dictator.grpc.voice.synthesis_engine_required",
+            "synthesis_engine must be set to XTTS or QWEN3",
+        )
+
+    def _resolve_speaker_transcript_text(self, request) -> str | None:
+        if request.speaker_transcript_artifact_id:
+            return self.service_context.artifact_store.read_text(request.speaker_transcript_artifact_id)
+        if request.speaker_transcript_text:
+            return request.speaker_transcript_text
+        return None
+
     def ExtractReferenceSample(self, request, context):
         with self._request_scope(context):
             source = self.service_context.artifact_store.get_artifact(request.source_artifact_id)
@@ -60,17 +78,22 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
                 )
             from dictator.audio.ffmpeg_ops import concat_normalise
             from dictator.synthesis.service import cleanup_synthesis_result
-            from dictator.synthesis.text import build_chunks, clean
 
+            synthesis_engine = self._resolve_synthesis_engine(request.synthesis_engine)
             synthesis_service = self.service_context.execution_runtime.get_synthesis_service()
             cap_seconds = request.max_duration_seconds or None
+            speaker_transcript_text = self._resolve_speaker_transcript_text(request)
             result = None
             try:
-                result = synthesis_service.synthesise(
-                    speaker_wav=speaker.path,
-                    chunks=build_chunks(clean(text)),
-                    cap_seconds=cap_seconds,
-                    language_code=request.language_code or "en",
+                result = synthesis_service.synthesise_text(
+                    SynthesisRequest(
+                        engine=synthesis_engine,
+                        speaker_wav=speaker.path,
+                        text=text,
+                        language_code=request.language_code or "en",
+                        cap_seconds=cap_seconds,
+                        speaker_transcript_text=speaker_transcript_text,
+                    )
                 )
                 audio_reservation = self.service_context.artifact_store.reserve_artifact(
                     f"{Path(speaker.filename).stem}_synth.wav",
@@ -93,6 +116,7 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
                                 "id": speaker.artifact_id,
                                 "label": Path(speaker.filename).stem,
                                 "file": str(speaker.path),
+                                "engine": synthesis_engine.value,
                             }
                         ],
                     }

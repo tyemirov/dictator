@@ -28,13 +28,14 @@ DEFAULT_LANGUAGE_CODE = "en"
 DEFAULT_OUTPUT_FILENAME = "reading-in-your-voice.wav"
 DICTATOR_URL_ENV = "VOICE_CLONE_DICTATOR_URL"
 DICTATOR_AUTH_TOKEN_ENV = "DICTATOR_GRPC_AUTH_TOKEN"
+DEFAULT_SYNTHESIS_ENGINE_ID = "xtts"
 
-VOICE_SAMPLE_PROMPT = (
-    'Read this aloud, slowly and clearly: "I grew up near a busy street, so even now I sleep best '
-    'with a little noise in the distance. My friends know I speak quickly when I am excited, slow '
-    'down when I am serious, and laugh before I finish the punch line. On cold mornings I want '
-    'strong coffee, warm light, and ten quiet minutes to think. If you know me well, you can hear '
-    'the difference between my polite voice, my tired voice, and the one I use when I am truly delighted."'
+VOICE_SAMPLE_TEXT = (
+    "I grew up near a busy street, so even now I sleep best with a little noise in the distance. "
+    "My friends know I speak quickly when I am excited, slow down when I am serious, and laugh "
+    "before I finish the punch line. On cold mornings I want strong coffee, warm light, and ten "
+    "quiet minutes to think. If you know me well, you can hear the difference between my polite "
+    "voice, my tired voice, and the one I use when I am truly delighted."
 )
 
 GENESIS_EXCERPT = """Genesis 1:1-10, King James Version.
@@ -104,6 +105,14 @@ class RenderPreset:
     text: str
 
 
+@dataclass(frozen=True)
+class SynthesisEngineOption:
+    engine_id: str
+    label: str
+    proto_value: int
+    speaker_transcript_text: str | None = None
+
+
 DEFAULT_RENDER_PRESET_ID = "genesis"
 RENDER_PRESETS = {
     "genesis": RenderPreset(
@@ -123,6 +132,20 @@ RENDER_PRESETS = {
         label="Dark Woods",
         filename="dark-woods-in-your-voice.wav",
         text=WOODS_EXCERPT,
+    ),
+}
+
+SYNTHESIS_ENGINES = {
+    "xtts": SynthesisEngineOption(
+        engine_id="xtts",
+        label="XTTS",
+        proto_value=voice_pb2.SYNTHESIS_ENGINE_XTTS,
+    ),
+    "qwen3": SynthesisEngineOption(
+        engine_id="qwen3",
+        label="Qwen3-TTS",
+        proto_value=voice_pb2.SYNTHESIS_ENGINE_QWEN3,
+        speaker_transcript_text=VOICE_SAMPLE_TEXT,
     ),
 }
 
@@ -169,6 +192,14 @@ def resolve_render_preset(raw_preset_id: str | None) -> RenderPreset:
     if preset is None:
         raise ExampleRequestError(f"Unknown reading selection: {preset_id}")
     return preset
+
+
+def resolve_synthesis_engine(raw_engine_id: str | None) -> SynthesisEngineOption:
+    engine_id = (raw_engine_id or DEFAULT_SYNTHESIS_ENGINE_ID).strip().lower() or DEFAULT_SYNTHESIS_ENGINE_ID
+    engine = SYNTHESIS_ENGINES.get(engine_id)
+    if engine is None:
+        raise ExampleRequestError(f"Unknown synthesis engine: {engine_id}")
+    return engine
 
 
 def build_auth_metadata(auth_token: str) -> list[tuple[str, str]]:
@@ -241,12 +272,14 @@ def synthesize_selected_reading(
     audio_filename: str,
     audio_media_type: str,
     render_preset_id: str = DEFAULT_RENDER_PRESET_ID,
+    synthesis_engine_id: str = DEFAULT_SYNTHESIS_ENGINE_ID,
     language_code: str = DEFAULT_LANGUAGE_CODE,
     channel_factory: Callable[[GrpcTarget], grpc.Channel] = create_channel,
 ) -> VoiceCloneResult:
     if not audio_payload:
         raise ExampleRequestError("A recorded voice sample is required.")
     render_preset = resolve_render_preset(render_preset_id)
+    synthesis_engine = resolve_synthesis_engine(synthesis_engine_id)
     target = parse_grpc_target(dictator_url)
     metadata = build_auth_metadata(auth_token)
     speaker_payload, speaker_filename, speaker_media_type = normalise_recorded_audio(
@@ -265,12 +298,16 @@ def synthesize_selected_reading(
             payload=speaker_payload,
             metadata=metadata,
         )
+        synthesis_request_kwargs = {
+            "speaker_artifact_id": source_artifact_id,
+            "text": render_preset.text,
+            "language_code": language_code,
+            "synthesis_engine": synthesis_engine.proto_value,
+        }
+        if synthesis_engine.speaker_transcript_text is not None:
+            synthesis_request_kwargs["speaker_transcript_text"] = synthesis_engine.speaker_transcript_text
         synthesis_response = voice_stub.SynthesizeSpeech(
-            voice_pb2.SynthesizeSpeechRequest(
-                speaker_artifact_id=source_artifact_id,
-                text=render_preset.text,
-                language_code=language_code,
-            ),
+            voice_pb2.SynthesizeSpeechRequest(**synthesis_request_kwargs),
             metadata=metadata,
         )
         result = download_artifact(
@@ -403,6 +440,7 @@ def build_handler(
                     audio_filename=str(payload.get("audioFilename", "voice-sample.webm")),
                     audio_media_type=str(payload.get("audioMediaType", "audio/webm")),
                     render_preset_id=str(payload.get("renderPreset", DEFAULT_RENDER_PRESET_ID)),
+                    synthesis_engine_id=str(payload.get("synthesisEngine", DEFAULT_SYNTHESIS_ENGINE_ID)),
                     language_code=str(payload.get("languageCode", DEFAULT_LANGUAGE_CODE))
                     or DEFAULT_LANGUAGE_CODE,
                 )

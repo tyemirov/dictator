@@ -36,6 +36,7 @@ PROBE_SAMPLE_TEXT = (
 def assert_dependency_imports() -> None:
     import librosa  # noqa: F401
     import pyannote.audio
+    import qwen_tts  # noqa: F401
     import soundfile  # noqa: F401
     import whisper  # noqa: F401
     import whisperx  # noqa: F401
@@ -274,6 +275,7 @@ def assert_grpc_voice_roundtrip() -> None:
                         speaker_artifact_id=reference.sample_artifact.artifact_id,
                         text="Blackbox Docker probe.",
                         language_code="en",
+                        synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_XTTS,
                     ),
                     metadata=metadata,
                 )
