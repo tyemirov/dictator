@@ -198,7 +198,7 @@ The compose setup mounts persistent caches for Hugging Face, Whisper, and Torch 
 
 ## Browser Voice Clone Demo
 
-The repo includes a browser example that records a short voice sample, calls the Dictator gRPC API through a small local HTTP bridge, and downloads a WAV of Genesis 1:1-10 read back in the user's cloned voice.
+The repo includes a browser example that records a short voice sample, calls the Dictator gRPC API through a small local HTTP bridge, converts the browser recording to WAV, and downloads a WAV of a selected preset passage read back from the full recorded sample in the user's cloned voice.
 
 Run the example after Dictator is already up:
 
@@ -210,7 +210,10 @@ Then open `http://127.0.0.1:8080` and record a voice sample. The browser does no
 
 The page asks the user to read:
 
-> The quick brown fox jumped over the lazy dog. Eleven benevolent elephants balanced on bright blue bicycles.
+> I grew up near a busy street, so even now I sleep best with a little noise in the distance.
+> My friends know I speak quickly when I am excited, slow down when I am serious, and laugh before I finish the punch line.
+> On cold mornings I want strong coffee, warm light, and ten quiet minutes to think.
+> If you know me well, you can hear the difference between my polite voice, my tired voice, and the one I use when I am truly delighted.
 
 The browser page no longer chooses the Dictator gRPC target. The backend bridge owns that connection and, in Docker, always talks to the internal alias `dictator-grpc:50051`.
 
