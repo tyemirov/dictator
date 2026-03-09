@@ -10,9 +10,10 @@ import tempfile
 import threading
 from typing import Mapping, Protocol, Sequence
 
-from dictator.runtime import ValidationError
+from dictator.runtime import DependencyError, ValidationError
 
 from .config import (
+    DEFAULT_COSYVOICE3_MODEL_DIR,
     DEFAULT_QWEN3_MODEL_ID,
     DEFAULT_QWEN3_TEXT_TOKEN_BUDGET,
     DEFAULT_XTTS_MODEL_ID,
@@ -42,6 +43,8 @@ QWEN3_LANGUAGE_NAMES = {
     "ru": "Russian",
     "zh": "Chinese",
 }
+
+COSYVOICE3_PROMPT_PREFIX = "You are a helpful assistant.<|endofprompt|>"
 
 
 class SynthesisSession(Protocol):
@@ -140,6 +143,22 @@ class XTTSBackend:
         self._tts = None
         self._load_lock = threading.Lock()
 
+    def _load_local_model(self, model_path: Path, *, device: str):
+        from TTS.api import TTS
+
+        config_path = model_path / "config.json" if model_path.is_dir() else model_path.parent / "config.json"
+        if not config_path.is_file():
+            raise DependencyError(
+                "dictator.synthesis.xtts.config_missing",
+                f"XTTS config.json was not found for local model path {model_path}",
+            )
+        logging.info("loading xtts model from %s on %s", model_path, device)
+        return TTS(
+            model_path=str(model_path),
+            config_path=str(config_path),
+            progress_bar=False,
+        ).to(device)
+
     def load(self):
         if self._tts is not None:
             return self._tts
@@ -149,8 +168,12 @@ class XTTSBackend:
                 from TTS.api import TTS
 
                 device = "cuda" if torch.cuda.is_available() else "cpu"
-                logging.info("loading xtts model %s on %s", self.model_id, device)
-                self._tts = TTS(self.model_id).to(device)
+                model_ref = Path(self.model_id)
+                if model_ref.exists():
+                    self._tts = self._load_local_model(model_ref, device=device)
+                else:
+                    logging.info("loading xtts model %s on %s", self.model_id, device)
+                    self._tts = TTS(self.model_id).to(device)
         return self._tts
 
     def open_session(self, request: SynthesisRequest) -> SynthesisSession:
@@ -371,6 +394,110 @@ class Qwen3TTSBackend:
         )
 
 
+class CosyVoice3SynthesisSession:
+    def __init__(
+        self,
+        model,
+        *,
+        speaker_wav: Path,
+        speaker_transcript_text: str,
+    ) -> None:
+        self._model = model
+        self._speaker_wav = speaker_wav
+        self._speaker_transcript_text = speaker_transcript_text
+
+    def build_chunks(self, text: str) -> Sequence[SynthesisChunk]:
+        return tuple(
+            SynthesisChunk.from_text(sentence)
+            for sentence in split_into_sentences(text)
+            if sentence.strip()
+        )
+
+    def refine_chunk(self, chunk: SynthesisChunk) -> Sequence[SynthesisChunk]:
+        return (chunk,)
+
+    def synthesise_chunk(self, text: str) -> SynthesisedAudioChunk:
+        import numpy as np
+
+        sample_rate = int(getattr(self._model, "sample_rate", 24000))
+        sample_chunks: list[np.ndarray] = []
+        prompt_text = f"{COSYVOICE3_PROMPT_PREFIX}{self._speaker_transcript_text}"
+        for result in self._model.inference_zero_shot(
+            text,
+            prompt_text,
+            str(self._speaker_wav),
+            stream=False,
+        ):
+            samples = result.get("tts_speech")
+            if samples is None:
+                continue
+            if hasattr(samples, "detach"):
+                samples = samples.detach().cpu().numpy()
+            array = np.asarray(samples, dtype=np.float32).reshape(-1)
+            if array.size:
+                sample_chunks.append(array)
+        if not sample_chunks:
+            raise ValueError("cosyvoice3 synthesis returned no audio")
+        merged_samples = np.concatenate(sample_chunks)
+        return SynthesisedAudioChunk(
+            samples=merged_samples,
+            sample_rate=sample_rate,
+            duration_seconds=len(merged_samples) / sample_rate if sample_rate else 0.0,
+        )
+
+    def synthesise_to_file(self, text: str, output_path: Path) -> None:
+        import soundfile as sf
+
+        chunk = self.synthesise_chunk(text)
+        sf.write(output_path, chunk.samples, chunk.sample_rate)
+
+
+class CosyVoice3Backend:
+    """Lazy CosyVoice 3 zero-shot model wrapper."""
+
+    engine = SynthesisEngine.COSYVOICE3
+
+    def __init__(self, *, model_dir: str = DEFAULT_COSYVOICE3_MODEL_DIR) -> None:
+        self.model_dir = model_dir
+        self._model = None
+        self._load_lock = threading.Lock()
+
+    def load(self):
+        if self._model is not None:
+            return self._model
+        with self._load_lock:
+            if self._model is None:
+                model_ref = self.model_dir.strip()
+                if not model_ref:
+                    raise DependencyError(
+                        "dictator.synthesis.cosyvoice3.model_dir_empty",
+                        "CosyVoice3 model_dir cannot be empty",
+                    )
+                try:
+                    from cosyvoice.cli.cosyvoice import AutoModel
+                except ImportError as exc:
+                    raise DependencyError(
+                        "dictator.synthesis.cosyvoice3.unavailable",
+                        "CosyVoice3 is unavailable; install the official CosyVoice repository and its dependencies.",
+                    ) from exc
+                logging.info("loading cosyvoice3 model from %s", model_ref)
+                self._model = AutoModel(model_dir=model_ref)
+        return self._model
+
+    def open_session(self, request: SynthesisRequest) -> SynthesisSession:
+        speaker_transcript_text = (request.speaker_transcript_text or "").strip()
+        if not speaker_transcript_text:
+            raise ValidationError(
+                "dictator.synthesis.cosyvoice3.reference_text_required",
+                "speaker_transcript_text or speaker_transcript_artifact_id is required for cosyvoice3 synthesis",
+            )
+        return CosyVoice3SynthesisSession(
+            self.load(),
+            speaker_wav=request.speaker_wav,
+            speaker_transcript_text=speaker_transcript_text,
+        )
+
+
 class SpeechSynthesisService:
     """Service layer for request-safe, engine-aware synthesis."""
 
@@ -392,6 +519,9 @@ class SpeechSynthesisService:
                     model_id=synthesis_config.qwen3_model_id,
                     dtype=synthesis_config.qwen3_dtype,
                     text_token_budget=synthesis_config.qwen3_text_token_budget,
+                ),
+                SynthesisEngine.COSYVOICE3: CosyVoice3Backend(
+                    model_dir=synthesis_config.cosyvoice3_model_dir,
                 ),
             }
         self.backends = dict(backends)

@@ -106,8 +106,9 @@ class ServiceLogicCoverageTests(unittest.TestCase):
         backend_module = importlib.import_module("dictator.synthesis.service")
 
         class FakeTTS:
-            def __init__(self, model_id):
-                self.model_id = model_id
+            def __init__(self, *args, **kwargs):
+                self.args = args
+                self.kwargs = kwargs
                 self.device = None
                 self.calls = []
 
@@ -119,29 +120,68 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                 self.calls.append(kwargs)
                 Path(kwargs["file_path"]).write_bytes(b"wav")
 
-        fake_tts = FakeTTS("model")
+        remote_tts_factory = MagicMock(return_value=FakeTTS("model"))
         with (
             patch.dict(
                 sys.modules,
                 {
                     "torch": types.SimpleNamespace(cuda=types.SimpleNamespace(is_available=lambda: False)),
                     "TTS": types.ModuleType("TTS"),
-                    "TTS.api": types.SimpleNamespace(TTS=lambda model_id: fake_tts),
+                    "TTS.api": types.SimpleNamespace(TTS=remote_tts_factory),
                 },
             ),
         ):
             backend = backend_module.XTTSBackend(model_id="model")
-            self.assertIs(backend.load(), fake_tts)
+            fake_tts = backend.load()
             self.assertIs(backend.load(), fake_tts)
             with tempfile.TemporaryDirectory() as tmpdir:
                 output_path = Path(tmpdir) / "out.wav"
                 backend.synthesise_to_file("hello", Path("speaker.wav"), "en", output_path)
+            remote_tts_factory.assert_called_once_with("model")
             self.assertEqual(fake_tts.device, "cpu")
             self.assertEqual(fake_tts.calls[0]["language"], "en")
             self.assertEqual(
                 [chunk.text for chunk in backend_module.XTTSSynthesisSession(fake_tts, speaker_wav=Path("speaker.wav"), language_code="en").build_chunks("One.")],
                 ["One."],
             )
+
+        local_tts_factory = MagicMock(return_value=FakeTTS())
+        with tempfile.TemporaryDirectory() as tmpdir:
+            local_model_dir = Path(tmpdir) / "xtts"
+            local_model_dir.mkdir()
+            (local_model_dir / "config.json").write_text("{}", encoding="utf-8")
+            with (
+                patch.dict(
+                    sys.modules,
+                    {
+                        "torch": types.SimpleNamespace(cuda=types.SimpleNamespace(is_available=lambda: False)),
+                        "TTS": types.ModuleType("TTS"),
+                        "TTS.api": types.SimpleNamespace(TTS=local_tts_factory),
+                    },
+                ),
+            ):
+                backend = backend_module.XTTSBackend(model_id=str(local_model_dir))
+                fake_local_tts = backend.load()
+            local_tts_factory.assert_called_once_with(
+                model_path=str(local_model_dir),
+                config_path=str(local_model_dir / "config.json"),
+                progress_bar=False,
+            )
+            self.assertEqual(fake_local_tts.device, "cpu")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            missing_config_model_dir = Path(tmpdir) / "xtts-missing-config"
+            missing_config_model_dir.mkdir()
+            with patch.dict(
+                sys.modules,
+                {
+                    "TTS": types.ModuleType("TTS"),
+                    "TTS.api": types.SimpleNamespace(TTS=local_tts_factory),
+                },
+            ):
+                backend = backend_module.XTTSBackend(model_id=str(missing_config_model_dir))
+                with self.assertRaisesRegex(DependencyError, "XTTS config.json was not found"):
+                    backend._load_local_model(missing_config_model_dir, device="cpu")
 
         fake_qwen_model = types.SimpleNamespace(
             prompt_calls=[],
@@ -235,6 +275,83 @@ class ServiceLogicCoverageTests(unittest.TestCase):
         self.assertEqual(fake_qwen_model.generate_calls[0]["language"], "Russian")
         self.assertEqual(fake_qwen_model.generate_calls[0]["voice_clone_prompt"], "voice-clone-prompt")
 
+        fake_cosyvoice_model = types.SimpleNamespace(
+            sample_rate=24000,
+            zero_shot_calls=[],
+        )
+
+        class FakeTensor:
+            def __init__(self, values):
+                self._values = np.array(values, dtype=np.float32)
+
+            def detach(self):
+                return self
+
+            def cpu(self):
+                return self
+
+            def numpy(self):
+                return self._values
+
+        def inference_zero_shot(text, prompt_text, prompt_wav, stream=False):
+            fake_cosyvoice_model.zero_shot_calls.append(
+                {
+                    "text": text,
+                    "prompt_text": prompt_text,
+                    "prompt_wav": prompt_wav,
+                    "stream": stream,
+                }
+            )
+            return iter(
+                [
+                    {"tts_speech": None},
+                    {"tts_speech": np.array([[0.1, -0.1]], dtype=np.float32)},
+                    {"tts_speech": FakeTensor([[0.2, -0.2]])},
+                ]
+            )
+
+        fake_cosyvoice_model.inference_zero_shot = inference_zero_shot
+        fake_cosyvoice_factory = MagicMock(return_value=fake_cosyvoice_model)
+        model_ref = "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
+        with patch.dict(
+            sys.modules,
+            {
+                "soundfile": types.SimpleNamespace(write=MagicMock()),
+                "cosyvoice": types.ModuleType("cosyvoice"),
+                "cosyvoice.cli": types.ModuleType("cosyvoice.cli"),
+                "cosyvoice.cli.cosyvoice": types.SimpleNamespace(AutoModel=fake_cosyvoice_factory),
+            },
+        ):
+            cosy_backend = backend_module.CosyVoice3Backend(model_dir=model_ref)
+            self.assertIs(cosy_backend.load(), fake_cosyvoice_model)
+            cosy_request = SynthesisRequest(
+                engine=SynthesisEngine.COSYVOICE3,
+                speaker_wav=Path("speaker.wav"),
+                text="Hello. Again?",
+                language_code="en",
+                cap_seconds=None,
+                speaker_transcript_text="sample transcript",
+            )
+            cosy_session = cosy_backend.open_session(cosy_request)
+            self.assertEqual(
+                [chunk.text for chunk in cosy_session.build_chunks("Hello. Again?")],
+                ["Hello.", "Again?"],
+            )
+            self.assertEqual(
+                [chunk.text for chunk in cosy_session.refine_chunk(backend_module.SynthesisChunk.from_text("Hello."))],
+                ["Hello."],
+            )
+            cosy_chunk = cosy_session.synthesise_chunk("Hello.")
+            self.assertGreater(cosy_chunk.duration_seconds, 0.0)
+            cosy_session.synthesise_to_file("Hello.", Path("out.wav"))
+        fake_cosyvoice_factory.assert_called_once_with(model_dir=model_ref)
+        self.assertEqual(
+            fake_cosyvoice_model.zero_shot_calls[0]["prompt_text"],
+            "You are a helpful assistant.<|endofprompt|>sample transcript",
+        )
+        self.assertEqual(fake_cosyvoice_model.zero_shot_calls[0]["prompt_wav"], "speaker.wav")
+        self.assertFalse(fake_cosyvoice_model.zero_shot_calls[0]["stream"])
+
         with self.assertRaisesRegex(ValidationError, "speaker_transcript_text"):
             backend_module.Qwen3TTSBackend(model_id="qwen-model").open_session(
                 SynthesisRequest(
@@ -242,6 +359,16 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                     speaker_wav=Path("speaker.wav"),
                     text="Hello",
                     language_code="ru",
+                    cap_seconds=None,
+                )
+            )
+        with self.assertRaisesRegex(ValidationError, "speaker_transcript_text"):
+            backend_module.CosyVoice3Backend(model_dir="missing-model").open_session(
+                SynthesisRequest(
+                    engine=SynthesisEngine.COSYVOICE3,
+                    speaker_wav=Path("speaker.wav"),
+                    text="Hello",
+                    language_code="en",
                     cap_seconds=None,
                 )
             )
@@ -255,6 +382,11 @@ class ServiceLogicCoverageTests(unittest.TestCase):
             backend_module.Qwen3TTSBackend(model_id="qwen-model", dtype="float8")._resolve_dtype(fake_torch)
         with self.assertRaisesRegex(ValueError, "cannot be empty"):
             backend_module.SynthesisChunk.from_units(("", " "))
+        with self.assertRaisesRegex(DependencyError, "cannot be empty"):
+            backend_module.CosyVoice3Backend(model_dir=" ").load()
+
+        with self.assertRaisesRegex(DependencyError, "CosyVoice3 is unavailable"):
+            backend_module.CosyVoice3Backend(model_dir="FunAudioLLM/Fun-CosyVoice3-0.5B-2512").load()
 
         with patch.dict(sys.modules, {"soundfile": types.SimpleNamespace(write=MagicMock())}):
             with self.assertRaisesRegex(ValueError, "returned no audio"):
@@ -263,6 +395,12 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                     voice_clone_prompt="prompt",
                     language_name="Russian",
                     text_token_budget=16,
+                ).synthesise_to_file("Hello", Path("out.wav"))
+            with self.assertRaisesRegex(ValueError, "returned no audio"):
+                backend_module.CosyVoice3SynthesisSession(
+                    types.SimpleNamespace(sample_rate=24000, inference_zero_shot=lambda *args, **kwargs: iter([])),
+                    speaker_wav=Path("speaker.wav"),
+                    speaker_transcript_text="sample transcript",
                 ).synthesise_to_file("Hello", Path("out.wav"))
 
         class FakeBackend:

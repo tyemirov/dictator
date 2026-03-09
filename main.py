@@ -12,6 +12,11 @@ from typing import Sequence
 from dictator.synthesis.models import SynthesisEngine, SynthesisRequest
 from dictator.synthesis.text import BYTE_BUDGET, build_chunks, clean, parse_length
 
+TRANSCRIPT_REQUIRED_ENGINES = {
+    SynthesisEngine.QWEN3,
+    SynthesisEngine.COSYVOICE3,
+}
+
 
 def synthesise(
     speaker_wav: Path,
@@ -61,7 +66,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--sample-text",
-        help="reference transcript for the sample audio (required for qwen3)",
+        help="reference transcript for the sample audio (required for qwen3 and cosyvoice3)",
     )
     parser.add_argument(
         "--speech",
@@ -76,8 +81,8 @@ def main() -> None:
         datefmt="%H:%M:%S",
     )
     engine = SynthesisEngine(args.engine)
-    if engine is SynthesisEngine.QWEN3 and not (args.sample_text or "").strip():
-        parser.error("--sample-text is required when --engine=qwen3")
+    if engine in TRANSCRIPT_REQUIRED_ENGINES and not (args.sample_text or "").strip():
+        parser.error(f"--sample-text is required when --engine={engine.value}")
 
     out_path = Path(args.output)
     if out_path.exists() and not args.force:

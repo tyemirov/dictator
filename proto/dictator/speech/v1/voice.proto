@@ -16,6 +16,7 @@ enum SynthesisEngine {
   SYNTHESIS_ENGINE_UNSPECIFIED = 0;
   SYNTHESIS_ENGINE_XTTS = 1;
   SYNTHESIS_ENGINE_QWEN3 = 2;
+  SYNTHESIS_ENGINE_COSYVOICE3 = 3;
 }
 
 message ExtractReferenceSampleRequest {
