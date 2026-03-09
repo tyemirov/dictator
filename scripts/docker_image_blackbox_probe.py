@@ -151,8 +151,7 @@ def assert_xtts_loader_call_shape() -> None:
             backend = synthesis_service.XTTSBackend(model_id=str(model_dir))
             loaded = backend.load()
         assert isinstance(loaded, FakeTTS)
-        assert loaded.kwargs["model_path"] == str(model_dir)
-        assert loaded.kwargs["config_path"] == str(model_dir / "config.json")
+        assert loaded.kwargs["model_dir"] == str(model_dir)
         assert loaded.kwargs["progress_bar"] is False
         assert loaded.device == "cpu"
 

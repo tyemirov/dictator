@@ -146,13 +146,25 @@ class XTTSBackend:
     def _load_local_model(self, model_path: Path, *, device: str):
         from TTS.api import TTS
 
-        config_path = model_path / "config.json" if model_path.is_dir() else model_path.parent / "config.json"
+        if model_path.is_dir():
+            config_path = model_path / "config.json"
+            if not config_path.is_file():
+                raise DependencyError(
+                    "dictator.synthesis.xtts.config_missing",
+                    f"XTTS config.json was not found for local model path {model_path}",
+                )
+            logging.info("loading xtts model directory %s on %s", model_path, device)
+            return TTS(
+                model_dir=str(model_path),
+                progress_bar=False,
+            ).to(device)
+        config_path = model_path.parent / "config.json"
         if not config_path.is_file():
             raise DependencyError(
                 "dictator.synthesis.xtts.config_missing",
                 f"XTTS config.json was not found for local model path {model_path}",
             )
-        logging.info("loading xtts model from %s on %s", model_path, device)
+        logging.info("loading xtts checkpoint %s on %s", model_path, device)
         return TTS(
             model_path=str(model_path),
             config_path=str(config_path),
@@ -326,17 +338,28 @@ class Qwen3TTSBackend:
                 load_kwargs = {
                     "device_map": "cuda:0" if torch.cuda.is_available() else "cpu",
                     "dtype": self._resolve_dtype(torch),
-                    "attn_implementation": QWEN3_FAST_ATTENTION_IMPLEMENTATION,
                 }
+                if torch.cuda.is_available():
+                    try:
+                        import flash_attn  # noqa: F401
+                    except ImportError:
+                        logging.warning(
+                            "flash-attn is unavailable; loading qwen3 model %s without %s",
+                            self.model_id,
+                            QWEN3_FAST_ATTENTION_IMPLEMENTATION,
+                        )
+                    else:
+                        load_kwargs["attn_implementation"] = QWEN3_FAST_ATTENTION_IMPLEMENTATION
                 logging.info(
                     "loading qwen3 model %s on %s dtype=%s attn_implementation=%s",
                     self.model_id,
                     load_kwargs["device_map"],
                     self.dtype,
-                    QWEN3_FAST_ATTENTION_IMPLEMENTATION,
+                    load_kwargs.get("attn_implementation", "default"),
                 )
                 self._model = Qwen3TTSModel.from_pretrained(self.model_id, **load_kwargs)
-                logging.info("qwen3 fast attention is enabled via %s", QWEN3_FAST_ATTENTION_IMPLEMENTATION)
+                if load_kwargs.get("attn_implementation") == QWEN3_FAST_ATTENTION_IMPLEMENTATION:
+                    logging.info("qwen3 fast attention is enabled via %s", QWEN3_FAST_ATTENTION_IMPLEMENTATION)
         return self._model
 
     def _prompt_cache_key(

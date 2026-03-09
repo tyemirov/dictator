@@ -163,8 +163,7 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                 backend = backend_module.XTTSBackend(model_id=str(local_model_dir))
                 fake_local_tts = backend.load()
             local_tts_factory.assert_called_once_with(
-                model_path=str(local_model_dir),
-                config_path=str(local_model_dir / "config.json"),
+                model_dir=str(local_model_dir),
                 progress_bar=False,
             )
             self.assertEqual(fake_local_tts.device, "cpu")
@@ -182,6 +181,45 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                 backend = backend_module.XTTSBackend(model_id=str(missing_config_model_dir))
                 with self.assertRaisesRegex(DependencyError, "XTTS config.json was not found"):
                     backend._load_local_model(missing_config_model_dir, device="cpu")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            checkpoint_dir = Path(tmpdir) / "xtts-checkpoint-missing-config"
+            checkpoint_dir.mkdir()
+            checkpoint_path = checkpoint_dir / "model.pth"
+            checkpoint_path.write_bytes(b"checkpoint")
+            with patch.dict(
+                sys.modules,
+                {
+                    "TTS": types.ModuleType("TTS"),
+                    "TTS.api": types.SimpleNamespace(TTS=local_tts_factory),
+                },
+            ):
+                backend = backend_module.XTTSBackend(model_id=str(checkpoint_path))
+                with self.assertRaisesRegex(DependencyError, "XTTS config.json was not found"):
+                    backend._load_local_model(checkpoint_path, device="cpu")
+
+        checkpoint_tts_factory = MagicMock(return_value=FakeTTS())
+        with tempfile.TemporaryDirectory() as tmpdir:
+            checkpoint_dir = Path(tmpdir) / "xtts-checkpoint"
+            checkpoint_dir.mkdir()
+            checkpoint_path = checkpoint_dir / "model.pth"
+            checkpoint_path.write_bytes(b"checkpoint")
+            (checkpoint_dir / "config.json").write_text("{}", encoding="utf-8")
+            with patch.dict(
+                sys.modules,
+                {
+                    "TTS": types.ModuleType("TTS"),
+                    "TTS.api": types.SimpleNamespace(TTS=checkpoint_tts_factory),
+                },
+            ):
+                backend = backend_module.XTTSBackend(model_id=str(checkpoint_path))
+                fake_checkpoint_tts = backend._load_local_model(checkpoint_path, device="cpu")
+            checkpoint_tts_factory.assert_called_once_with(
+                model_path=str(checkpoint_path),
+                config_path=str(checkpoint_dir / "config.json"),
+                progress_bar=False,
+            )
+            self.assertEqual(fake_checkpoint_tts.device, "cpu")
 
         fake_qwen_model = types.SimpleNamespace(
             prompt_calls=[],
@@ -266,6 +304,44 @@ class ServiceLogicCoverageTests(unittest.TestCase):
             "qwen-model",
             device_map="cpu",
             dtype="float32",
+        )
+        fake_qwen_factory.reset_mock()
+        fake_gpu_torch = types.SimpleNamespace(
+            cuda=types.SimpleNamespace(is_available=lambda: True),
+            bfloat16="bfloat16",
+            float16="float16",
+            float32="float32",
+        )
+        with self.assertLogs(level="WARNING") as warning_logs:
+            with patch.dict(
+                sys.modules,
+                {
+                    "torch": fake_gpu_torch,
+                    "qwen_tts": types.SimpleNamespace(Qwen3TTSModel=types.SimpleNamespace(from_pretrained=fake_qwen_factory)),
+                },
+                clear=False,
+            ):
+                backend_module.Qwen3TTSBackend(model_id="qwen-model", dtype="auto").load()
+        fake_qwen_factory.assert_called_once_with(
+            "qwen-model",
+            device_map="cuda:0",
+            dtype="bfloat16",
+        )
+        self.assertIn("flash-attn is unavailable", "\n".join(warning_logs.output))
+        fake_qwen_factory.reset_mock()
+        with patch.dict(
+            sys.modules,
+            {
+                "torch": fake_gpu_torch,
+                "flash_attn": types.ModuleType("flash_attn"),
+                "qwen_tts": types.SimpleNamespace(Qwen3TTSModel=types.SimpleNamespace(from_pretrained=fake_qwen_factory)),
+            },
+        ):
+            backend_module.Qwen3TTSBackend(model_id="qwen-model", dtype="auto").load()
+        fake_qwen_factory.assert_called_once_with(
+            "qwen-model",
+            device_map="cuda:0",
+            dtype="bfloat16",
             attn_implementation="flash_attention_2",
         )
         self.assertEqual(len(fake_qwen_model.prompt_calls), 2)
