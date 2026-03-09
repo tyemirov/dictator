@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 
 class SynthesisEngine(str, Enum):
@@ -13,6 +13,28 @@ class SynthesisEngine(str, Enum):
 
     XTTS = "xtts"
     QWEN3 = "qwen3"
+
+
+@dataclass(frozen=True)
+class SynthesisChunk:
+    """A synthesiser-ready text chunk with its atomic sentence units."""
+
+    text: str
+    units: tuple[str, ...]
+
+    @classmethod
+    def from_text(cls, text: str) -> "SynthesisChunk":
+        return cls.from_units((text,))
+
+    @classmethod
+    def from_units(cls, units: Sequence[str]) -> "SynthesisChunk":
+        normalized_units = tuple(unit.strip() for unit in units if unit.strip())
+        if not normalized_units:
+            raise ValueError("synthesis chunk units cannot be empty")
+        return cls(
+            text=" ".join(normalized_units),
+            units=normalized_units,
+        )
 
 
 @dataclass(frozen=True)

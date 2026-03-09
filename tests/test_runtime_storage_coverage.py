@@ -255,6 +255,21 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
             )
         info.assert_called()
 
+    def test_synthesis_config_reads_qwen_text_budget(self):
+        config = SynthesisConfig.from_env(
+            {
+                "DICTATOR_QWEN3_TTS_TEXT_TOKEN_BUDGET": "256",
+                "DICTATOR_QWEN3_TTS_DTYPE": "float16",
+            }
+        )
+        self.assertEqual(config.qwen3_text_token_budget, 256)
+        self.assertEqual(config.qwen3_dtype, "float16")
+
+        with self.assertRaisesRegex(ValueError, "positive integer"):
+            SynthesisConfig.from_env({"DICTATOR_QWEN3_TTS_TEXT_TOKEN_BUDGET": "0"})
+        with self.assertRaisesRegex(ValueError, "positive integer"):
+            SynthesisConfig.from_env({"DICTATOR_QWEN3_TTS_TEXT_TOKEN_BUDGET": "abc"})
+
     def test_speech_execution_runtime_serializes_cold_model_and_pipeline_loads(self):
         runtime = SpeechExecutionRuntime()
         model_results = []

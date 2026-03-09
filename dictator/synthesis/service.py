@@ -14,6 +14,7 @@ from dictator.runtime import ValidationError
 
 from .config import (
     DEFAULT_QWEN3_MODEL_ID,
+    DEFAULT_QWEN3_TEXT_TOKEN_BUDGET,
     DEFAULT_XTTS_MODEL_ID,
     QWEN3_ATTN_IMPLEMENTATION_ENV,
     QWEN3_FAST_ATTENTION_IMPLEMENTATION,
@@ -22,6 +23,7 @@ from .config import (
 from .models import (
     SpeechSegment,
     SynthesisedAudioChunk,
+    SynthesisChunk,
     SynthesisEngine,
     SynthesisRequest,
     SynthesisResult,
@@ -46,7 +48,10 @@ QWEN3_LANGUAGE_NAMES = {
 class SynthesisSession(Protocol):
     """Per-request synthesis session with any reusable prompt state."""
 
-    def build_chunks(self, text: str) -> Sequence[str]:
+    def build_chunks(self, text: str) -> Sequence[SynthesisChunk]:
+        ...
+
+    def refine_chunk(self, chunk: SynthesisChunk) -> Sequence[SynthesisChunk]:
         ...
 
     def synthesise_to_file(self, text: str, output_path: Path) -> None:
@@ -70,8 +75,11 @@ class LegacySynthesisSession:
         self._speaker_wav = speaker_wav
         self._language_code = language_code
 
-    def build_chunks(self, text: str) -> Sequence[str]:
-        return build_chunks(text)
+    def build_chunks(self, text: str) -> Sequence[SynthesisChunk]:
+        return tuple(_chunk_from_text(chunk_text) for chunk_text in build_chunks(text))
+
+    def refine_chunk(self, chunk: SynthesisChunk) -> Sequence[SynthesisChunk]:
+        return (chunk,)
 
     def synthesise_to_file(self, text: str, output_path: Path) -> None:
         self._backend.synthesise_to_file(
@@ -94,14 +102,25 @@ def _qwen3_language_name(language_code: str) -> str:
     return language_name
 
 
+def _sentence_units(text: str) -> tuple[str, ...]:
+    return tuple(sentence.strip() for sentence in split_into_sentences(text) if sentence.strip())
+
+
+def _chunk_from_text(text: str) -> SynthesisChunk:
+    return SynthesisChunk.from_units(_sentence_units(text) or (text,))
+
+
 class XTTSSynthesisSession:
     def __init__(self, tts, *, speaker_wav: Path, language_code: str) -> None:
         self._tts = tts
         self._speaker_wav = speaker_wav
         self._language_code = language_code
 
-    def build_chunks(self, text: str) -> Sequence[str]:
-        return build_chunks(text)
+    def build_chunks(self, text: str) -> Sequence[SynthesisChunk]:
+        return tuple(_chunk_from_text(chunk_text) for chunk_text in build_chunks(text))
+
+    def refine_chunk(self, chunk: SynthesisChunk) -> Sequence[SynthesisChunk]:
+        return (chunk,)
 
     def synthesise_to_file(self, text: str, output_path: Path) -> None:
         self._tts.tts_to_file(
@@ -161,13 +180,59 @@ class XTTSBackend:
 
 
 class Qwen3SynthesisSession:
-    def __init__(self, model, *, voice_clone_prompt, language_name: str) -> None:
+    def __init__(
+        self,
+        model,
+        *,
+        voice_clone_prompt,
+        language_name: str,
+        text_token_budget: int,
+    ) -> None:
         self._model = model
         self._voice_clone_prompt = voice_clone_prompt
         self._language_name = language_name
+        self._text_token_budget = text_token_budget
 
-    def build_chunks(self, text: str) -> Sequence[str]:
-        return [chunk for chunk in split_into_sentences(text) if chunk.strip()]
+    def _estimate_text_tokens(self, text: str) -> int:
+        assistant_text = self._model._build_assistant_text(text)
+        tokenized = self._model._tokenize_texts([assistant_text])
+        return int(tokenized[0].shape[-1])
+
+    def _pack_units(self, units: Sequence[str]) -> tuple[SynthesisChunk, ...]:
+        chunks: list[SynthesisChunk] = []
+        buffer: list[str] = []
+        for unit in units:
+            candidate_units = [*buffer, unit]
+            candidate_text = " ".join(candidate_units)
+            candidate_tokens = self._estimate_text_tokens(candidate_text)
+            if buffer and candidate_tokens > self._text_token_budget:
+                chunks.append(SynthesisChunk.from_units(buffer))
+                buffer = [unit]
+                continue
+            buffer = candidate_units
+        if buffer:
+            chunks.append(SynthesisChunk.from_units(buffer))
+        return tuple(chunks)
+
+    def build_chunks(self, text: str) -> Sequence[SynthesisChunk]:
+        units = _sentence_units(text)
+        packed_chunks = self._pack_units(units)
+        logging.info(
+            "qwen3 packed %d sentence units into %d chunks with token budget=%d",
+            len(units),
+            len(packed_chunks),
+            self._text_token_budget,
+        )
+        return packed_chunks
+
+    def refine_chunk(self, chunk: SynthesisChunk) -> Sequence[SynthesisChunk]:
+        if len(chunk.units) <= 1:
+            return (chunk,)
+        midpoint = len(chunk.units) // 2
+        return (
+            SynthesisChunk.from_units(chunk.units[:midpoint]),
+            SynthesisChunk.from_units(chunk.units[midpoint:]),
+        )
 
     def synthesise_chunk(self, text: str) -> SynthesisedAudioChunk:
         wavs, sample_rate = self._model.generate_voice_clone(
@@ -204,10 +269,12 @@ class Qwen3TTSBackend:
         model_id: str = DEFAULT_QWEN3_MODEL_ID,
         attn_implementation: str | None = None,
         dtype: str = "auto",
+        text_token_budget: int = DEFAULT_QWEN3_TEXT_TOKEN_BUDGET,
     ) -> None:
         self.model_id = model_id
         self.attn_implementation = attn_implementation
         self.dtype = dtype
+        self.text_token_budget = text_token_budget
         self._model = None
         self._load_lock = threading.Lock()
         self._prompt_cache: dict[tuple[str, str, str], object] = {}
@@ -312,6 +379,7 @@ class Qwen3TTSBackend:
             model,
             voice_clone_prompt=voice_clone_prompt,
             language_name=_qwen3_language_name(request.language_code),
+            text_token_budget=self.text_token_budget,
         )
 
 
@@ -336,6 +404,7 @@ class SpeechSynthesisService:
                     model_id=synthesis_config.qwen3_model_id,
                     attn_implementation=synthesis_config.qwen3_attn_implementation,
                     dtype=synthesis_config.qwen3_dtype,
+                    text_token_budget=synthesis_config.qwen3_text_token_budget,
                 ),
             }
         self.backends = dict(backends)
@@ -366,7 +435,7 @@ class SpeechSynthesisService:
         self,
         *,
         session: SynthesisSession,
-        chunks: Sequence[str],
+        chunks: Sequence[SynthesisChunk],
         cap_seconds: float | None,
     ) -> SynthesisResult:
         if not chunks:
@@ -377,29 +446,23 @@ class SpeechSynthesisService:
         segments: list[SpeechSegment] = []
         elapsed = 0.0
         previous_duration = 0.0
+        pending_chunks = list(chunks)
+        chunk_index = 0
 
-        for index, chunk in enumerate(chunks):
+        while pending_chunks:
             if cap_seconds is not None and elapsed >= cap_seconds:
                 break
 
-            wav_path = temp_dir / f"{index:04d}.wav"
+            chunk = pending_chunks.pop(0)
+            wav_path = temp_dir / f"{chunk_index:04d}.wav"
             synthesise_chunk = getattr(session, "synthesise_chunk", None)
+            generated_chunk = None
             if callable(synthesise_chunk):
-                generated_chunk = synthesise_chunk(chunk)
+                generated_chunk = synthesise_chunk(chunk.text)
                 duration_seconds = generated_chunk.duration_seconds
                 previous_duration = duration_seconds
-                if cap_seconds is not None and elapsed + duration_seconds > cap_seconds:
-                    logging.warning(
-                        "Sentence %.1fs longer than remaining cap (%.1fs) - skipped",
-                        duration_seconds,
-                        cap_seconds - elapsed,
-                    )
-                    break
-                import soundfile as sf
-
-                sf.write(wav_path, generated_chunk.samples, generated_chunk.sample_rate)
             else:
-                session.synthesise_to_file(chunk, wav_path)
+                session.synthesise_to_file(chunk.text, wav_path)
 
                 import soundfile as sf
 
@@ -409,17 +472,31 @@ class SpeechSynthesisService:
 
             if cap_seconds is not None and elapsed + duration_seconds > cap_seconds:
                 wav_path.unlink(missing_ok=True)
+                refined_chunks = tuple(session.refine_chunk(chunk))
+                if len(refined_chunks) > 1:
+                    logging.info(
+                        "Refining %d-unit chunk for remaining cap %.1fs",
+                        len(chunk.units),
+                        cap_seconds - elapsed,
+                    )
+                    pending_chunks = list(refined_chunks) + pending_chunks
+                    continue
                 logging.warning(
-                    "Sentence %.1fs longer than remaining cap (%.1fs) - skipped",
+                    "Chunk %.1fs longer than remaining cap (%.1fs) - skipped",
                     duration_seconds,
                     cap_seconds - elapsed,
                 )
                 break
 
+            if generated_chunk is not None:
+                import soundfile as sf
+
+                sf.write(wav_path, generated_chunk.samples, generated_chunk.sample_rate)
+
             wav_paths.append(wav_path)
             segments.append(
                 SpeechSegment(
-                    text=chunk,
+                    text=chunk.text,
                     start_seconds=elapsed,
                     end_seconds=elapsed + duration_seconds,
                 )
@@ -427,16 +504,14 @@ class SpeechSynthesisService:
             elapsed += duration_seconds
             logging.info(
                 "chunk %03d  %.1f s  (cumulative %.1f s)",
-                index,
+                chunk_index,
                 duration_seconds,
                 elapsed,
             )
+            chunk_index += 1
 
         if cap_seconds is not None and not wav_paths:
-            logging.error(
-                "First sentence (%.1fs) exceeds --length - nothing generated",
-                previous_duration,
-            )
+            logging.error("First chunk (%.1fs) exceeds --length - nothing generated", previous_duration)
             raise ValueError("No chunks fit within the length cap")
 
         return SynthesisResult(
@@ -455,17 +530,22 @@ class SpeechSynthesisService:
         engine: SynthesisEngine = SynthesisEngine.XTTS,
         speaker_transcript_text: str | None = None,
     ) -> SynthesisResult:
+        normalized_chunks = tuple(SynthesisChunk.from_text(chunk) for chunk in chunks)
         request = SynthesisRequest(
             engine=engine,
             speaker_wav=speaker_wav,
-            text=" ".join(chunk for chunk in chunks if chunk).strip(),
+            text=" ".join(chunk.text for chunk in normalized_chunks).strip(),
             language_code=language_code,
             cap_seconds=cap_seconds,
             speaker_artifact_id=None,
             speaker_transcript_text=speaker_transcript_text,
         )
         session = self._open_session(self._resolve_backend(engine), request)
-        return self._synthesise_chunks(session=session, chunks=tuple(chunks), cap_seconds=cap_seconds)
+        return self._synthesise_chunks(
+            session=session,
+            chunks=normalized_chunks,
+            cap_seconds=cap_seconds,
+        )
 
     def synthesise_text(self, request: SynthesisRequest) -> SynthesisResult:
         cleaned_text = clean(request.text)

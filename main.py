@@ -9,8 +9,8 @@ from pathlib import Path
 import tempfile
 from typing import Sequence
 
-from dictator.synthesis.models import SynthesisEngine
-from dictator.synthesis.text import BYTE_BUDGET, build_chunks, clean, fits_xtts, parse_length, split_into_sentences, trim_utf8
+from dictator.synthesis.models import SynthesisEngine, SynthesisRequest
+from dictator.synthesis.text import BYTE_BUDGET, build_chunks, clean, parse_length
 
 
 def synthesise(
@@ -108,23 +108,20 @@ def main() -> None:
 
         raw_text = Path(args.text).read_text(encoding="utf-8")
         clean_text = clean(raw_text)
-        if engine is SynthesisEngine.XTTS:
-            text_chunks = build_chunks(clean_text)
-        else:
-            text_chunks = [sentence for sentence in split_into_sentences(clean_text) if sentence.strip()]
-
-        logging.info("engine: %s  chunks: %d", engine.value, len(text_chunks))
+        logging.info("engine: %s", engine.value)
         if engine is SynthesisEngine.XTTS:
             logging.info("xtts byte budget: <=%d UTF-8 bytes per chunk", BYTE_BUDGET)
 
         cap_seconds = parse_length(args.length)
-        result = SpeechSynthesisService().synthesise(
-            speaker_wav=ref_wav,
-            chunks=text_chunks,
-            cap_seconds=cap_seconds,
-            language_code=args.language,
-            engine=engine,
-            speaker_transcript_text=(args.sample_text or "").strip() or None,
+        result = SpeechSynthesisService().synthesise_text(
+            SynthesisRequest(
+                engine=engine,
+                speaker_wav=ref_wav,
+                text=clean_text,
+                language_code=args.language,
+                cap_seconds=cap_seconds,
+                speaker_transcript_text=(args.sample_text or "").strip() or None,
+            )
         )
         if not result.wav_paths:
             return

@@ -78,7 +78,7 @@ class CliEntrypointsTests(unittest.TestCase):
                 text.write_text("Hello world", encoding="utf-8")
 
                 fake_service = MagicMock()
-                fake_service.synthesise.return_value = result
+                fake_service.synthesise_text.return_value = result
                 with (
                     patch("sys.argv", ["main.py", "--sample", str(sample), "--text", str(text), "--output", str(out), "--speech", str(speech), "--force"]),
                     patch("dictator.audio.ffmpeg_ops.mp3_to_wav") as mp3_to_wav,
@@ -136,7 +136,7 @@ class CliEntrypointsTests(unittest.TestCase):
                 text.write_text("Hello", encoding="utf-8")
 
                 fake_service = MagicMock()
-                fake_service.synthesise.return_value = types.SimpleNamespace(
+                fake_service.synthesise_text.return_value = types.SimpleNamespace(
                     wav_paths=(),
                     segments=(),
                     temp_dir=root / "tmp-tts",
@@ -150,7 +150,7 @@ class CliEntrypointsTests(unittest.TestCase):
 
             concat_normalise.assert_not_called()
 
-    def test_main_qwen3_path_requires_sample_text_and_splits_sentences(self):
+    def test_main_qwen3_path_requires_sample_text_and_uses_synthesis_request(self):
         sf_module = types.SimpleNamespace(info=lambda path: types.SimpleNamespace(frames=24000, samplerate=24000))
         with patch.dict(sys.modules, {"soundfile": sf_module, "ffmpeg": types.SimpleNamespace()}):
             import main as main_module
@@ -169,7 +169,7 @@ class CliEntrypointsTests(unittest.TestCase):
                         main_module.main()
 
                 fake_service = MagicMock()
-                fake_service.synthesise.return_value = types.SimpleNamespace(wav_paths=(), segments=(), temp_dir=root / "tmp")
+                fake_service.synthesise_text.return_value = types.SimpleNamespace(wav_paths=(), segments=(), temp_dir=root / "tmp")
                 with (
                     patch("sys.argv", [
                         "main.py",
@@ -189,10 +189,10 @@ class CliEntrypointsTests(unittest.TestCase):
                 ):
                     main_module.main()
 
-                synth_call = fake_service.synthesise.call_args.kwargs
-                self.assertEqual(synth_call["engine"], main_module.SynthesisEngine.QWEN3)
-                self.assertEqual(synth_call["speaker_transcript_text"], "Reference sample transcript")
-                self.assertEqual(synth_call["chunks"], ["One.", "Two?"])
+                request = fake_service.synthesise_text.call_args.args[0]
+                self.assertEqual(request.engine, main_module.SynthesisEngine.QWEN3)
+                self.assertEqual(request.speaker_transcript_text, "Reference sample transcript")
+                self.assertEqual(request.text, "One. Two?")
 
     def test_main_transcribe_words_wrapper_delegates(self):
         with patch.dict(

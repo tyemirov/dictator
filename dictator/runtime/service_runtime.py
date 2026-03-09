@@ -103,6 +103,7 @@ class SpeechExecutionRuntime:
                         model_id=self._synthesis_config.qwen3_model_id,
                         attn_implementation=self._synthesis_config.qwen3_attn_implementation,
                         dtype=self._synthesis_config.qwen3_dtype,
+                        text_token_budget=self._synthesis_config.qwen3_text_token_budget,
                     )
                 self._synthesis_service = SpeechSynthesisService(backends=dict(self._tts_backends))
             return self._synthesis_service
