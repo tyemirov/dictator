@@ -293,14 +293,14 @@ if [[ "$SKIP_TESTS" -eq 0 ]]; then
   make ci
 fi
 
+if [[ "$DRY_RUN" -eq 1 ]]; then
+  log "Dry run complete; skipping Docker image smoke test, docker login, and build."
+  exit 0
+fi
+
 if [[ "$SKIP_IMAGE_TEST" -eq 0 ]]; then
   log "Running Docker image blackbox smoke test before publish."
   ./scripts/test-docker-image.sh --tag dictator:publish-blackbox
-fi
-
-if [[ "$DRY_RUN" -eq 1 ]]; then
-  log "Dry run complete; skipping docker login and build."
-  exit 0
 fi
 
 if [[ "$SKIP_LOGIN" -eq 0 ]]; then

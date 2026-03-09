@@ -18,7 +18,26 @@ jobs:
           fetch-depth: 0
 
       - name: Validate semver tag and master ancestry
-        run: ./scripts/docker-gh-deploy.sh --dry-run --skip-tests --skip-login "${GITHUB_REF_NAME}"
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git_tag="${GITHUB_REF_NAME}"
+          semver_regex='^v?([0-9]+)\.([0-9]+)\.([0-9]+)(-([0-9A-Za-z.-]+))?$'
+
+          if [[ ! "${git_tag}" =~ ${semver_regex} ]]; then
+            echo "Error: Git tag '${git_tag}' must be semver like 1.2.3 or v1.2.3. Optional prerelease suffixes such as -rc.1 are supported. Build metadata (+...) is not supported." >&2
+            exit 1
+          fi
+
+          tag_commit="$(git rev-list -n 1 "${git_tag}")"
+          git fetch --no-tags origin master:refs/remotes/origin/master
+          git merge-base --is-ancestor "${tag_commit}" origin/master || {
+            echo "Error: Tag '${git_tag}' resolves to ${tag_commit}, which is not contained in origin/master." >&2
+            exit 1
+          }
+
+          echo "Validated tag '${git_tag}' at commit ${tag_commit} on origin/master."
 
   tests:
     needs: validate-tag
