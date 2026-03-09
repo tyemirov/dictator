@@ -28,8 +28,10 @@ DICTATOR_URL_ENV = "VOICE_CLONE_DICTATOR_URL"
 DICTATOR_AUTH_TOKEN_ENV = "DICTATOR_GRPC_AUTH_TOKEN"
 
 VOICE_SAMPLE_PROMPT = (
-    'Read this aloud, slowly and clearly: "The quick brown fox jumped over the lazy dog. '
-    'Eleven benevolent elephants balanced on bright blue bicycles."'
+    'Read this aloud, slowly and clearly: "The quick brown fox jumped over the lazy dog while seven '
+    'silver swans drifted across the lake at dawn. Eleven benevolent elephants balanced on bright '
+    'blue bicycles and sang softly beside the river. She sells sea shells by the seashore, and '
+    'Peter Piper picked a peck of pickled peppers."'
 )
 
 GENESIS_EXCERPT = """Genesis 1:1-10, King James Version.

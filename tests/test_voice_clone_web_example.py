@@ -107,11 +107,13 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
     def test_load_index_html_mentions_genesis(self):
         html = app.load_index_html()
         self.assertIn("Read Genesis in your own cloned voice", html)
-        self.assertIn("Eleven benevolent elephants", html)
+        self.assertIn("seven silver swans drifted across the lake at dawn", html)
+        self.assertIn("Peter Piper picked a peck of pickled peppers", html)
         self.assertNotIn("Dictator gRPC URL", html)
         self.assertNotIn("Language Code", html)
         self.assertNotIn("Auth Token", html)
         self.assertIn("Record your voice sample", html)
+        self.assertIn('class="sample-script"', html)
 
     def test_parse_grpc_target_accepts_plain_and_secure_urls(self):
         self.assertEqual(app.parse_grpc_target("localhost:50051"), app.GrpcTarget("localhost:50051", False))

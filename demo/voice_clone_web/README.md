@@ -26,6 +26,8 @@ The browser does not choose the Dictator gRPC target. In Docker, the backend bri
 
 The page asks the user to read:
 
-> The quick brown fox jumped over the lazy dog. Eleven benevolent elephants balanced on bright blue bicycles.
+> The quick brown fox jumped over the lazy dog while seven silver swans drifted across the lake at dawn.
+> Eleven benevolent elephants balanced on bright blue bicycles and sang softly beside the river.
+> She sells sea shells by the seashore, and Peter Piper picked a peck of pickled peppers.
 
 It then asks Dictator to read a King James Version Genesis excerpt back in the user's voice.

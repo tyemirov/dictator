@@ -102,13 +102,23 @@
         background: rgba(255, 255, 255, 0.78);
       }
 
-      textarea {
+      textarea,
+      .sample-script {
         min-height: 12rem;
-        resize: vertical;
         padding: 1rem;
         border-radius: 14px;
         border: 1px solid rgba(32, 23, 21, 0.12);
         background: #fffdf7;
+      }
+
+      textarea {
+        resize: vertical;
+      }
+
+      .sample-script {
+        white-space: pre-wrap;
+        line-height: 1.7;
+        user-select: text;
       }
 
       .stack {
@@ -350,9 +360,12 @@
             <p id="record-state" class="record-state">Click the record button, read the sample slowly and clearly, then click the microphone to stop.</p>
           </div>
           <div>
-            <label for="sample-text">Read This Sample</label>
-            <textarea id="sample-text" readonly>The quick brown fox jumped over the lazy dog.
-Eleven benevolent elephants balanced on bright blue bicycles.</textarea>
+            <div id="sample-text-label">
+              <label>Read This Sample</label>
+            </div>
+            <div id="sample-text" class="sample-script" aria-labelledby="sample-text-label">The quick brown fox jumped over the lazy dog while seven silver swans drifted across the lake at dawn.
+Eleven benevolent elephants balanced on bright blue bicycles and sang softly beside the river.
+She sells sea shells by the seashore, and Peter Piper picked a peck of pickled peppers.</div>
           </div>
         </div>
 
