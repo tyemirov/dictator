@@ -35,7 +35,7 @@ class SpeechExecutionRuntime:
             )
         else:
             logging.warning(
-                "qwen3 fast attention is disabled at startup (configured=%s). Set %s=%s for better latency.",
+                "qwen3 fast attention is not configured at startup (configured=%s). Qwen3 requests will fail until %s=%s is set.",
                 self._synthesis_config.qwen3_attn_implementation or "default",
                 QWEN3_ATTN_IMPLEMENTATION_ENV,
                 QWEN3_FAST_ATTENTION_IMPLEMENTATION,

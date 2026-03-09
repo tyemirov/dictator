@@ -243,9 +243,20 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                 "qwen_tts": types.SimpleNamespace(Qwen3TTSModel=types.SimpleNamespace(from_pretrained=MagicMock(return_value=fake_qwen_model))),
             },
         ):
-            with patch("dictator.synthesis.service.logging.warning") as warning:
+            with self.assertRaisesRegex(ValidationError, "requires DICTATOR_QWEN3_TTS_ATTN_IMPLEMENTATION=flash_attention_2"):
                 backend_module.Qwen3TTSBackend(model_id="qwen-model").load()
-            warning.assert_called()
+
+        with self.assertRaisesRegex(ValidationError, "requires DICTATOR_QWEN3_TTS_ATTN_IMPLEMENTATION=flash_attention_2"):
+            backend_module.Qwen3TTSBackend(model_id="qwen-model").open_session(
+                SynthesisRequest(
+                    engine=SynthesisEngine.QWEN3,
+                    speaker_wav=Path("speaker.wav"),
+                    text="Hello",
+                    language_code="ru",
+                    cap_seconds=None,
+                    speaker_transcript_text="sample transcript",
+                )
+            )
 
         with self.assertRaisesRegex(ValidationError, "speaker_transcript_text"):
             backend_module.Qwen3TTSBackend(model_id="qwen-model").open_session(

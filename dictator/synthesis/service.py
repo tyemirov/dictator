@@ -280,6 +280,18 @@ class Qwen3TTSBackend:
         self._prompt_cache: dict[tuple[str, str, str], object] = {}
         self._prompt_cache_lock = threading.Lock()
 
+    def _require_fast_attention(self) -> None:
+        if self.attn_implementation == QWEN3_FAST_ATTENTION_IMPLEMENTATION:
+            return
+        raise ValidationError(
+            "dictator.synthesis.qwen3.fast_attention_required",
+            (
+                "qwen3 synthesis requires "
+                f"{QWEN3_ATTN_IMPLEMENTATION_ENV}={QWEN3_FAST_ATTENTION_IMPLEMENTATION}; "
+                f"configured={self.attn_implementation or 'default'}"
+            ),
+        )
+
     def _resolve_dtype(self, torch):
         name = self.dtype.lower()
         if name == "auto":
@@ -296,6 +308,7 @@ class Qwen3TTSBackend:
         return mapping[name]
 
     def load(self):
+        self._require_fast_attention()
         if self._model is not None:
             return self._model
         with self._load_lock:
@@ -317,15 +330,7 @@ class Qwen3TTSBackend:
                     self.attn_implementation or "default",
                 )
                 self._model = Qwen3TTSModel.from_pretrained(self.model_id, **load_kwargs)
-                if self.attn_implementation == QWEN3_FAST_ATTENTION_IMPLEMENTATION:
-                    logging.info("qwen3 fast attention is enabled via %s", QWEN3_FAST_ATTENTION_IMPLEMENTATION)
-                else:
-                    logging.warning(
-                        "qwen3 fast attention is disabled (configured=%s). Set %s=%s for better latency.",
-                        self.attn_implementation or "default",
-                        QWEN3_ATTN_IMPLEMENTATION_ENV,
-                        QWEN3_FAST_ATTENTION_IMPLEMENTATION,
-                    )
+                logging.info("qwen3 fast attention is enabled via %s", QWEN3_FAST_ATTENTION_IMPLEMENTATION)
         return self._model
 
     def _prompt_cache_key(
