@@ -2,16 +2,30 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from pathlib import Path
 import shutil
 import tempfile
+import threading
 from typing import Mapping, Protocol, Sequence
 
 from dictator.runtime import ValidationError
 
-from .config import DEFAULT_QWEN3_MODEL_ID, DEFAULT_XTTS_MODEL_ID, SynthesisConfig
-from .models import SpeechSegment, SynthesisEngine, SynthesisRequest, SynthesisResult
+from .config import (
+    DEFAULT_QWEN3_MODEL_ID,
+    DEFAULT_XTTS_MODEL_ID,
+    QWEN3_ATTN_IMPLEMENTATION_ENV,
+    QWEN3_FAST_ATTENTION_IMPLEMENTATION,
+    SynthesisConfig,
+)
+from .models import (
+    SpeechSegment,
+    SynthesisedAudioChunk,
+    SynthesisEngine,
+    SynthesisRequest,
+    SynthesisResult,
+)
 from .text import build_chunks, clean, split_into_sentences
 
 QWEN3_LANGUAGE_NAMES = {
@@ -106,14 +120,19 @@ class XTTSBackend:
     def __init__(self, model_id: str = DEFAULT_XTTS_MODEL_ID) -> None:
         self.model_id = model_id
         self._tts = None
+        self._load_lock = threading.Lock()
 
     def load(self):
-        if self._tts is None:
-            import torch
-            from TTS.api import TTS
+        if self._tts is not None:
+            return self._tts
+        with self._load_lock:
+            if self._tts is None:
+                import torch
+                from TTS.api import TTS
 
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-            self._tts = TTS(self.model_id).to(device)
+                device = "cuda" if torch.cuda.is_available() else "cpu"
+                logging.info("loading xtts model %s on %s", self.model_id, device)
+                self._tts = TTS(self.model_id).to(device)
         return self._tts
 
     def open_session(self, request: SynthesisRequest) -> SynthesisSession:
@@ -150,9 +169,7 @@ class Qwen3SynthesisSession:
     def build_chunks(self, text: str) -> Sequence[str]:
         return [chunk for chunk in split_into_sentences(text) if chunk.strip()]
 
-    def synthesise_to_file(self, text: str, output_path: Path) -> None:
-        import soundfile as sf
-
+    def synthesise_chunk(self, text: str) -> SynthesisedAudioChunk:
         wavs, sample_rate = self._model.generate_voice_clone(
             text=text,
             language=self._language_name,
@@ -161,7 +178,19 @@ class Qwen3SynthesisSession:
         )
         if not wavs:
             raise ValueError("qwen3 synthesis returned no audio")
-        sf.write(output_path, wavs[0], sample_rate)
+        samples = wavs[0]
+        duration_seconds = len(samples) / sample_rate if sample_rate else 0.0
+        return SynthesisedAudioChunk(
+            samples=samples,
+            sample_rate=sample_rate,
+            duration_seconds=duration_seconds,
+        )
+
+    def synthesise_to_file(self, text: str, output_path: Path) -> None:
+        import soundfile as sf
+
+        chunk = self.synthesise_chunk(text)
+        sf.write(output_path, chunk.samples, chunk.sample_rate)
 
 
 class Qwen3TTSBackend:
@@ -180,6 +209,9 @@ class Qwen3TTSBackend:
         self.attn_implementation = attn_implementation
         self.dtype = dtype
         self._model = None
+        self._load_lock = threading.Lock()
+        self._prompt_cache: dict[tuple[str, str, str], object] = {}
+        self._prompt_cache_lock = threading.Lock()
 
     def _resolve_dtype(self, torch):
         name = self.dtype.lower()
@@ -197,18 +229,55 @@ class Qwen3TTSBackend:
         return mapping[name]
 
     def load(self):
-        if self._model is None:
-            import torch
-            from qwen_tts import Qwen3TTSModel
+        if self._model is not None:
+            return self._model
+        with self._load_lock:
+            if self._model is None:
+                import torch
+                from qwen_tts import Qwen3TTSModel
 
-            load_kwargs = {
-                "device_map": "cuda:0" if torch.cuda.is_available() else "cpu",
-                "dtype": self._resolve_dtype(torch),
-            }
-            if self.attn_implementation:
-                load_kwargs["attn_implementation"] = self.attn_implementation
-            self._model = Qwen3TTSModel.from_pretrained(self.model_id, **load_kwargs)
+                load_kwargs = {
+                    "device_map": "cuda:0" if torch.cuda.is_available() else "cpu",
+                    "dtype": self._resolve_dtype(torch),
+                }
+                if self.attn_implementation:
+                    load_kwargs["attn_implementation"] = self.attn_implementation
+                logging.info(
+                    "loading qwen3 model %s on %s dtype=%s attn_implementation=%s",
+                    self.model_id,
+                    load_kwargs["device_map"],
+                    self.dtype,
+                    self.attn_implementation or "default",
+                )
+                self._model = Qwen3TTSModel.from_pretrained(self.model_id, **load_kwargs)
+                if self.attn_implementation == QWEN3_FAST_ATTENTION_IMPLEMENTATION:
+                    logging.info("qwen3 fast attention is enabled via %s", QWEN3_FAST_ATTENTION_IMPLEMENTATION)
+                else:
+                    logging.warning(
+                        "qwen3 fast attention is disabled (configured=%s). Set %s=%s for better latency.",
+                        self.attn_implementation or "default",
+                        QWEN3_ATTN_IMPLEMENTATION_ENV,
+                        QWEN3_FAST_ATTENTION_IMPLEMENTATION,
+                    )
         return self._model
+
+    def _prompt_cache_key(
+        self,
+        request: SynthesisRequest,
+        *,
+        speaker_transcript_text: str,
+    ) -> tuple[str, str, str] | None:
+        if not request.speaker_artifact_id:
+            return None
+        transcript_hash = hashlib.sha256(speaker_transcript_text.encode("utf-8")).hexdigest()
+        return (request.speaker_artifact_id, transcript_hash, self.engine.value)
+
+    def _create_voice_clone_prompt(self, model, request: SynthesisRequest, *, speaker_transcript_text: str):
+        return model.create_voice_clone_prompt(
+            ref_audio=str(request.speaker_wav),
+            ref_text=speaker_transcript_text,
+            x_vector_only_mode=False,
+        )
 
     def open_session(self, request: SynthesisRequest) -> SynthesisSession:
         speaker_transcript_text = (request.speaker_transcript_text or "").strip()
@@ -218,11 +287,27 @@ class Qwen3TTSBackend:
                 "speaker_transcript_text or speaker_transcript_artifact_id is required for qwen3 synthesis",
             )
         model = self.load()
-        voice_clone_prompt = model.create_voice_clone_prompt(
-            ref_audio=str(request.speaker_wav),
-            ref_text=speaker_transcript_text,
-            x_vector_only_mode=False,
-        )
+        cache_key = self._prompt_cache_key(request, speaker_transcript_text=speaker_transcript_text)
+        if cache_key is None:
+            voice_clone_prompt = self._create_voice_clone_prompt(
+                model,
+                request,
+                speaker_transcript_text=speaker_transcript_text,
+            )
+        else:
+            with self._prompt_cache_lock:
+                voice_clone_prompt = self._prompt_cache.get(cache_key)
+            if voice_clone_prompt is None:
+                logging.info("building qwen3 clone prompt for speaker artifact %s", request.speaker_artifact_id)
+                built_prompt = self._create_voice_clone_prompt(
+                    model,
+                    request,
+                    speaker_transcript_text=speaker_transcript_text,
+                )
+                with self._prompt_cache_lock:
+                    voice_clone_prompt = self._prompt_cache.setdefault(cache_key, built_prompt)
+            else:
+                logging.info("reusing cached qwen3 clone prompt for speaker artifact %s", request.speaker_artifact_id)
         return Qwen3SynthesisSession(
             model,
             voice_clone_prompt=voice_clone_prompt,
@@ -298,13 +383,29 @@ class SpeechSynthesisService:
                 break
 
             wav_path = temp_dir / f"{index:04d}.wav"
-            session.synthesise_to_file(chunk, wav_path)
+            synthesise_chunk = getattr(session, "synthesise_chunk", None)
+            if callable(synthesise_chunk):
+                generated_chunk = synthesise_chunk(chunk)
+                duration_seconds = generated_chunk.duration_seconds
+                previous_duration = duration_seconds
+                if cap_seconds is not None and elapsed + duration_seconds > cap_seconds:
+                    logging.warning(
+                        "Sentence %.1fs longer than remaining cap (%.1fs) - skipped",
+                        duration_seconds,
+                        cap_seconds - elapsed,
+                    )
+                    break
+                import soundfile as sf
 
-            import soundfile as sf
+                sf.write(wav_path, generated_chunk.samples, generated_chunk.sample_rate)
+            else:
+                session.synthesise_to_file(chunk, wav_path)
 
-            info = sf.info(wav_path)
-            duration_seconds = info.frames / info.samplerate
-            previous_duration = duration_seconds
+                import soundfile as sf
+
+                info = sf.info(wav_path)
+                duration_seconds = info.frames / info.samplerate
+                previous_duration = duration_seconds
 
             if cap_seconds is not None and elapsed + duration_seconds > cap_seconds:
                 wav_path.unlink(missing_ok=True)
@@ -360,6 +461,7 @@ class SpeechSynthesisService:
             text=" ".join(chunk for chunk in chunks if chunk).strip(),
             language_code=language_code,
             cap_seconds=cap_seconds,
+            speaker_artifact_id=None,
             speaker_transcript_text=speaker_transcript_text,
         )
         session = self._open_session(self._resolve_backend(engine), request)
@@ -373,6 +475,7 @@ class SpeechSynthesisService:
             text=cleaned_text,
             language_code=request.language_code,
             cap_seconds=request.cap_seconds,
+            speaker_artifact_id=request.speaker_artifact_id,
             speaker_transcript_text=request.speaker_transcript_text,
         )
         session = self._open_session(self._resolve_backend(request.engine), normalized_request)

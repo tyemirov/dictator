@@ -8,6 +8,7 @@ from typing import Mapping
 
 DEFAULT_XTTS_MODEL_ID = "tts_models/multilingual/multi-dataset/xtts_v2"
 DEFAULT_QWEN3_MODEL_ID = "Qwen/Qwen3-TTS-12Hz-0.6B-Base"
+QWEN3_FAST_ATTENTION_IMPLEMENTATION = "flash_attention_2"
 
 XTTS_MODEL_ID_ENV = "DICTATOR_XTTS_MODEL_ID"
 QWEN3_MODEL_ID_ENV = "DICTATOR_QWEN3_TTS_MODEL_ID"
@@ -35,3 +36,7 @@ class SynthesisConfig:
             qwen3_attn_implementation=qwen3_attn_implementation,
             qwen3_dtype=qwen3_dtype,
         )
+
+    @property
+    def qwen3_fast_attention_enabled(self) -> bool:
+        return self.qwen3_attn_implementation == QWEN3_FAST_ATTENTION_IMPLEMENTATION

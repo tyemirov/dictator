@@ -12,6 +12,7 @@ from dictator.runtime.inflight import InflightLimiter
 from dictator.runtime.metrics import MetricsRegistry
 from dictator.runtime.service_runtime import SpeechExecutionRuntime
 from dictator.runtime.timeouts import run_with_timeout
+from dictator.synthesis.config import SynthesisConfig
 from dictator.synthesis.models import SynthesisEngine
 from dictator.synthesis import text as synthesis_text
 from dictator.storage.artifact_store import ArtifactReservation, LocalArtifactStore
@@ -230,7 +231,7 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 synthesis_service = runtime.get_synthesis_service()
                 self.assertEqual(synthesis_service.backends[SynthesisEngine.XTTS], "tts-backend")
                 self.assertEqual(synthesis_service.backends[SynthesisEngine.QWEN3], "qwen-backend")
-                self.assertEqual(runtime.get_synthesis_service().backends[SynthesisEngine.XTTS], "tts-backend")
+                self.assertIs(synthesis_service, runtime.get_synthesis_service())
 
                 alignment_service = runtime.get_alignment_service()
                 self.assertEqual(alignment_service.backend, "align-backend")
@@ -246,6 +247,13 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 self.assertEqual(subtitle_service.alignment_service.backend, "align-backend")
 
                 self.assertIsInstance(runtime.get_reference_extraction_service(), FakeReferenceExtractionService)
+
+    def test_speech_execution_runtime_logs_fast_attention_startup(self):
+        with patch("dictator.runtime.service_runtime.logging.info") as info:
+            SpeechExecutionRuntime(
+                synthesis_config=SynthesisConfig(qwen3_attn_implementation="flash_attention_2")
+            )
+        info.assert_called()
 
     def test_speech_execution_runtime_serializes_cold_model_and_pipeline_loads(self):
         runtime = SpeechExecutionRuntime()

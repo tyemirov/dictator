@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 
-from dictator.synthesis.config import SynthesisConfig
+from dictator.synthesis.config import (
+    QWEN3_ATTN_IMPLEMENTATION_ENV,
+    QWEN3_FAST_ATTENTION_IMPLEMENTATION,
+    SynthesisConfig,
+)
 from dictator.synthesis.models import SynthesisEngine
 
 
@@ -20,7 +25,21 @@ class SpeechExecutionRuntime:
         self._diarization_pipeline_load_lock = threading.Lock()
         self._synthesis_config = synthesis_config or SynthesisConfig.from_env()
         self._tts_backends: dict[SynthesisEngine, object] = {}
+        self._synthesis_service: object | None = None
         self._alignment_backend: object | None = None
+        if self._synthesis_config.qwen3_fast_attention_enabled:
+            logging.info(
+                "qwen3 fast attention configured via %s=%s",
+                QWEN3_ATTN_IMPLEMENTATION_ENV,
+                QWEN3_FAST_ATTENTION_IMPLEMENTATION,
+            )
+        else:
+            logging.warning(
+                "qwen3 fast attention is disabled at startup (configured=%s). Set %s=%s for better latency.",
+                self._synthesis_config.qwen3_attn_implementation or "default",
+                QWEN3_ATTN_IMPLEMENTATION_ENV,
+                QWEN3_FAST_ATTENTION_IMPLEMENTATION,
+            )
 
     def get_whisper_model(self, model_size: str) -> object:
         with self._lock:
@@ -74,18 +93,19 @@ class SpeechExecutionRuntime:
         from dictator.synthesis.service import Qwen3TTSBackend, SpeechSynthesisService, XTTSBackend
 
         with self._lock:
-            if SynthesisEngine.XTTS not in self._tts_backends:
-                self._tts_backends[SynthesisEngine.XTTS] = XTTSBackend(
-                    model_id=self._synthesis_config.xtts_model_id,
-                )
-            if SynthesisEngine.QWEN3 not in self._tts_backends:
-                self._tts_backends[SynthesisEngine.QWEN3] = Qwen3TTSBackend(
-                    model_id=self._synthesis_config.qwen3_model_id,
-                    attn_implementation=self._synthesis_config.qwen3_attn_implementation,
-                    dtype=self._synthesis_config.qwen3_dtype,
-                )
-            backends = dict(self._tts_backends)
-        return SpeechSynthesisService(backends=backends)
+            if self._synthesis_service is None:
+                if SynthesisEngine.XTTS not in self._tts_backends:
+                    self._tts_backends[SynthesisEngine.XTTS] = XTTSBackend(
+                        model_id=self._synthesis_config.xtts_model_id,
+                    )
+                if SynthesisEngine.QWEN3 not in self._tts_backends:
+                    self._tts_backends[SynthesisEngine.QWEN3] = Qwen3TTSBackend(
+                        model_id=self._synthesis_config.qwen3_model_id,
+                        attn_implementation=self._synthesis_config.qwen3_attn_implementation,
+                        dtype=self._synthesis_config.qwen3_dtype,
+                    )
+                self._synthesis_service = SpeechSynthesisService(backends=dict(self._tts_backends))
+            return self._synthesis_service
 
     def get_alignment_service(self):
         from dictator.alignment.service import AlignmentService

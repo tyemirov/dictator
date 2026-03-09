@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 
 class SynthesisEngine(str, Enum):
@@ -23,7 +24,17 @@ class SynthesisRequest:
     text: str
     language_code: str
     cap_seconds: float | None
+    speaker_artifact_id: str | None = None
     speaker_transcript_text: str | None = None
+
+
+@dataclass(frozen=True)
+class SynthesisedAudioChunk:
+    """In-memory audio chunk produced by a synthesis session."""
+
+    samples: Any
+    sample_rate: int
+    duration_seconds: float
 
 
 @dataclass(frozen=True)

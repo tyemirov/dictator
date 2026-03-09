@@ -449,6 +449,7 @@ class GrpcServicesUnitTests(unittest.TestCase):
             )
         self.assertEqual(response.chunk_count, 1)
         self.assertFalse(response.timeline_artifact_id)
+        self.assertEqual(self.runtime.synthesis_service.calls[0].speaker_artifact_id, self.audio_record.artifact_id)
         self.assertEqual(len(cleanup_calls), 1)
 
         timeline_result = types.SimpleNamespace(

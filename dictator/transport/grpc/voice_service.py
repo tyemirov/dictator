@@ -92,6 +92,7 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
                         text=text,
                         language_code=request.language_code or "en",
                         cap_seconds=cap_seconds,
+                        speaker_artifact_id=request.speaker_artifact_id,
                         speaker_transcript_text=speaker_transcript_text,
                     )
                 )
