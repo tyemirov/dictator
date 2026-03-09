@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""
-XTTS-v2 long-form voice cloning (GPU preferred)
-
-- 24 kHz mono output, peak-normalised to -1 dBFS
-- ffmpeg-python only
-- Smart byte-budget splitter: <= 800 UTF-8 bytes
-- --length trims on the last complete sentence that fits
-- --language selects the TTS language
-"""
+"""Long-form voice cloning CLI."""
 from __future__ import annotations
 
 import argparse
@@ -17,9 +9,8 @@ from pathlib import Path
 import tempfile
 from typing import Sequence
 
+from dictator.synthesis.models import SynthesisEngine
 from dictator.synthesis.text import BYTE_BUDGET, build_chunks, clean, fits_xtts, parse_length, split_into_sentences, trim_utf8
-
-MODEL_ID = "tts_models/multilingual/multi-dataset/xtts_v2"
 
 
 def synthesise(
@@ -27,10 +18,26 @@ def synthesise(
     chunks: Sequence[str],
     cap: float | None,
     language_code: str,
+    *,
+    engine: SynthesisEngine = SynthesisEngine.XTTS,
+    speaker_transcript_text: str | None = None,
 ):
     from dictator.synthesis.service import synthesise as _synthesise
 
-    return _synthesise(speaker_wav, chunks, cap, language_code)
+    return _synthesise(
+        speaker_wav,
+        chunks,
+        cap,
+        language_code,
+        engine=engine,
+        speaker_transcript_text=speaker_transcript_text,
+    )
+
+
+def transcribe_words(audio_path: Path, language_code: str):
+    from dictator.transcription.service import transcribe_words as _transcribe_words
+
+    return _transcribe_words(audio_path, language_code)
 
 
 def main() -> None:
@@ -47,6 +54,16 @@ def main() -> None:
         "--language", default="en", help="TTS language code (e.g. 'en', 'ru')"
     )
     parser.add_argument(
+        "--engine",
+        choices=[engine.value for engine in SynthesisEngine],
+        default=SynthesisEngine.XTTS.value,
+        help="speech synthesis engine",
+    )
+    parser.add_argument(
+        "--sample-text",
+        help="reference transcript for the sample audio (required for qwen3)",
+    )
+    parser.add_argument(
         "--speech",
         help="write JSON timeline alongside audio",
     )
@@ -58,6 +75,9 @@ def main() -> None:
         format="%(asctime)s | %(levelname)-8s | %(message)s",
         datefmt="%H:%M:%S",
     )
+    engine = SynthesisEngine(args.engine)
+    if engine is SynthesisEngine.QWEN3 and not (args.sample_text or "").strip():
+        parser.error("--sample-text is required when --engine=qwen3")
 
     out_path = Path(args.output)
     if out_path.exists() and not args.force:
@@ -88,8 +108,14 @@ def main() -> None:
 
         raw_text = Path(args.text).read_text(encoding="utf-8")
         clean_text = clean(raw_text)
-        text_chunks = build_chunks(clean_text)
-        logging.info("XTTS calls: %d  (<=%d UTF-8 bytes each)", len(text_chunks), BYTE_BUDGET)
+        if engine is SynthesisEngine.XTTS:
+            text_chunks = build_chunks(clean_text)
+        else:
+            text_chunks = [sentence for sentence in split_into_sentences(clean_text) if sentence.strip()]
+
+        logging.info("engine: %s  chunks: %d", engine.value, len(text_chunks))
+        if engine is SynthesisEngine.XTTS:
+            logging.info("xtts byte budget: <=%d UTF-8 bytes per chunk", BYTE_BUDGET)
 
         cap_seconds = parse_length(args.length)
         result = SpeechSynthesisService().synthesise(
@@ -97,6 +123,8 @@ def main() -> None:
             chunks=text_chunks,
             cap_seconds=cap_seconds,
             language_code=args.language,
+            engine=engine,
+            speaker_transcript_text=(args.sample_text or "").strip() or None,
         )
         if not result.wav_paths:
             return
@@ -104,8 +132,6 @@ def main() -> None:
         concat_normalise(result.wav_paths, out_path, cap_seconds)
 
         if args.speech:
-            from dictator.transcription.service import transcribe_words
-
             word_segments = transcribe_words(out_path, args.language)
             timeline = {
                 "textSegments": word_segments,

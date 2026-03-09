@@ -12,6 +12,12 @@ service VoiceService {
       returns (SynthesizeSpeechResponse);
 }
 
+enum SynthesisEngine {
+  SYNTHESIS_ENGINE_UNSPECIFIED = 0;
+  SYNTHESIS_ENGINE_XTTS = 1;
+  SYNTHESIS_ENGINE_QWEN3 = 2;
+}
+
 message ExtractReferenceSampleRequest {
   string source_artifact_id = 1;
   string model_size = 2;
@@ -40,6 +46,11 @@ message SynthesizeSpeechRequest {
   string language_code = 4;
   double max_duration_seconds = 5;
   bool include_timeline = 6;
+  SynthesisEngine synthesis_engine = 7;
+  oneof speaker_transcript_source {
+    string speaker_transcript_text = 8;
+    string speaker_transcript_artifact_id = 9;
+  }
 }
 
 message SynthesizeSpeechResponse {

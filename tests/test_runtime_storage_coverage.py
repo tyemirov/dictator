@@ -12,6 +12,7 @@ from dictator.runtime.inflight import InflightLimiter
 from dictator.runtime.metrics import MetricsRegistry
 from dictator.runtime.service_runtime import SpeechExecutionRuntime
 from dictator.runtime.timeouts import run_with_timeout
+from dictator.synthesis.models import SynthesisEngine
 from dictator.synthesis import text as synthesis_text
 from dictator.storage.artifact_store import ArtifactReservation, LocalArtifactStore
 from duration import parse_duration
@@ -145,8 +146,9 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 self.model_loader = model_loader
 
         class FakeSynthesisService:
-            def __init__(self, backend=None):
+            def __init__(self, backend=None, backends=None):
                 self.backend = backend
+                self.backends = backends
 
         class FakeAlignmentService:
             def __init__(self, backend=None):
@@ -204,6 +206,7 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 patch("dictator.transcription.service.TranscriptionService", FakeTranscriptionService),
                 patch("dictator.extraction.service.load_diarization_pipeline", return_value="pipeline"),
                 patch("dictator.synthesis.service.XTTSBackend", return_value="tts-backend"),
+                patch("dictator.synthesis.service.Qwen3TTSBackend", return_value="qwen-backend"),
                 patch("dictator.synthesis.service.SpeechSynthesisService", FakeSynthesisService),
                 patch("dictator.alignment.whisperx_backend.WhisperXAlignmentBackend", return_value="align-backend"),
                 patch("dictator.alignment.service.AlignmentService", FakeAlignmentService),
@@ -225,8 +228,9 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 self.assertEqual(runtime.get_diarization_pipeline(), "pipeline")
 
                 synthesis_service = runtime.get_synthesis_service()
-                self.assertEqual(synthesis_service.backend, "tts-backend")
-                self.assertEqual(runtime.get_synthesis_service().backend, "tts-backend")
+                self.assertEqual(synthesis_service.backends[SynthesisEngine.XTTS], "tts-backend")
+                self.assertEqual(synthesis_service.backends[SynthesisEngine.QWEN3], "qwen-backend")
+                self.assertEqual(runtime.get_synthesis_service().backends[SynthesisEngine.XTTS], "tts-backend")
 
                 alignment_service = runtime.get_alignment_service()
                 self.assertEqual(alignment_service.backend, "align-backend")

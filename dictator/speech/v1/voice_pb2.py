@@ -25,21 +25,23 @@ _sym_db = _symbol_database.Default()
 from dictator.speech.v1 import common_pb2 as dictator_dot_speech_dot_v1_dot_common__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1e\x64ictator/speech/v1/voice.proto\x12\x12\x64ictator.speech.v1\x1a\x1f\x64ictator/speech/v1/common.proto\"\xcb\x01\n\x1d\x45xtractReferenceSampleRequest\x12\x1a\n\x12source_artifact_id\x18\x01 \x01(\t\x12\x12\n\nmodel_size\x18\x02 \x01(\t\x12\x15\n\rlanguage_code\x18\x03 \x01(\t\x12\x18\n\x10\x64uration_seconds\x18\x04 \x01(\x01\x12\x17\n\x0fmax_speech_rate\x18\x05 \x01(\x01\x12\x17\n\x0fmin_centroid_hz\x18\x06 \x01(\x01\x12\x17\n\x0fmax_centroid_hz\x18\x07 \x01(\x01\"\xef\x01\n\x1e\x45xtractReferenceSampleResponse\x12\x38\n\x0fsample_artifact\x18\x01 \x01(\x0b\x32\x1f.dictator.speech.v1.ArtifactRef\x12\x1a\n\x12trim_start_seconds\x18\x02 \x01(\x01\x12\x18\n\x10trim_end_seconds\x18\x03 \x01(\x01\x12\x1c\n\x14window_start_seconds\x18\x04 \x01(\x01\x12\x1a\n\x12window_end_seconds\x18\x05 \x01(\x01\x12#\n\x1b\x64ominant_speaker_word_count\x18\x06 \x01(\x05\"\xc0\x01\n\x17SynthesizeSpeechRequest\x12\x1b\n\x13speaker_artifact_id\x18\x01 \x01(\t\x12\x0e\n\x04text\x18\x02 \x01(\tH\x00\x12\x1a\n\x10text_artifact_id\x18\x03 \x01(\tH\x00\x12\x15\n\rlanguage_code\x18\x04 \x01(\t\x12\x1c\n\x14max_duration_seconds\x18\x05 \x01(\x01\x12\x18\n\x10include_timeline\x18\x06 \x01(\x08\x42\r\n\x0btext_source\"\xdd\x01\n\x18SynthesizeSpeechResponse\x12\x37\n\x0e\x61udio_artifact\x18\x01 \x01(\x0b\x32\x1f.dictator.speech.v1.ArtifactRef\x12\x1e\n\x16\x61udio_duration_seconds\x18\x02 \x01(\x01\x12\x35\n\x08timeline\x18\x03 \x03(\x0b\x32#.dictator.speech.v1.TimelineSegment\x12\x1c\n\x14timeline_artifact_id\x18\x04 \x01(\t\x12\x13\n\x0b\x63hunk_count\x18\x05 \x01(\x05\x32\xfe\x01\n\x0cVoiceService\x12\x7f\n\x16\x45xtractReferenceSample\x12\x31.dictator.speech.v1.ExtractReferenceSampleRequest\x1a\x32.dictator.speech.v1.ExtractReferenceSampleResponse\x12m\n\x10SynthesizeSpeech\x12+.dictator.speech.v1.SynthesizeSpeechRequest\x1a,.dictator.speech.v1.SynthesizeSpeechResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1e\x64ictator/speech/v1/voice.proto\x12\x12\x64ictator.speech.v1\x1a\x1f\x64ictator/speech/v1/common.proto\"\xcb\x01\n\x1d\x45xtractReferenceSampleRequest\x12\x1a\n\x12source_artifact_id\x18\x01 \x01(\t\x12\x12\n\nmodel_size\x18\x02 \x01(\t\x12\x15\n\rlanguage_code\x18\x03 \x01(\t\x12\x18\n\x10\x64uration_seconds\x18\x04 \x01(\x01\x12\x17\n\x0fmax_speech_rate\x18\x05 \x01(\x01\x12\x17\n\x0fmin_centroid_hz\x18\x06 \x01(\x01\x12\x17\n\x0fmax_centroid_hz\x18\x07 \x01(\x01\"\xef\x01\n\x1e\x45xtractReferenceSampleResponse\x12\x38\n\x0fsample_artifact\x18\x01 \x01(\x0b\x32\x1f.dictator.speech.v1.ArtifactRef\x12\x1a\n\x12trim_start_seconds\x18\x02 \x01(\x01\x12\x18\n\x10trim_end_seconds\x18\x03 \x01(\x01\x12\x1c\n\x14window_start_seconds\x18\x04 \x01(\x01\x12\x1a\n\x12window_end_seconds\x18\x05 \x01(\x01\x12#\n\x1b\x64ominant_speaker_word_count\x18\x06 \x01(\x05\"\xe9\x02\n\x17SynthesizeSpeechRequest\x12\x1b\n\x13speaker_artifact_id\x18\x01 \x01(\t\x12\x0e\n\x04text\x18\x02 \x01(\tH\x00\x12\x1a\n\x10text_artifact_id\x18\x03 \x01(\tH\x00\x12\x15\n\rlanguage_code\x18\x04 \x01(\t\x12\x1c\n\x14max_duration_seconds\x18\x05 \x01(\x01\x12\x18\n\x10include_timeline\x18\x06 \x01(\x08\x12=\n\x10synthesis_engine\x18\x07 \x01(\x0e\x32#.dictator.speech.v1.SynthesisEngine\x12!\n\x17speaker_transcript_text\x18\x08 \x01(\tH\x01\x12(\n\x1espeaker_transcript_artifact_id\x18\t \x01(\tH\x01\x42\r\n\x0btext_sourceB\x1b\n\x19speaker_transcript_source\"\xdd\x01\n\x18SynthesizeSpeechResponse\x12\x37\n\x0e\x61udio_artifact\x18\x01 \x01(\x0b\x32\x1f.dictator.speech.v1.ArtifactRef\x12\x1e\n\x16\x61udio_duration_seconds\x18\x02 \x01(\x01\x12\x35\n\x08timeline\x18\x03 \x03(\x0b\x32#.dictator.speech.v1.TimelineSegment\x12\x1c\n\x14timeline_artifact_id\x18\x04 \x01(\t\x12\x13\n\x0b\x63hunk_count\x18\x05 \x01(\x05*j\n\x0fSynthesisEngine\x12 \n\x1cSYNTHESIS_ENGINE_UNSPECIFIED\x10\x00\x12\x19\n\x15SYNTHESIS_ENGINE_XTTS\x10\x01\x12\x1a\n\x16SYNTHESIS_ENGINE_QWEN3\x10\x02\x32\xfe\x01\n\x0cVoiceService\x12\x7f\n\x16\x45xtractReferenceSample\x12\x31.dictator.speech.v1.ExtractReferenceSampleRequest\x1a\x32.dictator.speech.v1.ExtractReferenceSampleResponse\x12m\n\x10SynthesizeSpeech\x12+.dictator.speech.v1.SynthesizeSpeechRequest\x1a,.dictator.speech.v1.SynthesizeSpeechResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'dictator.speech.v1.voice_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
+  _globals['_SYNTHESISENGINE']._serialized_start=1123
+  _globals['_SYNTHESISENGINE']._serialized_end=1229
   _globals['_EXTRACTREFERENCESAMPLEREQUEST']._serialized_start=88
   _globals['_EXTRACTREFERENCESAMPLEREQUEST']._serialized_end=291
   _globals['_EXTRACTREFERENCESAMPLERESPONSE']._serialized_start=294
   _globals['_EXTRACTREFERENCESAMPLERESPONSE']._serialized_end=533
   _globals['_SYNTHESIZESPEECHREQUEST']._serialized_start=536
-  _globals['_SYNTHESIZESPEECHREQUEST']._serialized_end=728
-  _globals['_SYNTHESIZESPEECHRESPONSE']._serialized_start=731
-  _globals['_SYNTHESIZESPEECHRESPONSE']._serialized_end=952
-  _globals['_VOICESERVICE']._serialized_start=955
-  _globals['_VOICESERVICE']._serialized_end=1209
+  _globals['_SYNTHESIZESPEECHREQUEST']._serialized_end=897
+  _globals['_SYNTHESIZESPEECHRESPONSE']._serialized_start=900
+  _globals['_SYNTHESIZESPEECHRESPONSE']._serialized_end=1121
+  _globals['_VOICESERVICE']._serialized_start=1232
+  _globals['_VOICESERVICE']._serialized_end=1486
 # @@protoc_insertion_point(module_scope)

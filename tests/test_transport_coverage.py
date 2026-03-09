@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 import grpc
 
 sys.modules.setdefault("ffmpeg", types.SimpleNamespace())
+sys.modules.setdefault("librosa", types.SimpleNamespace())
 
 from dictator.alignment.models import AlignTranscriptResult, AlignedWord
 from dictator.diarization.models import (
@@ -166,6 +167,17 @@ class FakeSynthesisService:
 
     def synthesise(self, speaker_wav, chunks, cap_seconds, language_code):
         self.calls.append((speaker_wav, chunks, cap_seconds, language_code))
+        tmpdir = Path(tempfile.mkdtemp())
+        wav_path = tmpdir / "0000.wav"
+        wav_path.write_bytes(b"wav")
+        return SynthesisResult(
+            temp_dir=tmpdir,
+            wav_paths=(wav_path,),
+            segments=(SpeechSegment("hello", 0.0, 0.4),),
+        )
+
+    def synthesise_text(self, request):
+        self.calls.append(request)
         tmpdir = Path(tempfile.mkdtemp())
         wav_path = tmpdir / "0000.wav"
         wav_path.write_bytes(b"wav")
@@ -412,7 +424,10 @@ class TransportCoverageTests(unittest.TestCase):
 
             with self.assertRaises(AbortCalled):
                 voice_servicer.SynthesizeSpeech(
-                    voice_pb2.SynthesizeSpeechRequest(speaker_artifact_id=speaker_record.artifact_id),
+                    voice_pb2.SynthesizeSpeechRequest(
+                        speaker_artifact_id=speaker_record.artifact_id,
+                        synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_XTTS,
+                    ),
                     FakeContext(),
                 )
 
@@ -425,6 +440,7 @@ class TransportCoverageTests(unittest.TestCase):
                         speaker_artifact_id=speaker_record.artifact_id,
                         text_artifact_id=transcript_record.artifact_id,
                         include_timeline=True,
+                        synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_XTTS,
                     ),
                     FakeContext(),
                 )

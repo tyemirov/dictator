@@ -1,4 +1,4 @@
-"""XTTS-backed speech synthesis service."""
+"""Engine-aware speech synthesis service."""
 
 from __future__ import annotations
 
@@ -6,20 +6,104 @@ import logging
 from pathlib import Path
 import shutil
 import tempfile
-from typing import Sequence
+from typing import Mapping, Protocol, Sequence
 
-from dictator.audio.constants import TARGET_SAMPLE_RATE
+from dictator.runtime import ValidationError
 
-from .models import SpeechSegment, SynthesisResult
+from .config import DEFAULT_QWEN3_MODEL_ID, DEFAULT_XTTS_MODEL_ID, SynthesisConfig
+from .models import SpeechSegment, SynthesisEngine, SynthesisRequest, SynthesisResult
+from .text import build_chunks, clean, split_into_sentences
 
-MODEL_ID = "tts_models/multilingual/multi-dataset/xtts_v2"
-TARGET_SR = TARGET_SAMPLE_RATE
+QWEN3_LANGUAGE_NAMES = {
+    "ar": "Arabic",
+    "de": "German",
+    "en": "English",
+    "es": "Spanish",
+    "fr": "French",
+    "it": "Italian",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "nl": "Dutch",
+    "ru": "Russian",
+    "zh": "Chinese",
+}
+
+
+class SynthesisSession(Protocol):
+    """Per-request synthesis session with any reusable prompt state."""
+
+    def build_chunks(self, text: str) -> Sequence[str]:
+        ...
+
+    def synthesise_to_file(self, text: str, output_path: Path) -> None:
+        ...
+
+
+class SynthesisBackend(Protocol):
+    """Engine implementation contract."""
+
+    engine: SynthesisEngine
+
+    def open_session(self, request: SynthesisRequest) -> SynthesisSession:
+        ...
+
+
+class LegacySynthesisSession:
+    """Adapter for older backend fakes that only expose synthesise_to_file()."""
+
+    def __init__(self, backend, *, speaker_wav: Path, language_code: str) -> None:
+        self._backend = backend
+        self._speaker_wav = speaker_wav
+        self._language_code = language_code
+
+    def build_chunks(self, text: str) -> Sequence[str]:
+        return build_chunks(text)
+
+    def synthesise_to_file(self, text: str, output_path: Path) -> None:
+        self._backend.synthesise_to_file(
+            text,
+            self._speaker_wav,
+            self._language_code,
+            output_path,
+        )
+
+
+def _qwen3_language_name(language_code: str) -> str:
+    normalized = (language_code or "").strip().lower().replace("_", "-")
+    base_language = normalized.split("-", 1)[0]
+    language_name = QWEN3_LANGUAGE_NAMES.get(base_language)
+    if language_name is None:
+        raise ValidationError(
+            "dictator.synthesis.qwen3.language_unsupported",
+            f"qwen3 synthesis does not support language_code={language_code!r}",
+        )
+    return language_name
+
+
+class XTTSSynthesisSession:
+    def __init__(self, tts, *, speaker_wav: Path, language_code: str) -> None:
+        self._tts = tts
+        self._speaker_wav = speaker_wav
+        self._language_code = language_code
+
+    def build_chunks(self, text: str) -> Sequence[str]:
+        return build_chunks(text)
+
+    def synthesise_to_file(self, text: str, output_path: Path) -> None:
+        self._tts.tts_to_file(
+            text=text,
+            speaker_wav=str(self._speaker_wav),
+            language=self._language_code,
+            file_path=str(output_path),
+        )
 
 
 class XTTSBackend:
-    """Lazy XTTS model wrapper so transports can reuse a warm model."""
+    """Lazy XTTS model wrapper."""
 
-    def __init__(self, model_id: str = MODEL_ID) -> None:
+    engine = SynthesisEngine.XTTS
+
+    def __init__(self, model_id: str = DEFAULT_XTTS_MODEL_ID) -> None:
         self.model_id = model_id
         self._tts = None
 
@@ -32,6 +116,13 @@ class XTTSBackend:
             self._tts = TTS(self.model_id).to(device)
         return self._tts
 
+    def open_session(self, request: SynthesisRequest) -> SynthesisSession:
+        return XTTSSynthesisSession(
+            self.load(),
+            speaker_wav=request.speaker_wav,
+            language_code=request.language_code,
+        )
+
     def synthesise_to_file(
         self,
         text: str,
@@ -39,26 +130,159 @@ class XTTSBackend:
         language_code: str,
         output_path: Path,
     ) -> None:
-        self.load().tts_to_file(
+        self.open_session(
+            SynthesisRequest(
+                engine=SynthesisEngine.XTTS,
+                speaker_wav=speaker_wav,
+                text=text,
+                language_code=language_code,
+                cap_seconds=None,
+            )
+        ).synthesise_to_file(text, output_path)
+
+
+class Qwen3SynthesisSession:
+    def __init__(self, model, *, voice_clone_prompt, language_name: str) -> None:
+        self._model = model
+        self._voice_clone_prompt = voice_clone_prompt
+        self._language_name = language_name
+
+    def build_chunks(self, text: str) -> Sequence[str]:
+        return [chunk for chunk in split_into_sentences(text) if chunk.strip()]
+
+    def synthesise_to_file(self, text: str, output_path: Path) -> None:
+        import soundfile as sf
+
+        wavs, sample_rate = self._model.generate_voice_clone(
             text=text,
-            speaker_wav=str(speaker_wav),
-            language=language_code,
-            file_path=str(output_path),
+            language=self._language_name,
+            voice_clone_prompt=self._voice_clone_prompt,
+            non_streaming_mode=True,
+        )
+        if not wavs:
+            raise ValueError("qwen3 synthesis returned no audio")
+        sf.write(output_path, wavs[0], sample_rate)
+
+
+class Qwen3TTSBackend:
+    """Lazy Qwen3-TTS base model wrapper for voice cloning."""
+
+    engine = SynthesisEngine.QWEN3
+
+    def __init__(
+        self,
+        *,
+        model_id: str = DEFAULT_QWEN3_MODEL_ID,
+        attn_implementation: str | None = None,
+        dtype: str = "auto",
+    ) -> None:
+        self.model_id = model_id
+        self.attn_implementation = attn_implementation
+        self.dtype = dtype
+        self._model = None
+
+    def _resolve_dtype(self, torch):
+        name = self.dtype.lower()
+        if name == "auto":
+            return torch.bfloat16 if torch.cuda.is_available() else torch.float32
+        mapping = {
+            "bfloat16": torch.bfloat16,
+            "float16": torch.float16,
+            "float32": torch.float32,
+        }
+        if name not in mapping:
+            raise ValueError(
+                f"unsupported qwen3 dtype {self.dtype!r}; expected auto, bfloat16, float16, or float32"
+            )
+        return mapping[name]
+
+    def load(self):
+        if self._model is None:
+            import torch
+            from qwen_tts import Qwen3TTSModel
+
+            load_kwargs = {
+                "device_map": "cuda:0" if torch.cuda.is_available() else "cpu",
+                "dtype": self._resolve_dtype(torch),
+            }
+            if self.attn_implementation:
+                load_kwargs["attn_implementation"] = self.attn_implementation
+            self._model = Qwen3TTSModel.from_pretrained(self.model_id, **load_kwargs)
+        return self._model
+
+    def open_session(self, request: SynthesisRequest) -> SynthesisSession:
+        speaker_transcript_text = (request.speaker_transcript_text or "").strip()
+        if not speaker_transcript_text:
+            raise ValidationError(
+                "dictator.synthesis.qwen3.reference_text_required",
+                "speaker_transcript_text or speaker_transcript_artifact_id is required for qwen3 synthesis",
+            )
+        model = self.load()
+        voice_clone_prompt = model.create_voice_clone_prompt(
+            ref_audio=str(request.speaker_wav),
+            ref_text=speaker_transcript_text,
+            x_vector_only_mode=False,
+        )
+        return Qwen3SynthesisSession(
+            model,
+            voice_clone_prompt=voice_clone_prompt,
+            language_name=_qwen3_language_name(request.language_code),
         )
 
 
 class SpeechSynthesisService:
-    """Service layer for request-safe chunked XTTS synthesis."""
+    """Service layer for request-safe, engine-aware synthesis."""
 
-    def __init__(self, backend: XTTSBackend | None = None) -> None:
-        self.backend = backend or XTTSBackend()
-
-    def synthesise(
+    def __init__(
         self,
-        speaker_wav: Path,
+        backend: SynthesisBackend | None = None,
+        backends: Mapping[SynthesisEngine, SynthesisBackend] | None = None,
+    ) -> None:
+        if backend is not None and backends is not None:
+            raise ValueError("set backend or backends, not both")
+        if backend is not None:
+            engine = getattr(backend, "engine", SynthesisEngine.XTTS)
+            backends = {engine: backend}
+        if backends is None:
+            synthesis_config = SynthesisConfig.from_env()
+            backends = {
+                SynthesisEngine.XTTS: XTTSBackend(model_id=synthesis_config.xtts_model_id),
+                SynthesisEngine.QWEN3: Qwen3TTSBackend(
+                    model_id=synthesis_config.qwen3_model_id,
+                    attn_implementation=synthesis_config.qwen3_attn_implementation,
+                    dtype=synthesis_config.qwen3_dtype,
+                ),
+            }
+        self.backends = dict(backends)
+
+    def _resolve_backend(self, engine: SynthesisEngine) -> SynthesisBackend:
+        backend = self.backends.get(engine)
+        if backend is None:
+            raise ValidationError(
+                "dictator.synthesis.engine_unsupported",
+                f"unsupported synthesis engine: {engine.value}",
+            )
+        return backend
+
+    def _open_session(self, backend: SynthesisBackend, request: SynthesisRequest) -> SynthesisSession:
+        open_session = getattr(backend, "open_session", None)
+        if callable(open_session):
+            return open_session(request)
+        synthesise_to_file = getattr(backend, "synthesise_to_file", None)
+        if callable(synthesise_to_file):
+            return LegacySynthesisSession(
+                backend,
+                speaker_wav=request.speaker_wav,
+                language_code=request.language_code,
+            )
+        raise ValueError(f"backend {backend!r} does not support synthesis sessions")
+
+    def _synthesise_chunks(
+        self,
+        *,
+        session: SynthesisSession,
         chunks: Sequence[str],
         cap_seconds: float | None,
-        language_code: str,
     ) -> SynthesisResult:
         if not chunks:
             raise ValueError("No text chunks provided")
@@ -74,12 +298,7 @@ class SpeechSynthesisService:
                 break
 
             wav_path = temp_dir / f"{index:04d}.wav"
-            self.backend.synthesise_to_file(
-                text=chunk,
-                speaker_wav=speaker_wav,
-                language_code=language_code,
-                output_path=wav_path,
-            )
+            session.synthesise_to_file(chunk, wav_path)
 
             import soundfile as sf
 
@@ -125,6 +344,41 @@ class SpeechSynthesisService:
             segments=tuple(segments),
         )
 
+    def synthesise(
+        self,
+        speaker_wav: Path,
+        chunks: Sequence[str],
+        cap_seconds: float | None,
+        language_code: str,
+        *,
+        engine: SynthesisEngine = SynthesisEngine.XTTS,
+        speaker_transcript_text: str | None = None,
+    ) -> SynthesisResult:
+        request = SynthesisRequest(
+            engine=engine,
+            speaker_wav=speaker_wav,
+            text=" ".join(chunk for chunk in chunks if chunk).strip(),
+            language_code=language_code,
+            cap_seconds=cap_seconds,
+            speaker_transcript_text=speaker_transcript_text,
+        )
+        session = self._open_session(self._resolve_backend(engine), request)
+        return self._synthesise_chunks(session=session, chunks=tuple(chunks), cap_seconds=cap_seconds)
+
+    def synthesise_text(self, request: SynthesisRequest) -> SynthesisResult:
+        cleaned_text = clean(request.text)
+        normalized_request = SynthesisRequest(
+            engine=request.engine,
+            speaker_wav=request.speaker_wav,
+            text=cleaned_text,
+            language_code=request.language_code,
+            cap_seconds=request.cap_seconds,
+            speaker_transcript_text=request.speaker_transcript_text,
+        )
+        session = self._open_session(self._resolve_backend(request.engine), normalized_request)
+        chunks = tuple(session.build_chunks(cleaned_text))
+        return self._synthesise_chunks(session=session, chunks=chunks, cap_seconds=request.cap_seconds)
+
 
 def cleanup_synthesis_result(result: SynthesisResult) -> None:
     """Remove a synthesis result's temporary directory."""
@@ -136,12 +390,17 @@ def synthesise(
     chunks: Sequence[str],
     cap: float | None,
     language_code: str,
+    *,
+    engine: SynthesisEngine = SynthesisEngine.XTTS,
+    speaker_transcript_text: str | None = None,
 ) -> tuple[list[Path], list[dict[str, float | str]]]:
     """Compatibility wrapper returning temporary chunk paths and legacy timeline dicts."""
     result = SpeechSynthesisService().synthesise(
-        speaker_wav=speaker_wav,
-        chunks=chunks,
-        cap_seconds=cap,
-        language_code=language_code,
+        speaker_wav,
+        chunks,
+        cap,
+        language_code,
+        engine=engine,
+        speaker_transcript_text=speaker_transcript_text,
     )
     return list(result.wav_paths), [segment.to_legacy_dict() for segment in result.segments]
