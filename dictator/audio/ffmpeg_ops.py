@@ -27,11 +27,19 @@ def audio_to_wav(
     src: Path,
     dst: Path,
     target_sample_rate: int = TARGET_SAMPLE_RATE,
+    max_duration_seconds: float | None = None,
 ) -> None:
     """Convert an audio input into mono PCM WAV."""
+    output_kwargs = {
+        "ar": target_sample_rate,
+        "ac": 1,
+        "acodec": "pcm_s16le",
+    }
+    if max_duration_seconds is not None:
+        output_kwargs["t"] = max_duration_seconds
     (
         ffmpeg.input(str(src))
-        .output(str(dst), ar=target_sample_rate, ac=1, acodec="pcm_s16le")
+        .output(str(dst), **output_kwargs)
         .overwrite_output()
         .run(quiet=True)
     )

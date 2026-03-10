@@ -12,7 +12,6 @@ import os
 from pathlib import Path
 import tempfile
 from typing import Callable
-from urllib.parse import urlparse
 
 import grpc
 
@@ -28,7 +27,6 @@ DEFAULT_LANGUAGE_CODE = "en"
 DEFAULT_OUTPUT_FILENAME = "reading-in-your-voice.wav"
 DICTATOR_URL_ENV = "VOICE_CLONE_DICTATOR_URL"
 DICTATOR_AUTH_TOKEN_ENV = "DICTATOR_GRPC_AUTH_TOKEN"
-DEFAULT_SYNTHESIS_ENGINE_ID = "xtts"
 
 VOICE_SAMPLE_TEXT = (
     "I grew up near a busy street, so even now I sleep best with a little noise in the distance. "
@@ -85,12 +83,6 @@ class ExampleRequestError(ValueError):
 
 
 @dataclass(frozen=True)
-class GrpcTarget:
-    authority: str
-    secure: bool
-
-
-@dataclass(frozen=True)
 class VoiceCloneResult:
     filename: str
     media_type: str
@@ -103,14 +95,6 @@ class RenderPreset:
     label: str
     filename: str
     text: str
-
-
-@dataclass(frozen=True)
-class SynthesisEngineOption:
-    engine_id: str
-    label: str
-    proto_value: int
-    speaker_transcript_text: str | None = None
 
 
 DEFAULT_RENDER_PRESET_ID = "genesis"
@@ -135,47 +119,20 @@ RENDER_PRESETS = {
     ),
 }
 
-SYNTHESIS_ENGINES = {
-    "xtts": SynthesisEngineOption(
-        engine_id="xtts",
-        label="XTTS",
-        proto_value=voice_pb2.SYNTHESIS_ENGINE_XTTS,
-    ),
-    "qwen3": SynthesisEngineOption(
-        engine_id="qwen3",
-        label="Qwen3-TTS",
-        proto_value=voice_pb2.SYNTHESIS_ENGINE_QWEN3,
-        speaker_transcript_text=VOICE_SAMPLE_TEXT,
-    ),
-    "cosyvoice3": SynthesisEngineOption(
-        engine_id="cosyvoice3",
-        label="CosyVoice 3",
-        proto_value=voice_pb2.SYNTHESIS_ENGINE_COSYVOICE3,
-        speaker_transcript_text=VOICE_SAMPLE_TEXT,
-    ),
-}
-
-
 def load_index_html() -> str:
     return INDEX_HTML_PATH.read_text(encoding="utf-8")
 
 
-def parse_grpc_target(raw_target: str) -> GrpcTarget:
+def parse_grpc_target(raw_target: str) -> str:
     target = (raw_target or "").strip()
     if not target:
         raise ExampleRequestError("Dictator URL is required.")
-    if "://" not in target:
-        if any(character in target for character in "/?#"):
-            raise ExampleRequestError("Dictator URL must not include a path, query, or fragment.")
-        return GrpcTarget(authority=target, secure=False)
-    parsed = urlparse(target)
-    if parsed.scheme not in {"grpc", "grpcs", "http", "https"}:
-        raise ExampleRequestError("Dictator URL must use grpc://, grpcs://, http://, https://, or host:port.")
-    if parsed.path not in {"", "/"} or parsed.params or parsed.query or parsed.fragment:
-        raise ExampleRequestError("Dictator URL must point to the Dictator host and port only.")
-    if not parsed.netloc:
-        raise ExampleRequestError("Dictator URL must include a host.")
-    return GrpcTarget(authority=parsed.netloc, secure=parsed.scheme in {"grpcs", "https"})
+    if "://" in target or any(character in target for character in "/?#"):
+        raise ExampleRequestError("Dictator URL must be host:port only.")
+    host, separator, port = target.rpartition(":")
+    if not separator or not host or not port.isdigit():
+        raise ExampleRequestError("Dictator URL must be host:port only.")
+    return target
 
 
 def resolve_bridge_target(configured_target: str | None) -> str:
@@ -200,14 +157,6 @@ def resolve_render_preset(raw_preset_id: str | None) -> RenderPreset:
     return preset
 
 
-def resolve_synthesis_engine(raw_engine_id: str | None) -> SynthesisEngineOption:
-    engine_id = (raw_engine_id or DEFAULT_SYNTHESIS_ENGINE_ID).strip().lower() or DEFAULT_SYNTHESIS_ENGINE_ID
-    engine = SYNTHESIS_ENGINES.get(engine_id)
-    if engine is None:
-        raise ExampleRequestError(f"Unknown synthesis engine: {engine_id}")
-    return engine
-
-
 def build_auth_metadata(auth_token: str) -> list[tuple[str, str]]:
     token = (auth_token or "").strip()
     if not token:
@@ -215,10 +164,8 @@ def build_auth_metadata(auth_token: str) -> list[tuple[str, str]]:
     return [("authorization", f"Bearer {token}")]
 
 
-def create_channel(target: GrpcTarget) -> grpc.Channel:
-    if target.secure:
-        return grpc.secure_channel(target.authority, grpc.ssl_channel_credentials())
-    return grpc.insecure_channel(target.authority)
+def create_channel(target: str) -> grpc.Channel:
+    return grpc.insecure_channel(target)
 
 
 def iter_upload_chunks(filename: str, media_type: str, payload: bytes):
@@ -278,14 +225,12 @@ def synthesize_selected_reading(
     audio_filename: str,
     audio_media_type: str,
     render_preset_id: str = DEFAULT_RENDER_PRESET_ID,
-    synthesis_engine_id: str = DEFAULT_SYNTHESIS_ENGINE_ID,
     language_code: str = DEFAULT_LANGUAGE_CODE,
-    channel_factory: Callable[[GrpcTarget], grpc.Channel] = create_channel,
+    channel_factory: Callable[[str], grpc.Channel] = create_channel,
 ) -> VoiceCloneResult:
     if not audio_payload:
         raise ExampleRequestError("A recorded voice sample is required.")
     render_preset = resolve_render_preset(render_preset_id)
-    synthesis_engine = resolve_synthesis_engine(synthesis_engine_id)
     target = parse_grpc_target(dictator_url)
     metadata = build_auth_metadata(auth_token)
     speaker_payload, speaker_filename, speaker_media_type = normalise_recorded_audio(
@@ -308,10 +253,9 @@ def synthesize_selected_reading(
             "speaker_artifact_id": source_artifact_id,
             "text": render_preset.text,
             "language_code": language_code,
-            "synthesis_engine": synthesis_engine.proto_value,
+            "synthesis_engine": voice_pb2.SYNTHESIS_ENGINE_QWEN3,
+            "speaker_transcript_text": VOICE_SAMPLE_TEXT,
         }
-        if synthesis_engine.speaker_transcript_text is not None:
-            synthesis_request_kwargs["speaker_transcript_text"] = synthesis_engine.speaker_transcript_text
         synthesis_response = voice_stub.SynthesizeSpeech(
             voice_pb2.SynthesizeSpeechRequest(**synthesis_request_kwargs),
             metadata=metadata,
@@ -328,9 +272,6 @@ def synthesize_selected_reading(
         )
     finally:
         channel.close()
-
-
-synthesize_genesis_reading = synthesize_selected_reading
 
 
 def decode_request_payload(raw_body: bytes) -> dict[str, str]:
@@ -359,6 +300,8 @@ def normalise_recorded_audio(
     audio_payload: bytes,
     audio_filename: str,
     audio_media_type: str,
+    *,
+    max_duration_seconds: float | None = None,
 ) -> tuple[bytes, str, str]:
     if not audio_payload:
         raise ExampleRequestError("A recorded voice sample is required.")
@@ -367,10 +310,13 @@ def normalise_recorded_audio(
     source_stem = Path(source_name).stem or "voice-sample"
     with tempfile.TemporaryDirectory(prefix="voice_clone_demo_") as tmpdir:
         source_path = Path(tmpdir) / source_name
-        output_path = Path(tmpdir) / f"{source_stem}.wav"
+        output_filename = f"{source_stem}.wav"
+        if output_filename == source_name:
+            output_filename = f"{source_stem}-normalised.wav"
+        output_path = Path(tmpdir) / output_filename
         source_path.write_bytes(audio_payload)
         try:
-            audio_to_wav(source_path, output_path)
+            audio_to_wav(source_path, output_path, max_duration_seconds=max_duration_seconds)
         except Exception as exc:  # pragma: no cover - integration safety
             raise ExampleRequestError(
                 f"Recorded audio could not be converted to WAV from {audio_media_type or 'the provided media type'}."
@@ -446,7 +392,6 @@ def build_handler(
                     audio_filename=str(payload.get("audioFilename", "voice-sample.webm")),
                     audio_media_type=str(payload.get("audioMediaType", "audio/webm")),
                     render_preset_id=str(payload.get("renderPreset", DEFAULT_RENDER_PRESET_ID)),
-                    synthesis_engine_id=str(payload.get("synthesisEngine", DEFAULT_SYNTHESIS_ENGINE_ID)),
                     language_code=str(payload.get("languageCode", DEFAULT_LANGUAGE_CODE))
                     or DEFAULT_LANGUAGE_CODE,
                 )

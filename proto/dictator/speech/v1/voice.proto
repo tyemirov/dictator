@@ -14,9 +14,7 @@ service VoiceService {
 
 enum SynthesisEngine {
   SYNTHESIS_ENGINE_UNSPECIFIED = 0;
-  SYNTHESIS_ENGINE_XTTS = 1;
-  SYNTHESIS_ENGINE_QWEN3 = 2;
-  SYNTHESIS_ENGINE_COSYVOICE3 = 3;
+  SYNTHESIS_ENGINE_QWEN3 = 1;
 }
 
 message ExtractReferenceSampleRequest {
@@ -48,10 +46,7 @@ message SynthesizeSpeechRequest {
   double max_duration_seconds = 5;
   bool include_timeline = 6;
   SynthesisEngine synthesis_engine = 7;
-  oneof speaker_transcript_source {
-    string speaker_transcript_text = 8;
-    string speaker_transcript_artifact_id = 9;
-  }
+  string speaker_transcript_text = 8;
 }
 
 message SynthesizeSpeechResponse {

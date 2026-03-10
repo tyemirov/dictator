@@ -14,23 +14,15 @@ from .base import BaseServicer
 
 class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
     def _resolve_synthesis_engine(self, engine_value: int) -> SynthesisEngine:
-        if engine_value == voice_pb2.SYNTHESIS_ENGINE_XTTS:
-            return SynthesisEngine.XTTS
         if engine_value == voice_pb2.SYNTHESIS_ENGINE_QWEN3:
             return SynthesisEngine.QWEN3
-        if engine_value == voice_pb2.SYNTHESIS_ENGINE_COSYVOICE3:
-            return SynthesisEngine.COSYVOICE3
         raise ValidationError(
             "dictator.grpc.voice.synthesis_engine_required",
-            "synthesis_engine must be set to XTTS, QWEN3, or COSYVOICE3",
+            "synthesis_engine must be set to QWEN3",
         )
 
     def _resolve_speaker_transcript_text(self, request) -> str | None:
-        if request.speaker_transcript_artifact_id:
-            return self.service_context.artifact_store.read_text(request.speaker_transcript_artifact_id)
-        if request.speaker_transcript_text:
-            return request.speaker_transcript_text
-        return None
+        return request.speaker_transcript_text or None
 
     def ExtractReferenceSample(self, request, context):
         with self._request_scope(context):
@@ -112,7 +104,7 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
                 )
                 if request.include_timeline:
                     timeline_payload = {
-                        "textSegments": [segment.to_legacy_dict() for segment in result.segments],
+                        "textSegments": [segment.to_timeline_dict() for segment in result.segments],
                         "imageCues": [],
                         "voices": [
                             {
@@ -130,7 +122,7 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
                         fallback_suffix=".json",
                     )
                     response.timeline.extend(
-                        self._timeline_segment(segment.to_legacy_dict())
+                        self._timeline_segment(segment.to_timeline_dict())
                         for segment in result.segments
                     )
                     response.timeline_artifact_id = timeline_record.artifact_id

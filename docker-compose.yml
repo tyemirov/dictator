@@ -1,5 +1,7 @@
 x-dictator-volumes: &dictator-volumes
   - ./config.yml:/app/config.yml:ro
+  - ./serve.py:/app/serve.py:ro
+  - ./dictator:/app/dictator:ro
   - dictator-artifacts:/app/.dictator-artifacts
   - huggingface-cache:/home/app/.cache/huggingface
   - whisper-cache:/home/app/.cache/whisper
@@ -86,6 +88,7 @@ services:
       - "8080"
     volumes:
       - ./demo/voice_clone_web:/app/demo/voice_clone_web:ro
+      - ./dictator:/app/dictator:ro
     command: ["python", "-m", "demo.voice_clone_web.app", "--host", "0.0.0.0", "--port", "8080"]
 
   voice-clone-web:

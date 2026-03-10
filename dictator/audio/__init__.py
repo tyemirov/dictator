@@ -1,9 +1,8 @@
 """Audio constants and helpers."""
 
-from .constants import PCM_SAMPLE_RATE, TARGET_SAMPLE_RATE, XTTS_BYTE_BUDGET
+from .constants import PCM_SAMPLE_RATE, TARGET_SAMPLE_RATE
 
 __all__ = [
     "PCM_SAMPLE_RATE",
     "TARGET_SAMPLE_RATE",
-    "XTTS_BYTE_BUDGET",
 ]

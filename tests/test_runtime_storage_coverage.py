@@ -42,22 +42,6 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
 
         self.assertEqual(synthesis_text.clean("A\x00  B\nC"), "A BC")
         self.assertEqual(synthesis_text.split_into_sentences("Hi. There?"), ["Hi.", "There?"])
-        self.assertTrue(synthesis_text.fits_xtts("hello", 16))
-        self.assertEqual(synthesis_text.trim_utf8("plain", 16), "plain")
-        self.assertEqual(synthesis_text.trim_utf8("😀😀", 4), "😀")
-        self.assertEqual(
-            synthesis_text.build_chunks("One. Two. Three.", budget=20),
-            ["One. Two. Three."],
-        )
-        self.assertEqual(
-            synthesis_text.build_chunks("One. reallyreallylongsentence.", budget=12),
-            ["One.", "reallyreally"],
-        )
-        with patch("dictator.synthesis.text.fits_xtts", side_effect=[True, False, True, True, True]):
-            self.assertEqual(
-                synthesis_text.build_chunks("One. Two.", budget=20),
-                ["One. Two."],
-            )
         self.assertEqual(synthesis_text.parse_length(None), None)
         self.assertEqual(synthesis_text.parse_length("2m"), 120.0)
         with self.assertRaisesRegex(ValueError, "--length"):
@@ -147,8 +131,7 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 self.model_loader = model_loader
 
         class FakeSynthesisService:
-            def __init__(self, backend=None, backends=None):
-                self.backend = backend
+            def __init__(self, backends=None):
                 self.backends = backends
 
         class FakeAlignmentService:
@@ -206,9 +189,7 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 patch("dictator.transcription.service.load_whisper_model", side_effect=fake_load_whisper_model),
                 patch("dictator.transcription.service.TranscriptionService", FakeTranscriptionService),
                 patch("dictator.extraction.service.load_diarization_pipeline", return_value="pipeline"),
-                patch("dictator.synthesis.service.XTTSBackend", return_value="tts-backend"),
                 patch("dictator.synthesis.service.Qwen3TTSBackend", return_value="qwen-backend"),
-                patch("dictator.synthesis.service.CosyVoice3Backend", return_value="cosy-backend"),
                 patch("dictator.synthesis.service.SpeechSynthesisService", FakeSynthesisService),
                 patch("dictator.alignment.whisperx_backend.WhisperXAlignmentBackend", return_value="align-backend"),
                 patch("dictator.alignment.service.AlignmentService", FakeAlignmentService),
@@ -230,17 +211,12 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 self.assertEqual(runtime.get_diarization_pipeline(), "pipeline")
 
                 synthesis_service = runtime.get_synthesis_service()
-                self.assertEqual(synthesis_service.backends[SynthesisEngine.XTTS], "tts-backend")
                 self.assertEqual(synthesis_service.backends[SynthesisEngine.QWEN3], "qwen-backend")
-                self.assertEqual(synthesis_service.backends[SynthesisEngine.COSYVOICE3], "cosy-backend")
                 self.assertIs(synthesis_service, runtime.get_synthesis_service())
                 sys.modules["dictator.synthesis.service"].Qwen3TTSBackend.assert_called_once_with(
                     model_id=runtime._synthesis_config.qwen3_model_id,
                     dtype=runtime._synthesis_config.qwen3_dtype,
                     text_token_budget=runtime._synthesis_config.qwen3_text_token_budget,
-                )
-                sys.modules["dictator.synthesis.service"].CosyVoice3Backend.assert_called_once_with(
-                    model_dir=runtime._synthesis_config.cosyvoice3_model_dir,
                 )
 
                 alignment_service = runtime.get_alignment_service()
@@ -263,12 +239,10 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
             {
                 "DICTATOR_QWEN3_TTS_TEXT_TOKEN_BUDGET": "256",
                 "DICTATOR_QWEN3_TTS_DTYPE": "float16",
-                "DICTATOR_COSYVOICE3_MODEL_DIR": "/models/cosyvoice3",
             }
         )
         self.assertEqual(config.qwen3_text_token_budget, 256)
         self.assertEqual(config.qwen3_dtype, "float16")
-        self.assertEqual(config.cosyvoice3_model_dir, "/models/cosyvoice3")
 
         with self.assertRaisesRegex(ValueError, "positive integer"):
             SynthesisConfig.from_env({"DICTATOR_QWEN3_TTS_TEXT_TOKEN_BUDGET": "0"})

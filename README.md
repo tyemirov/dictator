@@ -7,13 +7,13 @@ Two small, self-contained Python utilities:
 | Script           | Purpose                                                                                                                                                                                                                                       |
 |------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **`extract.py`** | Carve out the **clearest window** (default 20 s) from a noisy archival recording using Whisper ASR confidence + SNR heuristics, with a speaker-diarization model provided by `pyannote.audio`, then output a peak-normalised 24 kHz mono WAV. |
-| **`main.py`**    | Feed that reference sample (or any WAV/MP3) to **[XTTS-v2]**, **Qwen3-TTS**, or **CosyVoice 3** and synthesise arbitrarily long speech from plain text – again to a peak-normalised 24 kHz mono WAV.                                      |
+| **`main.py`**    | Feed that reference sample (or any WAV/MP3) plus its transcript to **Qwen3-TTS** and synthesise arbitrarily long speech from plain text – again to a peak-normalised 24 kHz mono WAV.                                                     |
 
 ---
 
 ## Prerequisites
 
-You **must** run this project under **Python 3.11.8**, as some dependencies (pyannote.audio, Coqui-TTS) don’t ship
+You **must** run this project under **Python 3.11.8**, as some dependencies (pyannote.audio, Qwen3-TTS) don’t ship
 wheels for newer interpreters. We recommend installing via **pyenv**:
 
 ```bash
@@ -72,8 +72,6 @@ The repo now includes a containerized gRPC service runtime with the required sys
 * `espeak-ng`
 * build tooling for Python wheels
 * Python packages from `requirements.txt`
-* The official CosyVoice 3 runtime repo plus its pinned `Matcha-TTS` submodule in the GPU image
-
 ### Build
 
 ```bash
@@ -194,8 +192,10 @@ The compose setup mounts persistent caches for Hugging Face, Whisper, and Torch 
 * The container installs CPU `torch` / `torchaudio` wheels explicitly so it does not pull CUDA runtimes into a CPU deployment.
 * `HF_TOKEN` is required in the container environment and should be exported in your shell before starting Dictator.
 * Both `Dockerfile` and `Dockerfile.gpu` use multi-stage builds so compilers and other build-only packages stay out of the final runtime image.
-* `Dockerfile.gpu` installs the CUDA 12.8 Torch wheel set, the pinned CosyVoice 3 runtime dependencies, and the official `CosyVoice` repo/submodule pair, and is intended to run with the `gpu-local` profile in `docker-compose.yml`.
-* `Dockerfile.gpu` now also prefetches the XTTS-v2, Qwen3-TTS, and CosyVoice 3 model assets into `/opt/models` during the image build, so those engines do not need to download weights on first container startup.
+* `Dockerfile.gpu` installs the CUDA 12.8 Torch wheel set and is intended to run with the `gpu-local` profile in `docker-compose.yml`.
+* `Dockerfile.gpu` now prefetches the default Qwen voice-cloning model, `Qwen/Qwen3-TTS-12Hz-1.7B-Base`, into `/opt/models` during the image build, so the Qwen3 engine does not need to download weights on first container startup.
+* That `1.7B` default is the quality-first choice for voice cloning, not the smallest one. Expect a larger GPU image and a slower bake/prefetch step than with the lighter `0.6B` model.
+* `Dockerfile.gpu` also installs the official `flash-attn` wheel for Torch 2.8 / CUDA 12 and the `sox` binary so the baked Qwen3 runtime has its intended acceleration and toolchain available at startup.
 * The GPU container still uses Python 3.11.8. The host provides the actual NVIDIA device through Docker; without that runtime integration, the image will build but CUDA execution will not be available.
 
 ## Browser Voice Clone Demo
@@ -218,6 +218,7 @@ The page asks the user to read:
 > If you know me well, you can hear the difference between my polite voice, my tired voice, and the one I use when I am truly delighted.
 
 The browser page no longer chooses the Dictator gRPC target. The backend bridge owns that connection and, in Docker, always talks to the internal alias `dictator-grpc:50051`.
+The demo now uses Qwen3-TTS only, so the full recorded sample plus its fixed transcript go directly into the voice-cloning request.
 
 For a Dockerized test page using `ghttp` as the frontend and the existing Python HTTP bridge behind `/api`, provide a local TLS certificate and key and start:
 
@@ -338,17 +339,15 @@ usage: main.py --sample WAV/MP3 --text TXT --output WAV [options]
 optional arguments
   --length 10s|3m|1.5h   cap final audio; stops on last full sentence
   --language CODE       TTS language code (default: en)
-  --engine {xtts,qwen3,cosyvoice3} choose the synthesis engine (default: xtts)
-  --sample-text TEXT    reference transcript for the sample audio; required for qwen3 and cosyvoice3
+  --sample-text TEXT    reference transcript for the sample audio
   --speech JSON        write JSON timeline with text/metadata
   --force                overwrite existing output
 ```
 
 * Input text is **cleaned** (Unicode NFKC, whitespace collapsed).
-* `xtts` uses the existing byte-budget chunking tuned for XTTS-v2.
-* `qwen3` uses the full speaker sample plus its transcript and packs sentences by tokenizer budget.
-* `cosyvoice3` uses the full speaker sample plus its transcript and synthesises sentence-by-sentence through the official zero-shot API.
-* `Dockerfile.gpu` now carries the CosyVoice 3 code dependencies directly. `DICTATOR_COSYVOICE3_MODEL_DIR` may point either to a local model directory or to a remote model ID such as `FunAudioLLM/Fun-CosyVoice3-0.5B-2512`.
+* Voice cloning now uses **Qwen3-TTS** only.
+* The default model is `Qwen/Qwen3-TTS-12Hz-1.7B-Base`.
+* Qwen3-TTS uses the full speaker sample plus its transcript and packs sentences by tokenizer budget.
 * Synthesis stops when the next sentence would exceed `--length`.
 * All chunks concatenated with FFmpeg, `dynaudnorm` + –1 dBFS, 24 kHz mono.
 * When `--speech` is provided, a JSON file is written containing:
@@ -375,7 +374,7 @@ optional arguments
     * numpy
     * openai-whisper
     * pyannote.audio
-    * coqui-tts
+    * qwen-tts
 
 ---
 
@@ -383,6 +382,6 @@ optional arguments
 
 This project is proprietary software. All rights reserved by Marco Polo Research Lab.
 
-XTTS-v2 and Whisper licenses apply to their respective models.
+Qwen3-TTS and Whisper licenses apply to their respective models.
 
 See the [LICENSE](./LICENSE) file for details.

@@ -113,9 +113,7 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
         self.assertIn("Read classic passages in your own cloned voice", html)
         self.assertIn("I grew up near a busy street", html)
         self.assertIn("the one I use when I am truly delighted", html)
-        self.assertIn('data-engine="xtts"', html)
-        self.assertIn('data-engine="qwen3"', html)
-        self.assertIn('data-engine="cosyvoice3"', html)
+        self.assertIn("Qwen3-TTS is the only voice cloning engine in this demo", html)
         self.assertIn('option value="alice"', html)
         self.assertIn('option value="woods"', html)
         self.assertNotIn("Dictator gRPC URL", html)
@@ -124,20 +122,21 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
         self.assertIn("Record your voice sample", html)
         self.assertIn('class="sample-script"', html)
 
-    def test_parse_grpc_target_accepts_plain_and_secure_urls(self):
-        self.assertEqual(app.parse_grpc_target("localhost:50051"), app.GrpcTarget("localhost:50051", False))
-        self.assertEqual(app.parse_grpc_target("grpcs://voice.example:443"), app.GrpcTarget("voice.example:443", True))
+    def test_parse_grpc_target_accepts_host_port_only(self):
+        self.assertEqual(app.parse_grpc_target("localhost:50051"), "localhost:50051")
 
-    def test_parse_grpc_target_rejects_bad_paths_and_schemes(self):
-        with self.assertRaisesRegex(app.ExampleRequestError, "must point"):
+    def test_parse_grpc_target_rejects_schemes_and_paths(self):
+        with self.assertRaisesRegex(app.ExampleRequestError, "host:port only"):
             app.parse_grpc_target("grpc://localhost:50051/path")
-        with self.assertRaisesRegex(app.ExampleRequestError, "must use"):
-            app.parse_grpc_target("ftp://localhost:50051")
-        with self.assertRaisesRegex(app.ExampleRequestError, "must not include"):
+        with self.assertRaisesRegex(app.ExampleRequestError, "host:port only"):
+            app.parse_grpc_target("https://voice.example:443")
+        with self.assertRaisesRegex(app.ExampleRequestError, "host:port only"):
+            app.parse_grpc_target("localhost")
+        with self.assertRaisesRegex(app.ExampleRequestError, "host:port only"):
             app.parse_grpc_target("localhost:50051/extra")
         with self.assertRaisesRegex(app.ExampleRequestError, "required"):
             app.parse_grpc_target("")
-        with self.assertRaisesRegex(app.ExampleRequestError, "include a host"):
+        with self.assertRaisesRegex(app.ExampleRequestError, "host:port only"):
             app.parse_grpc_target("grpc:///")
 
     def test_resolve_bridge_target_uses_configured_bridge_target(self):
@@ -156,44 +155,16 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
         with self.assertRaisesRegex(app.ExampleRequestError, "Unknown reading selection"):
             app.resolve_render_preset("unknown")
 
-    def test_resolve_synthesis_engine_uses_defaults_and_rejects_unknown_values(self):
-        self.assertEqual(app.resolve_synthesis_engine("qwen3").engine_id, "qwen3")
-        self.assertEqual(app.resolve_synthesis_engine("cosyvoice3").engine_id, "cosyvoice3")
-        self.assertEqual(app.resolve_synthesis_engine("").engine_id, app.DEFAULT_SYNTHESIS_ENGINE_ID)
-        self.assertEqual(
-            app.resolve_synthesis_engine("qwen3").speaker_transcript_text,
-            app.VOICE_SAMPLE_TEXT,
-        )
-        self.assertEqual(
-            app.resolve_synthesis_engine("cosyvoice3").speaker_transcript_text,
-            app.VOICE_SAMPLE_TEXT,
-        )
-        self.assertIsNone(app.resolve_synthesis_engine("xtts").speaker_transcript_text)
-        with self.assertRaisesRegex(app.ExampleRequestError, "Unknown synthesis engine"):
-            app.resolve_synthesis_engine("other")
-
     def test_build_auth_metadata_requires_token(self):
         self.assertEqual(app.build_auth_metadata("secret"), [("authorization", "Bearer secret")])
         with self.assertRaisesRegex(app.ExampleRequestError, "Auth token"):
             app.build_auth_metadata("")
 
-    def test_create_channel_selects_secure_and_insecure(self):
+    def test_create_channel_uses_insecure_grpc(self):
         insecure = object()
-        secure = object()
         with mock.patch("demo.voice_clone_web.app.grpc.insecure_channel", return_value=insecure) as insecure_channel:
-            with mock.patch(
-                "demo.voice_clone_web.app.grpc.secure_channel",
-                return_value=secure,
-            ) as secure_channel:
-                with mock.patch(
-                    "demo.voice_clone_web.app.grpc.ssl_channel_credentials",
-                    return_value="creds",
-                ) as ssl_credentials:
-                    self.assertIs(app.create_channel(app.GrpcTarget("localhost:50051", False)), insecure)
-                    self.assertIs(app.create_channel(app.GrpcTarget("voice.example:443", True)), secure)
+            self.assertIs(app.create_channel("localhost:50051"), insecure)
         insecure_channel.assert_called_once_with("localhost:50051")
-        ssl_credentials.assert_called_once_with()
-        secure_channel.assert_called_once_with("voice.example:443", "creds")
 
     def test_iter_upload_chunks_emits_metadata_then_payload(self):
         chunks = list(app.iter_upload_chunks("voice.webm", "audio/webm", b"abcdefgh"))
@@ -243,7 +214,7 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
                     return_value=(b"wav-bytes", "voice-sample.wav", "audio/wav"),
                 ) as normalise:
                     result = app.synthesize_selected_reading(
-                        dictator_url="https://voice.example:443",
+                        dictator_url="voice.example:443",
                         auth_token="secret",
                         audio_payload=b"sample-bytes",
                         audio_filename="voice.webm",
@@ -254,7 +225,11 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
 
         artifact_stub_ctor.assert_called_once_with(fake_channel)
         voice_stub_ctor.assert_called_once_with(fake_channel)
-        normalise.assert_called_once_with(b"sample-bytes", "voice.webm", "audio/webm")
+        normalise.assert_called_once_with(
+            b"sample-bytes",
+            "voice.webm",
+            "audio/webm",
+        )
         upload_chunks, upload_metadata = fake_artifacts.upload_calls[0]
         self.assertEqual(upload_chunks[0].metadata.filename, "voice-sample.wav")
         self.assertEqual(upload_chunks[0].metadata.media_type, "audio/wav")
@@ -262,15 +237,15 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
         self.assertEqual(fake_voice.extract_calls, [])
         synth_request, synth_metadata = fake_voice.synthesize_calls[0]
         self.assertEqual(synth_request.speaker_artifact_id, "source-artifact")
-        self.assertEqual(synth_request.synthesis_engine, voice_pb2.SYNTHESIS_ENGINE_XTTS)
-        self.assertEqual(synth_request.speaker_transcript_text, "")
+        self.assertEqual(synth_request.synthesis_engine, voice_pb2.SYNTHESIS_ENGINE_QWEN3)
+        self.assertEqual(synth_request.speaker_transcript_text, app.VOICE_SAMPLE_TEXT)
         self.assertIn("Alice was beginning to get very tired", synth_request.text)
         self.assertEqual(synth_metadata, [("authorization", "Bearer secret")])
         self.assertEqual(result.content, b"hello world")
         self.assertEqual(result.filename, "alice-in-your-voice.wav")
         self.assertTrue(fake_channel.closed)
 
-    def test_synthesize_selected_reading_uses_sample_transcript_for_qwen3(self):
+    def test_synthesize_selected_reading_uses_qwen3_sample_transcript(self):
         fake_channel = FakeChannel()
         fake_artifacts = FakeArtifactStub(fake_channel)
         fake_voice = FakeVoiceStub(fake_channel)
@@ -286,48 +261,18 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
                 with mock.patch(
                     "demo.voice_clone_web.app.normalise_recorded_audio",
                     return_value=(b"wav-bytes", "voice-sample.wav", "audio/wav"),
-                ):
+                ) as normalise:
                     app.synthesize_selected_reading(
                         dictator_url="dictator-grpc:50051",
                         auth_token="secret",
                         audio_payload=b"sample-bytes",
                         audio_filename="voice.webm",
                         audio_media_type="audio/webm",
-                        synthesis_engine_id="qwen3",
                     )
 
+        normalise.assert_called_once_with(b"sample-bytes", "voice.webm", "audio/webm")
         synth_request, _ = fake_voice.synthesize_calls[0]
         self.assertEqual(synth_request.synthesis_engine, voice_pb2.SYNTHESIS_ENGINE_QWEN3)
-        self.assertEqual(synth_request.speaker_transcript_text, app.VOICE_SAMPLE_TEXT)
-
-    def test_synthesize_selected_reading_uses_sample_transcript_for_cosyvoice3(self):
-        fake_channel = FakeChannel()
-        fake_artifacts = FakeArtifactStub(fake_channel)
-        fake_voice = FakeVoiceStub(fake_channel)
-
-        with mock.patch(
-            "demo.voice_clone_web.app.artifacts_pb2_grpc.ArtifactServiceStub",
-            return_value=fake_artifacts,
-        ):
-            with mock.patch(
-                "demo.voice_clone_web.app.voice_pb2_grpc.VoiceServiceStub",
-                return_value=fake_voice,
-            ):
-                with mock.patch(
-                    "demo.voice_clone_web.app.normalise_recorded_audio",
-                    return_value=(b"wav-bytes", "voice-sample.wav", "audio/wav"),
-                ):
-                    app.synthesize_selected_reading(
-                        dictator_url="dictator-grpc:50051",
-                        auth_token="secret",
-                        audio_payload=b"sample-bytes",
-                        audio_filename="voice.webm",
-                        audio_media_type="audio/webm",
-                        synthesis_engine_id="cosyvoice3",
-                    )
-
-        synth_request, _ = fake_voice.synthesize_calls[0]
-        self.assertEqual(synth_request.synthesis_engine, voice_pb2.SYNTHESIS_ENGINE_COSYVOICE3)
         self.assertEqual(synth_request.speaker_transcript_text, app.VOICE_SAMPLE_TEXT)
 
     def test_synthesize_selected_reading_requires_audio(self):
@@ -357,8 +302,9 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
             app.decode_audio_base64("***")
 
     def test_normalise_recorded_audio_transcodes_to_wav(self):
-        def fake_audio_to_wav(src, dst):
+        def fake_audio_to_wav(src, dst, max_duration_seconds=None):
             self.assertEqual(src.read_bytes(), b"compressed-audio")
+            self.assertIsNone(max_duration_seconds)
             dst.write_bytes(b"RIFFdemo")
 
         with mock.patch("demo.voice_clone_web.app.audio_to_wav", side_effect=fake_audio_to_wav):
@@ -370,6 +316,41 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
 
         self.assertEqual(payload, b"RIFFdemo")
         self.assertEqual(filename, "voice-sample.wav")
+        self.assertEqual(media_type, "audio/wav")
+
+    def test_normalise_recorded_audio_can_cap_duration(self):
+        def fake_audio_to_wav(src, dst, max_duration_seconds=None):
+            self.assertEqual(src.read_bytes(), b"compressed-audio")
+            self.assertEqual(max_duration_seconds, 12.5)
+            dst.write_bytes(b"RIFFdemo")
+
+        with mock.patch("demo.voice_clone_web.app.audio_to_wav", side_effect=fake_audio_to_wav):
+            payload, filename, media_type = app.normalise_recorded_audio(
+                b"compressed-audio",
+                "voice-sample.webm",
+                "audio/webm",
+                max_duration_seconds=12.5,
+            )
+
+        self.assertEqual(payload, b"RIFFdemo")
+        self.assertEqual(filename, "voice-sample.wav")
+        self.assertEqual(media_type, "audio/wav")
+
+    def test_normalise_recorded_audio_avoids_wav_source_collision(self):
+        def fake_audio_to_wav(src, dst, max_duration_seconds=None):
+            self.assertEqual(src.name, "voice-sample.wav")
+            self.assertEqual(dst.name, "voice-sample-normalised.wav")
+            dst.write_bytes(b"RIFFdemo")
+
+        with mock.patch("demo.voice_clone_web.app.audio_to_wav", side_effect=fake_audio_to_wav):
+            payload, filename, media_type = app.normalise_recorded_audio(
+                b"compressed-audio",
+                "voice-sample.wav",
+                "audio/wav",
+            )
+
+        self.assertEqual(payload, b"RIFFdemo")
+        self.assertEqual(filename, "voice-sample-normalised.wav")
         self.assertEqual(media_type, "audio/wav")
 
     def test_normalise_recorded_audio_reports_transcode_failure(self):
@@ -413,7 +394,6 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
 
     def test_handler_returns_binary_audio(self):
         payload = {
-            "synthesisEngine": "qwen3",
             "renderPreset": "alice",
             "audioBase64": base64.b64encode(b"sample").decode("ascii"),
             "audioFilename": "voice.webm",
@@ -425,7 +405,6 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
             self.assertEqual(kwargs["auth_token"], "bridge-secret")
             self.assertEqual(kwargs["audio_payload"], b"sample")
             self.assertEqual(kwargs["render_preset_id"], "alice")
-            self.assertEqual(kwargs["synthesis_engine_id"], "qwen3")
             return app.VoiceCloneResult("demo.wav", "audio/wav", b"rendered")
 
         with running_server(

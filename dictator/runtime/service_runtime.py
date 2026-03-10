@@ -72,23 +72,15 @@ class SpeechExecutionRuntime:
                 return self._diarization_pipeline
 
     def get_synthesis_service(self):
-        from dictator.synthesis.service import CosyVoice3Backend, Qwen3TTSBackend, SpeechSynthesisService, XTTSBackend
+        from dictator.synthesis.service import Qwen3TTSBackend, SpeechSynthesisService
 
         with self._lock:
             if self._synthesis_service is None:
-                if SynthesisEngine.XTTS not in self._tts_backends:
-                    self._tts_backends[SynthesisEngine.XTTS] = XTTSBackend(
-                        model_id=self._synthesis_config.xtts_model_id,
-                    )
                 if SynthesisEngine.QWEN3 not in self._tts_backends:
                     self._tts_backends[SynthesisEngine.QWEN3] = Qwen3TTSBackend(
                         model_id=self._synthesis_config.qwen3_model_id,
                         dtype=self._synthesis_config.qwen3_dtype,
                         text_token_budget=self._synthesis_config.qwen3_text_token_budget,
-                    )
-                if SynthesisEngine.COSYVOICE3 not in self._tts_backends:
-                    self._tts_backends[SynthesisEngine.COSYVOICE3] = CosyVoice3Backend(
-                        model_dir=self._synthesis_config.cosyvoice3_model_dir,
                     )
                 self._synthesis_service = SpeechSynthesisService(backends=dict(self._tts_backends))
             return self._synthesis_service

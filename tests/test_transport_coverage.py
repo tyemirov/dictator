@@ -426,7 +426,7 @@ class TransportCoverageTests(unittest.TestCase):
                 voice_servicer.SynthesizeSpeech(
                     voice_pb2.SynthesizeSpeechRequest(
                         speaker_artifact_id=speaker_record.artifact_id,
-                        synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_XTTS,
+                        synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_UNSPECIFIED,
                     ),
                     FakeContext(),
                 )
@@ -440,7 +440,7 @@ class TransportCoverageTests(unittest.TestCase):
                         speaker_artifact_id=speaker_record.artifact_id,
                         text_artifact_id=transcript_record.artifact_id,
                         include_timeline=True,
-                        synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_XTTS,
+                        synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_QWEN3,
                     ),
                     FakeContext(),
                 )

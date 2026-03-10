@@ -11,9 +11,7 @@ from typing import Any, Sequence
 class SynthesisEngine(str, Enum):
     """Supported speech synthesis engines."""
 
-    XTTS = "xtts"
     QWEN3 = "qwen3"
-    COSYVOICE3 = "cosyvoice3"
 
 
 @dataclass(frozen=True)
@@ -68,7 +66,7 @@ class SpeechSegment:
     start_seconds: float
     end_seconds: float
 
-    def to_legacy_dict(self) -> dict[str, float | str]:
+    def to_timeline_dict(self) -> dict[str, float | str]:
         return {
             "content": self.text,
             "start": self.start_seconds,

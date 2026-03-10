@@ -1,14 +1,10 @@
-"""Text normalization and chunking for XTTS."""
+"""Text normalization helpers for speech synthesis."""
 
 from __future__ import annotations
 
 import re
 import unicodedata
 from typing import List, Optional
-
-from dictator.audio.constants import XTTS_BYTE_BUDGET
-
-BYTE_BUDGET = XTTS_BYTE_BUDGET
 CTRL_REMOVE = {c: None for c in range(32)} | {127: None}
 
 
@@ -21,45 +17,6 @@ def clean(text: str) -> str:
 def split_into_sentences(text: str) -> List[str]:
     """Return sentences including their terminal punctuation."""
     return re.split(r"(?<=[.!?])\s+", text)
-
-
-def fits_xtts(chunk: str, budget: int = BYTE_BUDGET) -> bool:
-    """Return True when a chunk fits XTTS's UTF-8 byte budget."""
-    return len(chunk.encode("utf-8")) <= budget
-
-
-def trim_utf8(text: str, budget: int) -> str:
-    """Trim text to at most the given UTF-8 byte budget."""
-    encoded = text.encode("utf-8")
-    if len(encoded) <= budget:
-        return text
-    return encoded[:budget].decode("utf-8", errors="ignore")
-
-
-def build_chunks(text: str, budget: int = BYTE_BUDGET) -> List[str]:
-    """Greedy byte-budget splitter tuned for XTTS-v2."""
-    sentences = split_into_sentences(text)
-    chunks: List[str] = []
-    buffer = ""
-
-    for sentence in sentences:
-        candidate = f"{buffer} {sentence}".strip() if buffer else sentence
-        if fits_xtts(candidate, budget):
-            buffer = candidate
-        else:
-            if buffer:
-                chunks.append(buffer)
-            buffer = sentence if fits_xtts(sentence, budget) else trim_utf8(sentence, budget)
-    if buffer:
-        chunks.append(buffer)
-
-    merged: List[str] = []
-    for chunk in chunks:
-        if merged and len(chunk.encode("utf-8")) < 80 and fits_xtts(f"{merged[-1]} {chunk}", budget):
-            merged[-1] = f"{merged[-1]} {chunk}"
-        else:
-            merged.append(chunk)
-    return merged
 
 
 def parse_length(spec: Optional[str]) -> Optional[float]:

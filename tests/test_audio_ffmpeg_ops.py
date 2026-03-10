@@ -59,6 +59,19 @@ class FfmpegOpsTests(unittest.TestCase):
 
         stream.output.assert_called_once_with("sample.wav", ar=24000, ac=1, acodec="pcm_s16le")
 
+    def test_audio_to_wav_can_cap_duration(self):
+        stream = MagicMock()
+        stream.output.return_value.overwrite_output.return_value.run.return_value = None
+        with patch.object(ffmpeg_ops.ffmpeg, "input", return_value=stream, create=True):
+            ffmpeg_ops.audio_to_wav(
+                Path("sample.webm"),
+                Path("sample.wav"),
+                target_sample_rate=24000,
+                max_duration_seconds=29.5,
+            )
+
+        stream.output.assert_called_once_with("sample.wav", ar=24000, ac=1, acodec="pcm_s16le", t=29.5)
+
     def test_mp3_to_wav_delegates_to_audio_to_wav(self):
         with patch.object(ffmpeg_ops, "audio_to_wav") as audio_to_wav:
             ffmpeg_ops.mp3_to_wav(Path("sample.mp3"), Path("sample.wav"), target_sample_rate=24000)

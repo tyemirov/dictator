@@ -104,178 +104,6 @@ class ServiceLogicCoverageTests(unittest.TestCase):
 
     def test_synthesis_service_and_backend_branches(self):
         backend_module = importlib.import_module("dictator.synthesis.service")
-
-        class FakeTTS:
-            def __init__(self, *args, **kwargs):
-                self.args = args
-                self.kwargs = kwargs
-                self.device = None
-                self.calls = []
-
-            def to(self, device):
-                self.device = device
-                return self
-
-            def tts_to_file(self, **kwargs):
-                self.calls.append(kwargs)
-                Path(kwargs["file_path"]).write_bytes(b"wav")
-
-        remote_tts_factory = MagicMock(return_value=FakeTTS("model"))
-        with (
-            patch.dict(
-                sys.modules,
-                {
-                    "torch": types.SimpleNamespace(cuda=types.SimpleNamespace(is_available=lambda: False)),
-                    "TTS": types.ModuleType("TTS"),
-                    "TTS.api": types.SimpleNamespace(TTS=remote_tts_factory),
-                },
-            ),
-        ):
-            backend = backend_module.XTTSBackend(model_id="model")
-            fake_tts = backend.load()
-            self.assertIs(backend.load(), fake_tts)
-            with tempfile.TemporaryDirectory() as tmpdir:
-                output_path = Path(tmpdir) / "out.wav"
-                backend.synthesise_to_file("hello", Path("speaker.wav"), "en", output_path)
-            remote_tts_factory.assert_called_once_with("model")
-            self.assertEqual(fake_tts.device, "cpu")
-            self.assertEqual(fake_tts.calls[0]["language"], "en")
-            self.assertEqual(
-                [chunk.text for chunk in backend_module.XTTSSynthesisSession(fake_tts, speaker_wav=Path("speaker.wav"), language_code="en").build_chunks("One.")],
-                ["One."],
-            )
-
-        local_tts_factory = MagicMock(return_value=FakeTTS())
-        local_synth_factory = MagicMock(return_value=object())
-        with tempfile.TemporaryDirectory() as tmpdir:
-            local_model_dir = Path(tmpdir) / "xtts"
-            local_model_dir.mkdir()
-            (local_model_dir / "model.pth").write_bytes(b"checkpoint")
-            (local_model_dir / "config.json").write_text("{}", encoding="utf-8")
-            (local_model_dir / "speakers_xtts.pth").write_bytes(b"speakers")
-            with (
-                patch.dict(
-                    sys.modules,
-                    {
-                        "torch": types.SimpleNamespace(cuda=types.SimpleNamespace(is_available=lambda: False)),
-                        "TTS": types.ModuleType("TTS"),
-                        "TTS.api": types.SimpleNamespace(TTS=local_tts_factory),
-                        "TTS.utils": types.ModuleType("TTS.utils"),
-                        "TTS.utils.synthesizer": types.SimpleNamespace(Synthesizer=local_synth_factory),
-                    },
-                ),
-            ):
-                backend = backend_module.XTTSBackend(model_id=str(local_model_dir))
-                fake_local_tts = backend.load()
-            local_tts_factory.assert_called_once_with(
-                progress_bar=False,
-                gpu=False,
-            )
-            local_synth_factory.assert_called_once_with(
-                model_dir=str(local_model_dir),
-                use_cuda=False,
-            )
-            self.assertIs(fake_local_tts.synthesizer, local_synth_factory.return_value)
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            missing_config_model_dir = Path(tmpdir) / "xtts-missing-config"
-            missing_config_model_dir.mkdir()
-            (missing_config_model_dir / "model.pth").write_bytes(b"checkpoint")
-            with patch.dict(
-                sys.modules,
-                {
-                    "TTS": types.ModuleType("TTS"),
-                    "TTS.api": types.SimpleNamespace(TTS=local_tts_factory),
-                    "TTS.utils": types.ModuleType("TTS.utils"),
-                    "TTS.utils.synthesizer": types.SimpleNamespace(Synthesizer=local_synth_factory),
-                },
-            ):
-                backend = backend_module.XTTSBackend(model_id=str(missing_config_model_dir))
-                with self.assertRaisesRegex(DependencyError, "XTTS config.json was not found"):
-                    backend._load_local_model(missing_config_model_dir, device="cpu")
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            missing_checkpoint_dir = Path(tmpdir) / "xtts-missing-checkpoint"
-            missing_checkpoint_dir.mkdir()
-            (missing_checkpoint_dir / "config.json").write_text("{}", encoding="utf-8")
-            with patch.dict(
-                sys.modules,
-                {
-                    "TTS": types.ModuleType("TTS"),
-                    "TTS.api": types.SimpleNamespace(TTS=local_tts_factory),
-                    "TTS.utils": types.ModuleType("TTS.utils"),
-                    "TTS.utils.synthesizer": types.SimpleNamespace(Synthesizer=local_synth_factory),
-                },
-            ):
-                backend = backend_module.XTTSBackend(model_id=str(missing_checkpoint_dir))
-                with self.assertRaisesRegex(DependencyError, "XTTS checkpoint file was not found"):
-                    backend._load_local_model(missing_checkpoint_dir, device="cpu")
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            direct_checkpoint = Path(tmpdir) / "direct_model.pth"
-            direct_checkpoint.write_bytes(b"checkpoint")
-            self.assertEqual(
-                backend_module.XTTSBackend._resolve_local_checkpoint_path(direct_checkpoint),
-                direct_checkpoint,
-            )
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            fallback_checkpoint_dir = Path(tmpdir) / "xtts-fallback-checkpoint"
-            fallback_checkpoint_dir.mkdir()
-            fallback_checkpoint = fallback_checkpoint_dir / "custom_checkpoint.pth"
-            fallback_checkpoint.write_bytes(b"checkpoint")
-            self.assertEqual(
-                backend_module.XTTSBackend._resolve_local_checkpoint_path(fallback_checkpoint_dir),
-                fallback_checkpoint,
-            )
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            checkpoint_dir = Path(tmpdir) / "xtts-checkpoint-missing-config"
-            checkpoint_dir.mkdir()
-            checkpoint_path = checkpoint_dir / "model.pth"
-            checkpoint_path.write_bytes(b"checkpoint")
-            with patch.dict(
-                sys.modules,
-                {
-                    "TTS": types.ModuleType("TTS"),
-                    "TTS.api": types.SimpleNamespace(TTS=local_tts_factory),
-                    "TTS.utils": types.ModuleType("TTS.utils"),
-                    "TTS.utils.synthesizer": types.SimpleNamespace(Synthesizer=local_synth_factory),
-                },
-            ):
-                backend = backend_module.XTTSBackend(model_id=str(checkpoint_path))
-                with self.assertRaisesRegex(DependencyError, "XTTS config.json was not found"):
-                    backend._load_local_model(checkpoint_path, device="cpu")
-
-        checkpoint_tts_factory = MagicMock(return_value=FakeTTS())
-        checkpoint_synth_factory = MagicMock(return_value=object())
-        with tempfile.TemporaryDirectory() as tmpdir:
-            checkpoint_dir = Path(tmpdir) / "xtts-checkpoint"
-            checkpoint_dir.mkdir()
-            checkpoint_path = checkpoint_dir / "model.pth"
-            checkpoint_path.write_bytes(b"checkpoint")
-            (checkpoint_dir / "config.json").write_text("{}", encoding="utf-8")
-            with patch.dict(
-                sys.modules,
-                {
-                    "TTS": types.ModuleType("TTS"),
-                    "TTS.api": types.SimpleNamespace(TTS=checkpoint_tts_factory),
-                    "TTS.utils": types.ModuleType("TTS.utils"),
-                    "TTS.utils.synthesizer": types.SimpleNamespace(Synthesizer=checkpoint_synth_factory),
-                },
-            ):
-                backend = backend_module.XTTSBackend(model_id=str(checkpoint_path))
-                fake_checkpoint_tts = backend._load_local_model(checkpoint_path, device="cpu")
-            checkpoint_tts_factory.assert_called_once_with(
-                progress_bar=False,
-                gpu=False,
-            )
-            checkpoint_synth_factory.assert_called_once_with(
-                model_dir=str(checkpoint_dir),
-                use_cuda=False,
-            )
-            self.assertIs(fake_checkpoint_tts.synthesizer, checkpoint_synth_factory.return_value)
-
         fake_qwen_model = types.SimpleNamespace(
             prompt_calls=[],
             generate_calls=[],
@@ -292,7 +120,9 @@ class ServiceLogicCoverageTests(unittest.TestCase):
         fake_qwen_model.create_voice_clone_prompt = create_voice_clone_prompt
         fake_qwen_model.generate_voice_clone = generate_voice_clone
         fake_qwen_model._build_assistant_text = lambda text: f"assistant::{text}"
-        fake_qwen_model._tokenize_texts = lambda texts: [np.zeros((1, len(text.split())), dtype=np.int64) for text in texts]
+        fake_qwen_model._tokenize_texts = lambda texts: [
+            np.zeros((1, max(1, len(text.split()))), dtype=np.int64) for text in texts
+        ]
         fake_qwen_factory = MagicMock(return_value=fake_qwen_model)
         fake_torch = types.SimpleNamespace(
             cuda=types.SimpleNamespace(is_available=lambda: False),
@@ -338,13 +168,8 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                 [chunk.text for chunk in qwen_session.refine_chunk(backend_module.SynthesisChunk.from_text("Hello."))],
                 ["Hello."],
             )
-            self.assertEqual(
-                [chunk.text for chunk in backend_module.XTTSSynthesisSession(fake_tts, speaker_wav=Path("speaker.wav"), language_code="en").refine_chunk(backend_module.SynthesisChunk.from_text("One."))],
-                ["One."],
-            )
             generated_chunk = qwen_session.synthesise_chunk("Hello.")
             self.assertGreater(generated_chunk.duration_seconds, 0.0)
-            qwen_session.synthesise_to_file("Hello.", Path("out.wav"))
             self.assertIsNotNone(cached_qwen_session)
             uncached_request = SynthesisRequest(
                 engine=SynthesisEngine.QWEN3,
@@ -367,22 +192,16 @@ class ServiceLogicCoverageTests(unittest.TestCase):
             float16="float16",
             float32="float32",
         )
-        with self.assertLogs(level="WARNING") as warning_logs:
-            with patch.dict(
-                sys.modules,
-                {
-                    "torch": fake_gpu_torch,
-                    "qwen_tts": types.SimpleNamespace(Qwen3TTSModel=types.SimpleNamespace(from_pretrained=fake_qwen_factory)),
-                },
-                clear=False,
-            ):
+        with patch.dict(
+            sys.modules,
+            {
+                "torch": fake_gpu_torch,
+                "qwen_tts": types.SimpleNamespace(Qwen3TTSModel=types.SimpleNamespace(from_pretrained=fake_qwen_factory)),
+            },
+            clear=False,
+        ):
+            with self.assertRaisesRegex(DependencyError, "flash-attn is required"):
                 backend_module.Qwen3TTSBackend(model_id="qwen-model", dtype="auto").load()
-        fake_qwen_factory.assert_called_once_with(
-            "qwen-model",
-            device_map="cuda:0",
-            dtype="bfloat16",
-        )
-        self.assertIn("flash-attn is unavailable", "\n".join(warning_logs.output))
         fake_qwen_factory.reset_mock()
         with patch.dict(
             sys.modules,
@@ -406,83 +225,6 @@ class ServiceLogicCoverageTests(unittest.TestCase):
         self.assertEqual(fake_qwen_model.generate_calls[0]["language"], "Russian")
         self.assertEqual(fake_qwen_model.generate_calls[0]["voice_clone_prompt"], "voice-clone-prompt")
 
-        fake_cosyvoice_model = types.SimpleNamespace(
-            sample_rate=24000,
-            zero_shot_calls=[],
-        )
-
-        class FakeTensor:
-            def __init__(self, values):
-                self._values = np.array(values, dtype=np.float32)
-
-            def detach(self):
-                return self
-
-            def cpu(self):
-                return self
-
-            def numpy(self):
-                return self._values
-
-        def inference_zero_shot(text, prompt_text, prompt_wav, stream=False):
-            fake_cosyvoice_model.zero_shot_calls.append(
-                {
-                    "text": text,
-                    "prompt_text": prompt_text,
-                    "prompt_wav": prompt_wav,
-                    "stream": stream,
-                }
-            )
-            return iter(
-                [
-                    {"tts_speech": None},
-                    {"tts_speech": np.array([[0.1, -0.1]], dtype=np.float32)},
-                    {"tts_speech": FakeTensor([[0.2, -0.2]])},
-                ]
-            )
-
-        fake_cosyvoice_model.inference_zero_shot = inference_zero_shot
-        fake_cosyvoice_factory = MagicMock(return_value=fake_cosyvoice_model)
-        model_ref = "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
-        with patch.dict(
-            sys.modules,
-            {
-                "soundfile": types.SimpleNamespace(write=MagicMock()),
-                "cosyvoice": types.ModuleType("cosyvoice"),
-                "cosyvoice.cli": types.ModuleType("cosyvoice.cli"),
-                "cosyvoice.cli.cosyvoice": types.SimpleNamespace(AutoModel=fake_cosyvoice_factory),
-            },
-        ):
-            cosy_backend = backend_module.CosyVoice3Backend(model_dir=model_ref)
-            self.assertIs(cosy_backend.load(), fake_cosyvoice_model)
-            cosy_request = SynthesisRequest(
-                engine=SynthesisEngine.COSYVOICE3,
-                speaker_wav=Path("speaker.wav"),
-                text="Hello. Again?",
-                language_code="en",
-                cap_seconds=None,
-                speaker_transcript_text="sample transcript",
-            )
-            cosy_session = cosy_backend.open_session(cosy_request)
-            self.assertEqual(
-                [chunk.text for chunk in cosy_session.build_chunks("Hello. Again?")],
-                ["Hello.", "Again?"],
-            )
-            self.assertEqual(
-                [chunk.text for chunk in cosy_session.refine_chunk(backend_module.SynthesisChunk.from_text("Hello."))],
-                ["Hello."],
-            )
-            cosy_chunk = cosy_session.synthesise_chunk("Hello.")
-            self.assertGreater(cosy_chunk.duration_seconds, 0.0)
-            cosy_session.synthesise_to_file("Hello.", Path("out.wav"))
-        fake_cosyvoice_factory.assert_called_once_with(model_dir=model_ref)
-        self.assertEqual(
-            fake_cosyvoice_model.zero_shot_calls[0]["prompt_text"],
-            "You are a helpful assistant.<|endofprompt|>sample transcript",
-        )
-        self.assertEqual(fake_cosyvoice_model.zero_shot_calls[0]["prompt_wav"], "speaker.wav")
-        self.assertFalse(fake_cosyvoice_model.zero_shot_calls[0]["stream"])
-
         with self.assertRaisesRegex(ValidationError, "speaker_transcript_text"):
             backend_module.Qwen3TTSBackend(model_id="qwen-model").open_session(
                 SynthesisRequest(
@@ -490,16 +232,6 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                     speaker_wav=Path("speaker.wav"),
                     text="Hello",
                     language_code="ru",
-                    cap_seconds=None,
-                )
-            )
-        with self.assertRaisesRegex(ValidationError, "speaker_transcript_text"):
-            backend_module.CosyVoice3Backend(model_dir="missing-model").open_session(
-                SynthesisRequest(
-                    engine=SynthesisEngine.COSYVOICE3,
-                    speaker_wav=Path("speaker.wav"),
-                    text="Hello",
-                    language_code="en",
                     cap_seconds=None,
                 )
             )
@@ -513,47 +245,31 @@ class ServiceLogicCoverageTests(unittest.TestCase):
             backend_module.Qwen3TTSBackend(model_id="qwen-model", dtype="float8")._resolve_dtype(fake_torch)
         with self.assertRaisesRegex(ValueError, "cannot be empty"):
             backend_module.SynthesisChunk.from_units(("", " "))
-        with self.assertRaisesRegex(DependencyError, "cannot be empty"):
-            backend_module.CosyVoice3Backend(model_dir=" ").load()
 
-        with self.assertRaisesRegex(DependencyError, "CosyVoice3 is unavailable"):
-            backend_module.CosyVoice3Backend(model_dir="FunAudioLLM/Fun-CosyVoice3-0.5B-2512").load()
+        with self.assertRaisesRegex(ValueError, "returned no audio"):
+            backend_module.Qwen3SynthesisSession(
+                types.SimpleNamespace(generate_voice_clone=lambda **kwargs: ([], 24000)),
+                voice_clone_prompt="prompt",
+                language_name="Russian",
+                text_token_budget=16,
+            ).synthesise_chunk("Hello")
 
-        with patch.dict(sys.modules, {"soundfile": types.SimpleNamespace(write=MagicMock())}):
-            with self.assertRaisesRegex(ValueError, "returned no audio"):
-                backend_module.Qwen3SynthesisSession(
-                    types.SimpleNamespace(generate_voice_clone=lambda **kwargs: ([], 24000)),
-                    voice_clone_prompt="prompt",
-                    language_name="Russian",
-                    text_token_budget=16,
-                ).synthesise_to_file("Hello", Path("out.wav"))
-            with self.assertRaisesRegex(ValueError, "returned no audio"):
-                backend_module.CosyVoice3SynthesisSession(
-                    types.SimpleNamespace(sample_rate=24000, inference_zero_shot=lambda *args, **kwargs: iter([])),
-                    speaker_wav=Path("speaker.wav"),
-                    speaker_transcript_text="sample transcript",
-                ).synthesise_to_file("Hello", Path("out.wav"))
-
-        class FakeBackend:
-            def synthesise_to_file(self, text, speaker_wav, language_code, output_path):
-                output_path.write_bytes(text.encode("utf-8"))
-
-        with self.assertRaisesRegex(ValueError, "No text chunks"):
-            backend_module.SpeechSynthesisService(backend=FakeBackend()).synthesise(Path("speaker.wav"), [], None, "en")
-
-        soundfile_module = types.SimpleNamespace(info=MagicMock(side_effect=[types.SimpleNamespace(frames=24000, samplerate=24000)]))
-        with patch.dict(sys.modules, {"soundfile": soundfile_module}):
-            result = backend_module.SpeechSynthesisService(backend=FakeBackend()).synthesise(
-                Path("speaker.wav"), ["one", "two"], 1.0, "en"
-            )
-        self.assertEqual(len(result.wav_paths), 1)
-
-        soundfile_module = types.SimpleNamespace(info=MagicMock(return_value=types.SimpleNamespace(frames=24000, samplerate=24000)))
-        with patch.dict(sys.modules, {"soundfile": soundfile_module}):
-            with self.assertRaisesRegex(ValueError, "No chunks fit"):
-                backend_module.SpeechSynthesisService(backend=FakeBackend()).synthesise(
-                    Path("speaker.wav"), ["one"], 0.5, "en"
-                )
+        fake_config = types.SimpleNamespace(
+            qwen3_model_id="default-model",
+            qwen3_dtype="float16",
+            qwen3_text_token_budget=128,
+        )
+        with (
+            patch.object(backend_module.SynthesisConfig, "from_env", return_value=fake_config),
+            patch.object(backend_module, "Qwen3TTSBackend", return_value="default-backend") as backend_ctor,
+        ):
+            default_service = backend_module.SpeechSynthesisService()
+        self.assertEqual(default_service.backends[SynthesisEngine.QWEN3], "default-backend")
+        backend_ctor.assert_called_once_with(
+            model_id="default-model",
+            dtype="float16",
+            text_token_budget=128,
+        )
 
         class FakeSession:
             def __init__(self):
@@ -570,11 +286,6 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                 self.calls.append(("refine_chunk", chunk.text))
                 return (chunk,)
 
-            def synthesise_to_file(self, text, output_path):
-                self.calls.append(("synthesise_to_file", text))
-                output_path.write_bytes(text.encode("utf-8"))
-
-        class FakeInMemorySession(FakeSession):
             def synthesise_chunk(self, text):
                 self.calls.append(("synthesise_chunk", text))
                 return backend_module.SynthesisedAudioChunk(
@@ -583,12 +294,10 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                     duration_seconds=1.0,
                 )
 
-        class RefiningInMemorySession(FakeInMemorySession):
+        class RefiningInMemorySession(FakeSession):
             def build_chunks(self, text):
                 self.calls.append(("build_chunks", text))
-                return (
-                    backend_module.SynthesisChunk.from_units(("One.", "Two.")),
-                )
+                return (backend_module.SynthesisChunk.from_units(("One.", "Two.")),)
 
             def refine_chunk(self, chunk):
                 self.calls.append(("refine_chunk", chunk.text))
@@ -619,15 +328,8 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                 self.requests.append(request)
                 return self.session
 
-        soundfile_module = types.SimpleNamespace(
-            info=MagicMock(
-                side_effect=[
-                    types.SimpleNamespace(frames=24000, samplerate=24000),
-                    types.SimpleNamespace(frames=24000, samplerate=24000),
-                ]
-            )
-        )
         fake_session_backend = FakeSessionBackend()
+        soundfile_module = types.SimpleNamespace(write=MagicMock())
         with patch.dict(sys.modules, {"soundfile": soundfile_module}):
             result = backend_module.SpeechSynthesisService(
                 backends={SynthesisEngine.QWEN3: fake_session_backend}
@@ -643,35 +345,12 @@ class ServiceLogicCoverageTests(unittest.TestCase):
             )
         self.assertEqual(fake_session_backend.requests[0].text, "One.Two.")
         self.assertEqual(result.segments[1].text, "Two.")
-        self.assertEqual(
-            [chunk.text for chunk in backend_module.LegacySynthesisSession(FakeBackend(), speaker_wav=Path("speaker.wav"), language_code="en").build_chunks("One.")],
-            ["One."],
-        )
-
-        in_memory_backend = FakeSessionBackend(session=FakeInMemorySession())
-        soundfile_module = types.SimpleNamespace(write=MagicMock())
-        with patch.dict(sys.modules, {"soundfile": soundfile_module}):
-            in_memory_result = backend_module.SpeechSynthesisService(
-                backends={SynthesisEngine.QWEN3: in_memory_backend}
-            ).synthesise_text(
-                SynthesisRequest(
-                    engine=SynthesisEngine.QWEN3,
-                    speaker_wav=Path("speaker.wav"),
-                    text="One.",
-                    language_code="ru",
-                    cap_seconds=None,
-                    speaker_artifact_id="speaker-1",
-                    speaker_transcript_text="sample transcript",
-                )
-            )
-        self.assertEqual(in_memory_result.segments[0].end_seconds, 1.0)
-        self.assertIn(("synthesise_chunk", "One."), in_memory_backend.session.calls)
         soundfile_module.write.assert_called()
 
-        with patch.dict(sys.modules, {"soundfile": soundfile_module}):
+        with patch.dict(sys.modules, {"soundfile": types.SimpleNamespace(write=MagicMock())}):
             with self.assertRaisesRegex(ValueError, "No chunks fit"):
                 backend_module.SpeechSynthesisService(
-                    backends={SynthesisEngine.QWEN3: FakeSessionBackend(session=FakeInMemorySession())}
+                    backends={SynthesisEngine.QWEN3: FakeSessionBackend(session=FakeSession())}
                 ).synthesise_text(
                     SynthesisRequest(
                         engine=SynthesisEngine.QWEN3,
@@ -685,7 +364,7 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                 )
 
         refining_backend = FakeSessionBackend(session=RefiningInMemorySession())
-        with patch.dict(sys.modules, {"soundfile": soundfile_module}):
+        with patch.dict(sys.modules, {"soundfile": types.SimpleNamespace(write=MagicMock())}):
             refined_result = backend_module.SpeechSynthesisService(
                 backends={SynthesisEngine.QWEN3: refining_backend}
             ).synthesise_text(
@@ -702,38 +381,39 @@ class ServiceLogicCoverageTests(unittest.TestCase):
         self.assertEqual([segment.text for segment in refined_result.segments], ["One.", "Two."])
         self.assertIn(("refine_chunk", "One. Two."), refining_backend.session.calls)
 
+        class SmallChunkSession(FakeSession):
+            def synthesise_chunk(self, text):
+                self.calls.append(("synthesise_chunk", text))
+                return backend_module.SynthesisedAudioChunk(
+                    samples=np.array([0.1, -0.1], dtype=np.float32),
+                    sample_rate=2,
+                    duration_seconds=0.4,
+                )
+
+        small_chunk_backend = FakeSessionBackend(session=SmallChunkSession())
+        with patch.dict(sys.modules, {"soundfile": types.SimpleNamespace(write=MagicMock())}):
+            capped_result = backend_module.SpeechSynthesisService(
+                backends={SynthesisEngine.QWEN3: small_chunk_backend}
+            ).synthesise_text(
+                SynthesisRequest(
+                    engine=SynthesisEngine.QWEN3,
+                    speaker_wav=Path("speaker.wav"),
+                    text="One. Two.",
+                    language_code="ru",
+                    cap_seconds=0.4,
+                    speaker_transcript_text="sample transcript",
+                )
+            )
+        self.assertEqual([segment.text for segment in capped_result.segments], ["One."])
+
         with tempfile.TemporaryDirectory() as tmpdir:
             temp_dir = Path(tmpdir) / "tts"
             temp_dir.mkdir()
-            backend_module.cleanup_synthesis_result(
-                types.SimpleNamespace(temp_dir=temp_dir)
-            )
+            backend_module.cleanup_synthesis_result(types.SimpleNamespace(temp_dir=temp_dir))
             self.assertFalse(temp_dir.exists())
 
-        with self.assertRaisesRegex(ValueError, "set backend or backends"):
-            backend_module.SpeechSynthesisService(backend=FakeBackend(), backends={SynthesisEngine.XTTS: FakeBackend()})
         with self.assertRaisesRegex(ValidationError, "unsupported synthesis engine"):
-            backend_module.SpeechSynthesisService(backends={})._resolve_backend(SynthesisEngine.XTTS)
-        with self.assertRaisesRegex(ValueError, "does not support synthesis sessions"):
-            backend_module.SpeechSynthesisService(backends={SynthesisEngine.XTTS: object()})._open_session(
-                object(),
-                SynthesisRequest(
-                    engine=SynthesisEngine.XTTS,
-                    speaker_wav=Path("speaker.wav"),
-                    text="Hello",
-                    language_code="en",
-                    cap_seconds=None,
-                ),
-            )
-
-        fake_result = types.SimpleNamespace(
-            wav_paths=(Path("a.wav"),),
-            segments=(types.SimpleNamespace(to_legacy_dict=lambda: {"content": "one", "start": 0.0, "end": 1.0}),),
-        )
-        with patch.object(backend_module.SpeechSynthesisService, "synthesise", return_value=fake_result):
-            paths, timeline = backend_module.synthesise(Path("speaker.wav"), ["one"], None, "en")
-        self.assertEqual(paths, [Path("a.wav")])
-        self.assertEqual(timeline[0]["content"], "one")
+            backend_module.SpeechSynthesisService(backends={})._resolve_backend(SynthesisEngine.QWEN3)
 
     def test_diarization_service_branches(self):
         diarization_module = importlib.import_module("dictator.diarization.service")

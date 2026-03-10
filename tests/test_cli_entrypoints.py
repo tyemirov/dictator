@@ -66,7 +66,7 @@ class CliEntrypointsTests(unittest.TestCase):
 
             result = types.SimpleNamespace(
                 wav_paths=(Path("chunk1.wav"), Path("chunk2.wav")),
-                segments=(types.SimpleNamespace(to_legacy_dict=lambda: {"content": "hello", "start": 0.0, "end": 1.0}),),
+                segments=(types.SimpleNamespace(to_timeline_dict=lambda: {"content": "hello", "start": 0.0, "end": 1.0}),),
             )
             with tempfile.TemporaryDirectory() as tmpdir:
                 root = Path(tmpdir)
@@ -80,12 +80,12 @@ class CliEntrypointsTests(unittest.TestCase):
                 fake_service = MagicMock()
                 fake_service.synthesise_text.return_value = result
                 with (
-                    patch("sys.argv", ["main.py", "--sample", str(sample), "--text", str(text), "--output", str(out), "--speech", str(speech), "--force"]),
+                    patch("sys.argv", ["main.py", "--sample", str(sample), "--text", str(text), "--output", str(out), "--speech", str(speech), "--sample-text", "Reference sample transcript", "--force"]),
                     patch("dictator.audio.ffmpeg_ops.mp3_to_wav") as mp3_to_wav,
                     patch("dictator.audio.ffmpeg_ops.concat_normalise") as concat_normalise,
                     patch("dictator.synthesis.service.SpeechSynthesisService", return_value=fake_service),
                     patch("dictator.synthesis.service.cleanup_synthesis_result") as cleanup_synthesis_result,
-                    patch.object(main_module, "transcribe_words", return_value=[{"content": "hello", "start": 0.0, "end": 1.0}]),
+                    patch("dictator.transcription.service.transcribe_words", return_value=[{"content": "hello", "start": 0.0, "end": 1.0}]),
                 ):
                     main_module.main()
 
@@ -112,12 +112,12 @@ class CliEntrypointsTests(unittest.TestCase):
                 out.write_text("existing", encoding="utf-8")
 
                 with (
-                    patch("sys.argv", ["main.py", "--sample", str(sample), "--text", str(text), "--output", str(out)]),
+                    patch("sys.argv", ["main.py", "--sample", str(sample), "--text", str(text), "--output", str(out), "--sample-text", "Reference sample transcript"]),
                     patch("builtins.input", return_value="n"),
                 ):
                     main_module.main()
 
-                with patch("sys.argv", ["main.py", "--sample", str(sample), "--text", str(text), "--output", str(root / "fresh.wav")]):
+                with patch("sys.argv", ["main.py", "--sample", str(sample), "--text", str(text), "--output", str(root / "fresh.wav"), "--sample-text", "Reference sample transcript"]):
                     with self.assertRaisesRegex(RuntimeError, "is empty"):
                         main_module.main()
 
@@ -142,7 +142,7 @@ class CliEntrypointsTests(unittest.TestCase):
                     temp_dir=root / "tmp-tts",
                 )
                 with (
-                    patch("sys.argv", ["main.py", "--sample", str(sample), "--text", str(text), "--output", str(out), "--force"]),
+                    patch("sys.argv", ["main.py", "--sample", str(sample), "--text", str(text), "--output", str(out), "--sample-text", "Reference sample transcript", "--force"]),
                     patch("dictator.synthesis.service.SpeechSynthesisService", return_value=fake_service),
                     patch("dictator.audio.ffmpeg_ops.concat_normalise") as concat_normalise,
                 ):
@@ -150,7 +150,7 @@ class CliEntrypointsTests(unittest.TestCase):
 
             concat_normalise.assert_not_called()
 
-    def test_main_transcript_engines_require_sample_text_and_use_synthesis_request(self):
+    def test_main_requires_sample_text_and_uses_qwen3_synthesis_request(self):
         sf_module = types.SimpleNamespace(info=lambda path: types.SimpleNamespace(frames=24000, samplerate=24000))
         with patch.dict(sys.modules, {"soundfile": sf_module, "ffmpeg": types.SimpleNamespace()}):
             import main as main_module
@@ -164,55 +164,33 @@ class CliEntrypointsTests(unittest.TestCase):
                 sample.write_bytes(b"wav")
                 text.write_text("One. Two?", encoding="utf-8")
 
-                for engine_value, expected_engine in [
-                    ("qwen3", main_module.SynthesisEngine.QWEN3),
-                    ("cosyvoice3", main_module.SynthesisEngine.COSYVOICE3),
-                ]:
-                    with patch("sys.argv", ["main.py", "--sample", str(sample), "--text", str(text), "--output", str(out), "--engine", engine_value]):
-                        with self.assertRaises(SystemExit):
-                            main_module.main()
-
-                    fake_service = MagicMock()
-                    fake_service.synthesise_text.return_value = types.SimpleNamespace(wav_paths=(), segments=(), temp_dir=root / "tmp")
-                    with (
-                        patch("sys.argv", [
-                            "main.py",
-                            "--sample",
-                            str(sample),
-                            "--text",
-                            str(text),
-                            "--output",
-                            str(out),
-                            "--engine",
-                            engine_value,
-                            "--sample-text",
-                            "Reference sample transcript",
-                            "--force",
-                        ]),
-                        patch("dictator.synthesis.service.SpeechSynthesisService", return_value=fake_service),
-                    ):
+                with patch("sys.argv", ["main.py", "--sample", str(sample), "--text", str(text), "--output", str(out)]):
+                    with self.assertRaises(SystemExit):
                         main_module.main()
 
-                    request = fake_service.synthesise_text.call_args.args[0]
-                    self.assertEqual(request.engine, expected_engine)
-                    self.assertEqual(request.speaker_transcript_text, "Reference sample transcript")
-                    self.assertEqual(request.text, "One. Two?")
+                fake_service = MagicMock()
+                fake_service.synthesise_text.return_value = types.SimpleNamespace(wav_paths=(), segments=(), temp_dir=root / "tmp")
+                with (
+                    patch("sys.argv", [
+                        "main.py",
+                        "--sample",
+                        str(sample),
+                        "--text",
+                        str(text),
+                        "--output",
+                        str(out),
+                        "--sample-text",
+                        "Reference sample transcript",
+                        "--force",
+                    ]),
+                    patch("dictator.synthesis.service.SpeechSynthesisService", return_value=fake_service),
+                ):
+                    main_module.main()
 
-    def test_main_transcribe_words_wrapper_delegates(self):
-        with patch.dict(
-            sys.modules,
-            {
-                "dictator.transcription.service": types.SimpleNamespace(
-                    transcribe_words=lambda audio_path, language_code: [(str(audio_path), language_code)]
-                )
-            },
-        ):
-            import main as main_module
-            main_module = importlib.reload(main_module)
-            self.assertEqual(
-                main_module.transcribe_words(Path("sample.wav"), "ru"),
-                [("sample.wav", "ru")],
-            )
+                request = fake_service.synthesise_text.call_args.args[0]
+                self.assertEqual(request.engine, main_module.SynthesisEngine.QWEN3)
+                self.assertEqual(request.speaker_transcript_text, "Reference sample transcript")
+                self.assertEqual(request.text, "One. Two?")
 
     def test_extract_main_handles_decline_success_and_empty_transcription(self):
         torch_stub = types.SimpleNamespace(
