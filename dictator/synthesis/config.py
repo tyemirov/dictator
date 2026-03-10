@@ -1,4 +1,4 @@
-"""Configuration for speech synthesis backends."""
+"""Configuration for Qwen3-TTS synthesis."""
 
 from __future__ import annotations
 
@@ -6,15 +6,11 @@ from dataclasses import dataclass
 import os
 from typing import Mapping
 
-DEFAULT_XTTS_MODEL_ID = "tts_models/multilingual/multi-dataset/xtts_v2"
-DEFAULT_QWEN3_MODEL_ID = "Qwen/Qwen3-TTS-12Hz-0.6B-Base"
-DEFAULT_COSYVOICE3_MODEL_DIR = "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
+DEFAULT_QWEN3_MODEL_ID = "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
 DEFAULT_QWEN3_TEXT_TOKEN_BUDGET = 192
 QWEN3_FAST_ATTENTION_IMPLEMENTATION = "flash_attention_2"
 
-XTTS_MODEL_ID_ENV = "DICTATOR_XTTS_MODEL_ID"
 QWEN3_MODEL_ID_ENV = "DICTATOR_QWEN3_TTS_MODEL_ID"
-COSYVOICE3_MODEL_DIR_ENV = "DICTATOR_COSYVOICE3_MODEL_DIR"
 QWEN3_DTYPE_ENV = "DICTATOR_QWEN3_TTS_DTYPE"
 QWEN3_TEXT_TOKEN_BUDGET_ENV = "DICTATOR_QWEN3_TTS_TEXT_TOKEN_BUDGET"
 
@@ -40,9 +36,7 @@ def _positive_int_from_env(
 class SynthesisConfig:
     """Runtime synthesis model configuration."""
 
-    xtts_model_id: str = DEFAULT_XTTS_MODEL_ID
     qwen3_model_id: str = DEFAULT_QWEN3_MODEL_ID
-    cosyvoice3_model_dir: str = DEFAULT_COSYVOICE3_MODEL_DIR
     qwen3_dtype: str = "auto"
     qwen3_text_token_budget: int = DEFAULT_QWEN3_TEXT_TOKEN_BUDGET
 
@@ -51,9 +45,7 @@ class SynthesisConfig:
         source = dict(os.environ if env is None else env)
         qwen3_dtype = source.get(QWEN3_DTYPE_ENV, "auto").strip().lower() or "auto"
         return cls(
-            xtts_model_id=source.get(XTTS_MODEL_ID_ENV, DEFAULT_XTTS_MODEL_ID).strip() or DEFAULT_XTTS_MODEL_ID,
             qwen3_model_id=source.get(QWEN3_MODEL_ID_ENV, DEFAULT_QWEN3_MODEL_ID).strip() or DEFAULT_QWEN3_MODEL_ID,
-            cosyvoice3_model_dir=source.get(COSYVOICE3_MODEL_DIR_ENV, DEFAULT_COSYVOICE3_MODEL_DIR).strip() or DEFAULT_COSYVOICE3_MODEL_DIR,
             qwen3_dtype=qwen3_dtype,
             qwen3_text_token_budget=_positive_int_from_env(
                 source,

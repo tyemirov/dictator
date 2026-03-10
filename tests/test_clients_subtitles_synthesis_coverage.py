@@ -24,8 +24,8 @@ from dictator.subtitles.service import (
     words_from_alignment,
     words_from_transcription,
 )
-from dictator.synthesis.models import SpeechSegment, SynthesisResult
-from dictator.synthesis.service import XTTSBackend, cleanup_synthesis_result, synthesise
+from dictator.synthesis.models import SpeechSegment, SynthesisEngine, SynthesisRequest, SynthesisResult
+from dictator.synthesis.service import Qwen3TTSBackend, cleanup_synthesis_result
 from dictator.transcription.models import TranscriptionResult, WordSegment
 
 
@@ -277,43 +277,106 @@ class ClientsSubtitlesSynthesisCoverageTests(unittest.TestCase):
             service.render(RenderSubtitlesRequest(audio_path=Path("sample.wav"), granularity="letters"))
 
     def test_synthesis_backend_service_and_cleanup_helpers(self):
-        fake_tts = Mock()
-        fake_tts.to.return_value = fake_tts
-        fake_torch = types.SimpleNamespace(cuda=types.SimpleNamespace(is_available=lambda: False))
+        fake_model = Mock()
+        fake_model.create_voice_clone_prompt.return_value = "prompt"
+        fake_model.generate_voice_clone.return_value = ([__import__("numpy").array([0.1, -0.1], dtype=__import__("numpy").float32)], 24000)
+        fake_model._build_assistant_text = lambda text: text
+        fake_model._tokenize_texts = lambda texts: [__import__("numpy").zeros((1, max(1, len(texts[0].split()))), dtype=__import__("numpy").int64)]
+        fake_torch = types.SimpleNamespace(
+            cuda=types.SimpleNamespace(is_available=lambda: False),
+            bfloat16="bfloat16",
+            float16="float16",
+            float32="float32",
+        )
         with patch.dict(
             sys.modules,
             {
                 "torch": fake_torch,
-                "TTS": types.SimpleNamespace(api=types.SimpleNamespace(TTS=lambda model_id: fake_tts)),
-                "TTS.api": types.SimpleNamespace(TTS=lambda model_id: fake_tts),
+                "qwen_tts": types.SimpleNamespace(Qwen3TTSModel=types.SimpleNamespace(from_pretrained=lambda *args, **kwargs: fake_model)),
             },
         ):
-            backend = XTTSBackend("model-id")
+            backend = Qwen3TTSBackend(model_id="model-id", dtype="float32", text_token_budget=32)
             loaded = backend.load()
-            backend.synthesise_to_file("hello", Path("speaker.wav"), "en", Path("out.wav"))
-        self.assertIs(loaded, fake_tts)
-        fake_tts.tts_to_file.assert_called_once()
+            session = backend.open_session(
+                __import__("dictator.synthesis.models", fromlist=["SynthesisRequest"]).SynthesisRequest(
+                    engine=__import__("dictator.synthesis.models", fromlist=["SynthesisEngine"]).SynthesisEngine.QWEN3,
+                    speaker_wav=Path("speaker.wav"),
+                    text="hello",
+                    language_code="en",
+                    cap_seconds=None,
+                    speaker_transcript_text="reference transcript",
+                )
+            )
+            chunk = session.synthesise_chunk("hello")
+        self.assertIs(loaded, fake_model)
+        self.assertGreater(chunk.duration_seconds, 0.0)
 
-        backend = _FakeBackend()
-        service = __import__("dictator.synthesis.service", fromlist=["SpeechSynthesisService"]).SpeechSynthesisService(backend=backend)
+        backend_module = __import__("dictator.synthesis.service", fromlist=["SpeechSynthesisService", "SynthesisChunk", "SynthesisedAudioChunk"])
+
+        class FakeSession:
+            def build_chunks(self, text):
+                if not text:
+                    return ()
+                return (backend_module.SynthesisChunk.from_text(text),)
+
+            def refine_chunk(self, chunk):
+                return (chunk,)
+
+            def synthesise_chunk(self, text):
+                return backend_module.SynthesisedAudioChunk(
+                    samples=__import__("numpy").array([0.1, -0.1], dtype=__import__("numpy").float32),
+                    sample_rate=2,
+                    duration_seconds=1.0,
+                )
+
+        class FakeBackend:
+            engine = SynthesisEngine.QWEN3
+
+            def open_session(self, request):
+                return FakeSession()
+
+        service = backend_module.SpeechSynthesisService(backends={SynthesisEngine.QWEN3: FakeBackend()})
         with self.assertRaisesRegex(ValueError, "No text chunks"):
-            service.synthesise(Path("speaker.wav"), [], None, "en")
+            service.synthesise_text(
+                SynthesisRequest(
+                    engine=SynthesisEngine.QWEN3,
+                    speaker_wav=Path("speaker.wav"),
+                    text="",
+                    language_code="en",
+                    cap_seconds=None,
+                    speaker_transcript_text="reference transcript",
+                )
+            )
 
-        with patch.dict(sys.modules, {"soundfile": types.SimpleNamespace(info=lambda path: types.SimpleNamespace(frames=24000, samplerate=24000))}):
-            result = service.synthesise(Path("speaker.wav"), ["hello"], None, "en")
+        with patch.dict(sys.modules, {"soundfile": types.SimpleNamespace(write=Mock())}):
+            result = service.synthesise_text(
+                SynthesisRequest(
+                    engine=SynthesisEngine.QWEN3,
+                    speaker_wav=Path("speaker.wav"),
+                    text="hello",
+                    language_code="en",
+                    cap_seconds=None,
+                    speaker_transcript_text="reference transcript",
+                )
+            )
         self.assertEqual(result.segments[0].end_seconds, 1.0)
 
-        with patch.dict(sys.modules, {"soundfile": types.SimpleNamespace(info=lambda path: types.SimpleNamespace(frames=48000, samplerate=24000))}):
+        with patch.dict(sys.modules, {"soundfile": types.SimpleNamespace(write=Mock())}):
             with self.assertRaisesRegex(ValueError, "fit within the length cap"):
-                service.synthesise(Path("speaker.wav"), ["hello"], 1.0, "en")
+                service.synthesise_text(
+                    SynthesisRequest(
+                        engine=SynthesisEngine.QWEN3,
+                        speaker_wav=Path("speaker.wav"),
+                        text="hello",
+                        language_code="en",
+                        cap_seconds=0.5,
+                        speaker_transcript_text="reference transcript",
+                    )
+                )
 
         wrapped = SynthesisResult(result.temp_dir, result.wav_paths, result.segments)
         cleanup_synthesis_result(wrapped)
         self.assertFalse(wrapped.temp_dir.exists())
-
-        with patch("dictator.synthesis.service.SpeechSynthesisService.synthesise", return_value=SynthesisResult(Path("/tmp"), (), ())) as synth_mock:
-            self.assertEqual(synthesise(Path("speaker.wav"), ["hello"], None, "en"), ([], []))
-        synth_mock.assert_called_once()
 
 
 if __name__ == "__main__":

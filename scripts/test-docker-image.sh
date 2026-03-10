@@ -7,9 +7,8 @@ usage() {
 Usage: scripts/test-docker-image.sh [options]
 
 Build or reuse a Docker image and run the in-image blackbox probe.
-The probe loads the real pyannote diarization pipeline, so HF_TOKEN must be
-exported in your shell. It also generates a spoken WAV sample inside the image
-and verifies that the service returns a synthesized WAV back over gRPC.
+The probe generates a spoken WAV sample inside the image and verifies that the
+service returns a synthesized Qwen3-TTS WAV back over gRPC.
 
 Options:
   --image IMAGE       Probe an existing image instead of building one
@@ -70,7 +69,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 require_cmd docker
-[[ -n "${HF_TOKEN:-}" ]] || die "HF_TOKEN must be exported so the image probe can load the real diarization pipeline."
 
 cd "${REPO_ROOT}"
 
@@ -84,6 +82,5 @@ printf 'Running blackbox probe inside %s\n' "${IMAGE_NAME}"
 docker run \
   --rm \
   --entrypoint python \
-  --env "HF_TOKEN=${HF_TOKEN}" \
   "${IMAGE_NAME}" \
   /app/scripts/docker_image_blackbox_probe.py

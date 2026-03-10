@@ -198,7 +198,7 @@ class GrpcServicesUnitTests(unittest.TestCase):
         self.runtime = FakeRuntime(
             synthesis_result=types.SimpleNamespace(
                 wav_paths=(Path(self.tmpdir.name) / "chunk.wav",),
-                segments=(types.SimpleNamespace(end_seconds=1.0, to_legacy_dict=lambda: {"content": "hello", "start": 0.0, "end": 1.0}),),
+                segments=(types.SimpleNamespace(end_seconds=1.0, to_timeline_dict=lambda: {"content": "hello", "start": 0.0, "end": 1.0}),),
             )
         )
         self.context = ServiceContext(
@@ -379,22 +379,11 @@ class GrpcServicesUnitTests(unittest.TestCase):
     def test_voice_servicer_branches(self):
         servicer = VoiceServiceServicer(self.context)
         self.assertEqual(servicer._resolve_synthesis_engine(voice_pb2.SYNTHESIS_ENGINE_QWEN3), SynthesisEngine.QWEN3)
-        self.assertEqual(servicer._resolve_synthesis_engine(voice_pb2.SYNTHESIS_ENGINE_COSYVOICE3), SynthesisEngine.COSYVOICE3)
         with self.assertRaisesRegex(ValidationError, "synthesis_engine must be set"):
             servicer._resolve_synthesis_engine(voice_pb2.SYNTHESIS_ENGINE_UNSPECIFIED)
         self.assertEqual(
             servicer._resolve_speaker_transcript_text(
                 types.SimpleNamespace(
-                    speaker_transcript_artifact_id=self.text_record.artifact_id,
-                    speaker_transcript_text="",
-                )
-            ),
-            "hello world",
-        )
-        self.assertEqual(
-            servicer._resolve_speaker_transcript_text(
-                types.SimpleNamespace(
-                    speaker_transcript_artifact_id="",
                     speaker_transcript_text="sample transcript",
                 )
             ),
@@ -418,16 +407,13 @@ class GrpcServicesUnitTests(unittest.TestCase):
             servicer.SynthesizeSpeech(
                 voice_pb2.SynthesizeSpeechRequest(
                     speaker_artifact_id=self.audio_record.artifact_id,
-                    synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_XTTS,
+                    synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_UNSPECIFIED,
                 ),
                 FakeContext(metadata=(("x-dictator-token", "secret"),)),
             )
 
         fake_ffmpeg_module = types.ModuleType("dictator.audio.ffmpeg_ops")
         fake_ffmpeg_module.concat_normalise = lambda inputs, dst, cap: dst.write_bytes(b"wav")
-        fake_synthesis_text = types.ModuleType("dictator.synthesis.text")
-        fake_synthesis_text.clean = lambda text: text.strip()
-        fake_synthesis_text.build_chunks = lambda text: [text]
         cleanup_calls = []
         fake_synthesis_service = types.ModuleType("dictator.synthesis.service")
         fake_synthesis_service.cleanup_synthesis_result = lambda result: cleanup_calls.append(result)
@@ -435,7 +421,6 @@ class GrpcServicesUnitTests(unittest.TestCase):
             sys.modules,
             {
                 "dictator.audio.ffmpeg_ops": fake_ffmpeg_module,
-                "dictator.synthesis.text": fake_synthesis_text,
                 "dictator.synthesis.service": fake_synthesis_service,
             },
         ):
@@ -444,7 +429,7 @@ class GrpcServicesUnitTests(unittest.TestCase):
                     speaker_artifact_id=self.audio_record.artifact_id,
                     text_artifact_id=self.text_record.artifact_id,
                     include_timeline=False,
-                    synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_XTTS,
+                    synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_QWEN3,
                 ),
                 FakeContext(metadata=(("x-dictator-token", "secret"),)),
             )
@@ -455,14 +440,13 @@ class GrpcServicesUnitTests(unittest.TestCase):
 
         timeline_result = types.SimpleNamespace(
             wav_paths=(Path(self.tmpdir.name) / "chunk.wav",),
-            segments=(types.SimpleNamespace(end_seconds=1.0, to_legacy_dict=lambda: {"content": "hello", "start": 0.0, "end": 1.0}),),
+            segments=(types.SimpleNamespace(end_seconds=1.0, to_timeline_dict=lambda: {"content": "hello", "start": 0.0, "end": 1.0}),),
         )
         self.runtime.synthesis_service = FakeSynthesisService(timeline_result)
         with patch.dict(
             sys.modules,
             {
                 "dictator.audio.ffmpeg_ops": fake_ffmpeg_module,
-                "dictator.synthesis.text": fake_synthesis_text,
                 "dictator.synthesis.service": fake_synthesis_service,
             },
         ):
@@ -471,7 +455,7 @@ class GrpcServicesUnitTests(unittest.TestCase):
                     speaker_artifact_id=self.audio_record.artifact_id,
                     text="hello",
                     include_timeline=True,
-                    synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_XTTS,
+                    synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_QWEN3,
                 ),
                 FakeContext(metadata=(("x-dictator-token", "secret"),)),
             )

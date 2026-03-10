@@ -31,4 +31,6 @@ The page asks the user to read:
 > On cold mornings I want strong coffee, warm light, and ten quiet minutes to think.
 > If you know me well, you can hear the difference between my polite voice, my tired voice, and the one I use when I am truly delighted.
 
-It then asks Dictator to read back one of three preset passages in the user's voice: Genesis, the opening of Alice's Adventures in Wonderland, or Robert Frost's "Stopping by Woods on a Snowy Evening." The page can target XTTS, Qwen3-TTS, or CosyVoice 3.
+It then asks Dictator to read back one of three preset passages in the user's voice: Genesis, the opening of Alice's Adventures in Wonderland, or Robert Frost's "Stopping by Woods on a Snowy Evening." The page now uses Qwen3-TTS only, and the default runtime model is `Qwen/Qwen3-TTS-12Hz-1.7B-Base`.
+
+The backend converts the browser recording to WAV, uploads the full sample, and sends the fixed sample transcript to Qwen3-TTS so the demo follows the model’s intended `reference audio + reference transcript` contract.

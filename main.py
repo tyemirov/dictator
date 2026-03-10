@@ -7,42 +7,9 @@ import json
 import logging
 from pathlib import Path
 import tempfile
-from typing import Sequence
 
 from dictator.synthesis.models import SynthesisEngine, SynthesisRequest
-from dictator.synthesis.text import BYTE_BUDGET, build_chunks, clean, parse_length
-
-TRANSCRIPT_REQUIRED_ENGINES = {
-    SynthesisEngine.QWEN3,
-    SynthesisEngine.COSYVOICE3,
-}
-
-
-def synthesise(
-    speaker_wav: Path,
-    chunks: Sequence[str],
-    cap: float | None,
-    language_code: str,
-    *,
-    engine: SynthesisEngine = SynthesisEngine.XTTS,
-    speaker_transcript_text: str | None = None,
-):
-    from dictator.synthesis.service import synthesise as _synthesise
-
-    return _synthesise(
-        speaker_wav,
-        chunks,
-        cap,
-        language_code,
-        engine=engine,
-        speaker_transcript_text=speaker_transcript_text,
-    )
-
-
-def transcribe_words(audio_path: Path, language_code: str):
-    from dictator.transcription.service import transcribe_words as _transcribe_words
-
-    return _transcribe_words(audio_path, language_code)
+from dictator.synthesis.text import clean, parse_length
 
 
 def main() -> None:
@@ -59,14 +26,9 @@ def main() -> None:
         "--language", default="en", help="TTS language code (e.g. 'en', 'ru')"
     )
     parser.add_argument(
-        "--engine",
-        choices=[engine.value for engine in SynthesisEngine],
-        default=SynthesisEngine.XTTS.value,
-        help="speech synthesis engine",
-    )
-    parser.add_argument(
         "--sample-text",
-        help="reference transcript for the sample audio (required for qwen3 and cosyvoice3)",
+        required=True,
+        help="reference transcript for the sample audio",
     )
     parser.add_argument(
         "--speech",
@@ -80,9 +42,6 @@ def main() -> None:
         format="%(asctime)s | %(levelname)-8s | %(message)s",
         datefmt="%H:%M:%S",
     )
-    engine = SynthesisEngine(args.engine)
-    if engine in TRANSCRIPT_REQUIRED_ENGINES and not (args.sample_text or "").strip():
-        parser.error(f"--sample-text is required when --engine={engine.value}")
 
     out_path = Path(args.output)
     if out_path.exists() and not args.force:
@@ -113,19 +72,17 @@ def main() -> None:
 
         raw_text = Path(args.text).read_text(encoding="utf-8")
         clean_text = clean(raw_text)
-        logging.info("engine: %s", engine.value)
-        if engine is SynthesisEngine.XTTS:
-            logging.info("xtts byte budget: <=%d UTF-8 bytes per chunk", BYTE_BUDGET)
+        logging.info("engine: %s", SynthesisEngine.QWEN3.value)
 
         cap_seconds = parse_length(args.length)
         result = SpeechSynthesisService().synthesise_text(
             SynthesisRequest(
-                engine=engine,
+                engine=SynthesisEngine.QWEN3,
                 speaker_wav=ref_wav,
                 text=clean_text,
                 language_code=args.language,
                 cap_seconds=cap_seconds,
-                speaker_transcript_text=(args.sample_text or "").strip() or None,
+                speaker_transcript_text=args.sample_text.strip(),
             )
         )
         if not result.wav_paths:
@@ -134,6 +91,8 @@ def main() -> None:
         concat_normalise(result.wav_paths, out_path, cap_seconds)
 
         if args.speech:
+            from dictator.transcription.service import transcribe_words
+
             word_segments = transcribe_words(out_path, args.language)
             timeline = {
                 "textSegments": word_segments,

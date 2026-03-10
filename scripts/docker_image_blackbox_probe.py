@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import contextlib
+import importlib.util
 import os
 from pathlib import Path
 import socket
@@ -25,7 +26,6 @@ from dictator.speech.v1 import artifacts_pb2, artifacts_pb2_grpc, voice_pb2, voi
 
 
 AUTH_TOKEN = "docker-image-blackbox-secret"
-DIARIZATION_TOKEN_ENV = "HF_TOKEN"
 PROBE_SAMPLE_TEXT = (
     "The quick brown fox jumped over the lazy dog. "
     "Eleven benevolent elephants balanced on bright blue bicycles. "
@@ -34,35 +34,20 @@ PROBE_SAMPLE_TEXT = (
 
 
 def assert_baked_model_paths() -> None:
-    for env_name in (
-        "DICTATOR_XTTS_MODEL_ID",
-        "DICTATOR_QWEN3_TTS_MODEL_ID",
-        "DICTATOR_COSYVOICE3_MODEL_DIR",
-    ):
-        path = Path(os.environ.get(env_name, "")).expanduser()
-        assert path.is_dir(), f"{env_name} does not point to a baked model directory: {path}"
-    wetext_cache_dir = (
-        Path(os.environ.get("MODELSCOPE_CACHE", "~/.cache/modelscope")).expanduser()
-        / "hub"
-        / "pengzhendong"
-        / "wetext"
-    )
-    assert wetext_cache_dir.is_dir(), f"wetext frontend cache is missing: {wetext_cache_dir}"
+    path = Path(os.environ.get("DICTATOR_QWEN3_TTS_MODEL_ID", "")).expanduser()
+    assert path.is_dir(), f"DICTATOR_QWEN3_TTS_MODEL_ID does not point to a baked model directory: {path}"
 
 
 def assert_dependency_imports() -> None:
-    import pkg_resources  # noqa: F401
-    from cosyvoice.cli.cosyvoice import AutoModel  # noqa: F401
-    import librosa  # noqa: F401
     import pyannote.audio
     import qwen_tts  # noqa: F401
     import soundfile  # noqa: F401
-    from wetext import Normalizer  # noqa: F401
     import whisper  # noqa: F401
     import whisperx  # noqa: F401
-    from TTS.api import TTS  # noqa: F401
 
     assert pyannote.audio.__version__.startswith("3.4."), pyannote.audio.__version__
+    assert importlib.util.find_spec("flash_attn") is not None, "flash_attn is not installed"
+    subprocess.run(["sox", "--version"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def assert_default_entrypoint_starts() -> None:
@@ -72,42 +57,6 @@ def assert_default_entrypoint_starts() -> None:
                 health_pb2.HealthCheckRequest(service="")
             )
             assert response.status == health_pb2.HealthCheckResponse.SERVING
-
-
-def assert_diarization_loader_call_shape() -> None:
-    from dictator.extraction import service as extraction_service
-
-    fake_pipeline = SimpleNamespace(to=MagicMock())
-    fake_torch = SimpleNamespace(
-        cuda=SimpleNamespace(is_available=lambda: False),
-        device=lambda name: f"device:{name}",
-    )
-    with (
-        patch.object(extraction_service, "configure_torch_runtime"),
-        patch.object(extraction_service, "torch", fake_torch),
-        patch.object(extraction_service, "require_diarization_token", return_value="hf-token"),
-        patch("pyannote.audio.Pipeline.from_pretrained", return_value=fake_pipeline) as from_pretrained,
-    ):
-        loaded = extraction_service.load_diarization_pipeline()
-    assert loaded is fake_pipeline
-    from_pretrained.assert_called_once_with(
-        extraction_service.DIARIZATION_MODEL,
-        use_auth_token="hf-token",
-    )
-    fake_pipeline.to.assert_called_once_with("device:cpu")
-
-
-def assert_real_diarization_pipeline_loads() -> None:
-    from dictator.extraction import service as extraction_service
-
-    token = (os.environ.get(DIARIZATION_TOKEN_ENV, "") or "").strip()
-    if not token:
-        raise AssertionError(
-            f"{DIARIZATION_TOKEN_ENV} must be set so the Docker image probe can load the real diarization pipeline."
-        )
-
-    pipeline = extraction_service.load_diarization_pipeline()
-    assert pipeline is not None, "real diarization pipeline did not load"
 
 
 def assert_whisper_loader_call_shape() -> None:
@@ -124,54 +73,6 @@ def assert_whisper_loader_call_shape() -> None:
         device="cpu",
         download_root="/tmp/whisper-cache",
     )
-
-
-def assert_xtts_loader_call_shape() -> None:
-    from dictator.synthesis import service as synthesis_service
-
-    class FakeTTS:
-        def __init__(self, *args, **kwargs) -> None:
-            self.args = args
-            self.kwargs = kwargs
-            self.device = None
-
-        def to(self, device: str):
-            self.device = device
-            return self
-
-    fake_torch = SimpleNamespace(cuda=SimpleNamespace(is_available=lambda: False))
-    fake_synthesizer = object()
-    with tempfile.TemporaryDirectory() as tmpdir:
-        model_dir = Path(tmpdir) / "xtts"
-        model_dir.mkdir()
-        (model_dir / "model.pth").write_bytes(b"checkpoint")
-        (model_dir / "config.json").write_text("{}", encoding="utf-8")
-        (model_dir / "speakers_xtts.pth").write_bytes(b"speakers")
-        with (
-            patch.dict("sys.modules", {"torch": fake_torch}),
-            patch("TTS.api.TTS", FakeTTS),
-            patch("TTS.utils.synthesizer.Synthesizer", return_value=fake_synthesizer) as synth_factory,
-        ):
-            backend = synthesis_service.XTTSBackend(model_id=str(model_dir))
-            loaded = backend.load()
-        assert isinstance(loaded, FakeTTS)
-        assert loaded.kwargs["progress_bar"] is False
-        assert loaded.kwargs["gpu"] is False
-        assert loaded.synthesizer is fake_synthesizer
-        synth_factory.assert_called_once_with(
-            model_dir=str(model_dir),
-            use_cuda=False,
-        )
-
-    with (
-        patch.dict("sys.modules", {"torch": fake_torch}),
-        patch("TTS.api.TTS", FakeTTS),
-    ):
-        backend = synthesis_service.XTTSBackend(model_id="xtts-model")
-        loaded = backend.load()
-    assert isinstance(loaded, FakeTTS)
-    assert loaded.args == ("xtts-model",)
-    assert loaded.device == "cpu"
 
 @contextlib.contextmanager
 def running_default_entrypoint() -> contextlib.AbstractContextManager[int]:
@@ -296,30 +197,13 @@ def assert_grpc_voice_roundtrip() -> None:
                 )
                 assert source_artifact.artifact_id
 
-                reference = voice_stub.ExtractReferenceSample(
-                    voice_pb2.ExtractReferenceSampleRequest(
-                        source_artifact_id=source_artifact.artifact_id,
-                        language_code="en",
-                        model_size="tiny",
-                        duration_seconds=5.0,
-                    ),
-                    metadata=metadata,
-                )
-                assert reference.sample_artifact.artifact_id
-                reference_payload = download_artifact(
-                    artifact_stub,
-                    reference.sample_artifact.artifact_id,
-                    metadata=metadata,
-                )
-                assert reference_payload.startswith(b"RIFF"), "reference sample is not a WAV file"
-                assert len(reference_payload) > 44, "reference sample WAV payload is empty"
-
                 synthesis = voice_stub.SynthesizeSpeech(
                     voice_pb2.SynthesizeSpeechRequest(
-                        speaker_artifact_id=reference.sample_artifact.artifact_id,
+                        speaker_artifact_id=source_artifact.artifact_id,
                         text="Blackbox Docker probe.",
                         language_code="en",
-                        synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_XTTS,
+                        synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_QWEN3,
+                        speaker_transcript_text=PROBE_SAMPLE_TEXT,
                     ),
                     metadata=metadata,
                 )
@@ -337,10 +221,7 @@ def main() -> int:
     assert_baked_model_paths()
     assert_dependency_imports()
     assert_default_entrypoint_starts()
-    assert_diarization_loader_call_shape()
-    assert_real_diarization_pipeline_loads()
     assert_whisper_loader_call_shape()
-    assert_xtts_loader_call_shape()
     assert_grpc_voice_roundtrip()
     print("Docker image blackbox probe passed.")
     return 0

@@ -302,40 +302,21 @@
         gap: 0.75rem;
       }
 
-      .toggle-group {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.75rem;
+      .engine-note {
+        padding: 0.95rem 1rem;
+        border-radius: 14px;
+        border: 1px solid rgba(16, 33, 42, 0.14);
+        background: linear-gradient(135deg, rgba(36, 75, 90, 0.08), rgba(16, 33, 42, 0.14));
+        line-height: 1.5;
       }
 
-      .toggle-button {
-        color: var(--ink);
-        background: linear-gradient(135deg, rgba(123, 107, 86, 0.14), rgba(70, 53, 44, 0.22));
-        border: 1px solid rgba(32, 23, 21, 0.14);
-        box-shadow: none;
-      }
-
-      .toggle-button.is-active {
-        color: #fffaf2;
-        background: linear-gradient(135deg, #244b5a, #10212a);
-        box-shadow: 0 12px 20px rgba(16, 33, 42, 0.22);
-      }
-
-      .toggle-button-copy {
-        display: grid;
-        gap: 0.18rem;
-      }
-
-      .toggle-button-title {
-        font-size: 0.98rem;
-        font-weight: 700;
-        letter-spacing: 0.04em;
+      .engine-note strong {
+        display: block;
+        margin-bottom: 0.2rem;
         text-transform: uppercase;
-      }
-
-      .toggle-button-note {
+        letter-spacing: 0.08em;
         font-size: 0.8rem;
-        opacity: 0.82;
+        color: #244b5a;
       }
 
       @keyframes pulse {
@@ -359,9 +340,6 @@
           grid-template-columns: 1fr;
         }
 
-        .toggle-group {
-          grid-template-columns: 1fr;
-        }
       }
     </style>
   </head>
@@ -416,30 +394,11 @@ If you know me well, you can hear the difference between my polite voice, my tir
           <div class="panel-title">
             <div class="eyebrow">Step 2</div>
             <h2>Choose What To Render</h2>
-            <p>The backend bridge already has the Dictator auth token. Pick an engine and a passage, then generate the reading from your full recorded sample.</p>
+            <p>The backend bridge already has the Dictator auth token. Qwen3-TTS will use your full recorded sample plus the fixed transcript you just read.</p>
           </div>
-          <div>
-            <label>Choose The Engine</label>
-            <div id="engine-toggle" class="toggle-group" role="group" aria-label="Synthesis engine">
-              <button id="engine-xtts" class="toggle-button is-active" type="button" data-engine="xtts" aria-pressed="true">
-                <span class="toggle-button-copy">
-                  <span class="toggle-button-title">XTTS</span>
-                  <span class="toggle-button-note">Current baseline</span>
-                </span>
-              </button>
-              <button id="engine-qwen3" class="toggle-button" type="button" data-engine="qwen3" aria-pressed="false">
-                <span class="toggle-button-copy">
-                  <span class="toggle-button-title">Qwen3-TTS</span>
-                  <span class="toggle-button-note">Reference audio plus transcript</span>
-                </span>
-              </button>
-              <button id="engine-cosyvoice3" class="toggle-button" type="button" data-engine="cosyvoice3" aria-pressed="false">
-                <span class="toggle-button-copy">
-                  <span class="toggle-button-title">CosyVoice 3</span>
-                  <span class="toggle-button-note">Modern zero-shot contender</span>
-                </span>
-              </button>
-            </div>
+          <div class="engine-note">
+            <strong>Engine</strong>
+            Qwen3-TTS is the only voice cloning engine in this demo.
           </div>
           <div>
             <label for="render-preset">Choose The Text</label>
@@ -489,7 +448,6 @@ And God called the dry land Earth; and the gathering together of the waters call
       const recordButton = document.getElementById("record-toggle");
       const recordButtonText = document.getElementById("record-button-text");
       const recordStateNode = document.getElementById("record-state");
-      const engineButtons = Array.from(document.querySelectorAll("[data-engine]"));
       const renderPresetSelect = document.getElementById("render-preset");
       const renderText = document.getElementById("render-text");
       const generateButton = document.getElementById("generate-voice");
@@ -501,7 +459,6 @@ And God called the dry land Earth; and the gathering together of the waters call
       let mediaStream;
       let recordedBlob;
       let recordedMimeType = "audio/webm";
-      let selectedEngine = "xtts";
 
       const renderPresets = {
         genesis: {
@@ -585,15 +542,6 @@ And miles to go before I sleep.`
         return renderPresets[renderPresetSelect.value] || renderPresets.genesis;
       }
 
-      function setSelectedEngine(engineId) {
-        selectedEngine = ["xtts", "qwen3", "cosyvoice3"].includes(engineId) ? engineId : "xtts";
-        engineButtons.forEach((button) => {
-          const isActive = button.dataset.engine === selectedEngine;
-          button.classList.toggle("is-active", isActive);
-          button.setAttribute("aria-pressed", isActive ? "true" : "false");
-        });
-      }
-
       function syncRenderPresetUi() {
         renderText.value = currentRenderPreset().text;
       }
@@ -622,14 +570,7 @@ And miles to go before I sleep.`
         }
       });
 
-      engineButtons.forEach((button) => {
-        button.addEventListener("click", () => {
-          setSelectedEngine(button.dataset.engine || "xtts");
-        });
-      });
-
       syncRenderPresetUi();
-      setSelectedEngine(selectedEngine);
       setRecordingUi(false);
 
       recordButton.addEventListener("click", async () => {
@@ -695,7 +636,6 @@ And miles to go before I sleep.`
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
-              synthesisEngine: selectedEngine,
               renderPreset: renderPresetSelect.value,
               audioFilename: `voice-sample.${recordedMimeType.includes("ogg") ? "ogg" : recordedMimeType.includes("mp4") ? "m4a" : "webm"}`,
               audioMediaType: recordedMimeType,
