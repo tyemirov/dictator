@@ -1,5 +1,32 @@
 # CHANGELOG
 
+## [v1.3.0]
+
+### Features ✨
+- Refactor voice cloning system to use Qwen3-TTS exclusively.
+- Browser voice clone demo updated to use Qwen3-TTS with full sample plus transcript.
+- Default voice cloning model updated to `Qwen/Qwen3-TTS-12Hz-1.7B-Base` for higher quality.
+
+### Improvements ⚙️
+- GPU Docker image simplified: removed CosyVoice 3 and related dependencies; now installs `sox` and official `flash-attn` wheel for improved acceleration.
+- Prefetches Qwen3 default voice cloning model during GPU image build for faster startup.
+- Updated CLI to require `--sample-text` for voice cloning and default to Qwen3 engine.
+- Simplified gRPC target parsing and channel creation in the web demo backend.
+- Improved Dockerfiles to reduce unused packages and environment variables.
+- Demo backend converts browser recordings to WAV and sends fixed transcripts to Qwen3 model.
+
+### Bug Fixes 🐛
+- Fixed Docker GPU image build by removing obsolete CosyVoice runtime install steps.
+- Corrected Dockerfile package installation to include `sox` utility for audio processing.
+
+### Testing 🧪
+- _No changes._
+
+### Docs 📚
+- Updated README to reflect removal of CosyVoice 3, switch to Qwen3-TTS, and new default model.
+- Refined browser demo README to explain updated voice cloning approach with Qwen3.
+- Cleaned up CLI help text to remove obsolete engine options and clarify required parameters.
+
 ## [v1.2.0]
 
 ### Features ✨
