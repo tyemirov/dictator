@@ -56,6 +56,7 @@ def build_server(
                 max_pending_jobs=config.max_pending_synthesis_jobs,
             ),
         )
+        execution_runtime.start_background_warmup()
     register_services(server, service_context)
     health_service = grpc_health.HealthServicer()
     health_service.set("", health_pb2.HealthCheckResponse.SERVING)

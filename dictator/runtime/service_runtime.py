@@ -2,10 +2,28 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+import logging
 import threading
 
 from dictator.synthesis.config import SynthesisConfig
 from dictator.synthesis.models import SynthesisEngine
+
+
+@dataclass(frozen=True)
+class ReadinessComponent:
+    name: str
+    ready: bool
+    detail: str = ""
+
+
+@dataclass(frozen=True)
+class ReadinessSnapshot:
+    ready: bool
+    warmup_started: bool
+    warmup_in_progress: bool
+    components: tuple[ReadinessComponent, ...]
+    last_error: str = ""
 
 
 class SpeechExecutionRuntime:
@@ -22,6 +40,64 @@ class SpeechExecutionRuntime:
         self._tts_backends: dict[SynthesisEngine, object] = {}
         self._synthesis_service: object | None = None
         self._alignment_backend: object | None = None
+        self._warmup_thread: threading.Thread | None = None
+        self._warmup_started = False
+        self._warmup_in_progress = False
+        self._warmup_last_error = ""
+        self._readiness_components = {
+            "transcription": False,
+            "diarization": False,
+            "synthesis": False,
+        }
+
+    def _set_component_ready(self, component: str, ready: bool) -> None:
+        with self._lock:
+            self._readiness_components[component] = ready
+
+    def start_background_warmup(self) -> None:
+        with self._lock:
+            if self._warmup_started:
+                return
+            self._warmup_started = True
+            self._warmup_in_progress = True
+            self._warmup_thread = threading.Thread(
+                target=self._run_warmup,
+                name="dictator-runtime-warmup",
+                daemon=True,
+            )
+            self._warmup_thread.start()
+
+    def _run_warmup(self) -> None:
+        try:
+            self.get_whisper_model("base")
+            self.get_diarization_pipeline()
+            backend = self.get_synthesis_service().backends[SynthesisEngine.QWEN3]
+            backend.load()
+            self.mark_synthesis_ready()
+        except Exception as exc:  # pragma: no cover - exercised via snapshot
+            logging.exception("runtime warmup failed")
+            with self._lock:
+                self._warmup_last_error = str(exc)
+                self._warmup_in_progress = False
+            return
+        with self._lock:
+            self._warmup_in_progress = False
+            self._warmup_last_error = ""
+
+    def readiness_snapshot(self) -> ReadinessSnapshot:
+        with self._lock:
+            components = tuple(
+                ReadinessComponent(name=name, ready=ready)
+                for name, ready in self._readiness_components.items()
+            )
+            ready = all(component.ready for component in components) and not self._warmup_in_progress
+            return ReadinessSnapshot(
+                ready=ready,
+                warmup_started=self._warmup_started,
+                warmup_in_progress=self._warmup_in_progress,
+                components=components,
+                last_error=self._warmup_last_error,
+            )
 
     def get_whisper_model(self, model_size: str) -> object:
         with self._lock:
@@ -42,6 +118,7 @@ class SpeechExecutionRuntime:
             loaded = load_whisper_model(model_size)
             with self._lock:
                 self._whisper_models.setdefault(model_size, loaded)
+                self._readiness_components["transcription"] = True
                 return self._whisper_models[model_size]
 
 
@@ -69,6 +146,7 @@ class SpeechExecutionRuntime:
             with self._lock:
                 if self._diarization_pipeline is None:
                     self._diarization_pipeline = loaded
+                    self._readiness_components["diarization"] = True
                 return self._diarization_pipeline
 
     def get_synthesis_service(self):
@@ -84,6 +162,9 @@ class SpeechExecutionRuntime:
                     )
                 self._synthesis_service = SpeechSynthesisService(backends=dict(self._tts_backends))
             return self._synthesis_service
+
+    def mark_synthesis_ready(self) -> None:
+        self._set_component_ready("synthesis", True)
 
     def get_alignment_service(self):
         from dictator.alignment.service import AlignmentService

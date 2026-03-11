@@ -158,6 +158,23 @@ class FakeRuntime:
     def get_diarization_pipeline(self):
         return object()
 
+    def readiness_snapshot(self):
+        return type(
+            "ReadinessSnapshot",
+            (),
+            {
+                "ready": True,
+                "warmup_started": True,
+                "warmup_in_progress": False,
+                "components": (
+                    type("Component", (), {"name": "transcription", "ready": True, "detail": ""})(),
+                    type("Component", (), {"name": "diarization", "ready": True, "detail": ""})(),
+                    type("Component", (), {"name": "synthesis", "ready": True, "detail": ""})(),
+                ),
+                "last_error": "",
+            },
+        )()
+
 
 class GrpcTransportIntegrationTests(unittest.TestCase):
     @classmethod
@@ -211,6 +228,16 @@ class GrpcTransportIntegrationTests(unittest.TestCase):
         with self.assertRaises(grpc.RpcError) as exc:
             self.runtime_stub.GetMetrics(runtime_pb2.GetMetricsRequest())
         self.assertEqual(exc.exception.code(), grpc.StatusCode.UNAUTHENTICATED)
+
+    def test_runtime_readiness_returns_component_status(self):
+        response = self.runtime_stub.GetReadiness(
+            runtime_pb2.GetReadinessRequest(),
+            metadata=self._auth_metadata,
+        )
+        self.assertTrue(response.ready)
+        self.assertTrue(response.warmup_started)
+        self.assertFalse(response.warmup_in_progress)
+        self.assertEqual([component.name for component in response.components], ["transcription", "diarization", "synthesis"])
 
     def test_upload_download_transcribe_align_and_metrics(self):
         artifact_id = self._upload_artifact("sample.wav", b"abcdef")

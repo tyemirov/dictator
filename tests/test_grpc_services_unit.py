@@ -13,13 +13,14 @@ import grpc
 from dictator.diarization.models import DiarizeAudioResult, DiarizedUtterance, DiarizedWord, SpeakerSummary, SpeakerSegment
 from dictator.runtime.jobs import SynthesisJobRecord, SynthesisJobState
 from dictator.runtime import DependencyError, InflightLimiter, MetricsRegistry, ProcessingError, ServiceRequestError, ValidationError
-from dictator.speech.v1 import alignment_pb2, artifacts_pb2, subtitle_pb2, transcription_pb2, voice_pb2
+from dictator.speech.v1 import alignment_pb2, artifacts_pb2, runtime_pb2, subtitle_pb2, transcription_pb2, voice_pb2
 from dictator.storage import LocalArtifactStore
 from dictator.synthesis.models import SynthesisEngine
 from dictator.transport.grpc.services import (
     AlignmentServiceServicer,
     ArtifactServiceServicer,
     BaseServicer,
+    RuntimeServiceServicer,
     ServiceContext,
     SubtitleServiceServicer,
     TranscriptionServiceServicer,
@@ -193,6 +194,19 @@ class FakeRuntime:
 
     def mark_synthesis_ready(self):
         self.mark_synthesis_ready_calls += 1
+
+    def readiness_snapshot(self):
+        return types.SimpleNamespace(
+            ready=True,
+            warmup_started=True,
+            warmup_in_progress=False,
+            components=(
+                types.SimpleNamespace(name="transcription", ready=True, detail=""),
+                types.SimpleNamespace(name="diarization", ready=True, detail=""),
+                types.SimpleNamespace(name="synthesis", ready=True, detail=""),
+            ),
+            last_error="",
+        )
 
 
 class FakeJobManager:
@@ -581,6 +595,17 @@ class GrpcServicesUnitTests(unittest.TestCase):
                 FakeContext(metadata=(("x-dictator-token", "secret"),)),
             )
         self.assertEqual(exc.exception.status, grpc.StatusCode.INVALID_ARGUMENT)
+
+    def test_runtime_service_readiness(self):
+        servicer = RuntimeServiceServicer(self.context)
+        response = servicer.GetReadiness(
+            runtime_pb2.GetReadinessRequest(),
+            FakeContext(metadata=(("x-dictator-token", "secret"),)),
+        )
+        self.assertTrue(response.ready)
+        self.assertTrue(response.warmup_started)
+        self.assertEqual([component.name for component in response.components], ["transcription", "diarization", "synthesis"])
+
 
 if __name__ == "__main__":
     unittest.main()

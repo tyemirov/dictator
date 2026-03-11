@@ -248,6 +248,10 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 self.assertEqual(subtitle_service.alignment_service.backend, "align-backend")
 
                 self.assertIsInstance(runtime.get_reference_extraction_service(), FakeReferenceExtractionService)
+                self.assertFalse(runtime.readiness_snapshot().ready)
+                runtime.mark_synthesis_ready()
+                self.assertTrue(runtime.readiness_snapshot().components[-1].ready)
+
     def test_synthesis_config_reads_qwen_text_budget(self):
         config = SynthesisConfig.from_env(
             {
@@ -262,6 +266,45 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
             SynthesisConfig.from_env({"DICTATOR_QWEN3_TTS_TEXT_TOKEN_BUDGET": "0"})
         with self.assertRaisesRegex(ValueError, "positive integer"):
             SynthesisConfig.from_env({"DICTATOR_QWEN3_TTS_TEXT_TOKEN_BUDGET": "abc"})
+
+    def test_runtime_readiness_tracks_warmup_state(self):
+        runtime = SpeechExecutionRuntime()
+        initial = runtime.readiness_snapshot()
+        self.assertFalse(initial.ready)
+        self.assertFalse(initial.warmup_started)
+
+        with patch("dictator.runtime.service_runtime.threading.Thread", _FakeThread):
+            runtime.start_background_warmup()
+            runtime.start_background_warmup()
+        warming = runtime.readiness_snapshot()
+        self.assertTrue(warming.warmup_started)
+        self.assertTrue(warming.warmup_in_progress)
+
+        runtime._set_component_ready("transcription", True)
+        runtime._set_component_ready("diarization", True)
+        runtime.mark_synthesis_ready()
+        runtime._warmup_in_progress = False
+        ready = runtime.readiness_snapshot()
+        self.assertTrue(ready.ready)
+
+    def test_runtime_warmup_covers_success_and_failure_paths(self):
+        runtime = SpeechExecutionRuntime()
+        backend = types.SimpleNamespace(load=lambda: None)
+        runtime.get_whisper_model = lambda model_size: "whisper"
+        runtime.get_diarization_pipeline = lambda: "pipeline"
+        runtime.get_synthesis_service = lambda: types.SimpleNamespace(backends={SynthesisEngine.QWEN3: backend})
+        runtime._run_warmup()
+        snapshot = runtime.readiness_snapshot()
+        self.assertTrue(snapshot.components[-1].ready)
+        self.assertFalse(snapshot.warmup_in_progress)
+        self.assertEqual(snapshot.last_error, "")
+
+        failing = SpeechExecutionRuntime()
+        failing.get_whisper_model = lambda model_size: (_ for _ in ()).throw(RuntimeError("warmup failed"))
+        failing._run_warmup()
+        failed_snapshot = failing.readiness_snapshot()
+        self.assertEqual(failed_snapshot.last_error, "warmup failed")
+        self.assertFalse(failed_snapshot.warmup_in_progress)
 
     def test_local_synthesis_job_store_and_manager_cover_success_failure_and_restart(self):
         with tempfile.TemporaryDirectory() as tmpdir:
