@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from dictator.runtime import ValidationError
+from dictator.runtime.jobs import SynthesisJobRecord, SynthesisJobState
 from dictator.speech.v1 import voice_pb2, voice_pb2_grpc
 from dictator.synthesis.models import SynthesisEngine, SynthesisRequest
+from dictator.synthesis.workflow import (
+    execute_synthesis_request,
+    prepare_synthesis_request,
+)
 
 from .base import BaseServicer
 
@@ -23,6 +27,47 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
 
     def _resolve_speaker_transcript_text(self, request) -> str | None:
         return request.speaker_transcript_text or None
+
+    def _resolve_prepared_synthesis_request(self, request):
+        return prepare_synthesis_request(
+            self.service_context.artifact_store,
+            speaker_artifact_id=request.speaker_artifact_id,
+            text=request.text,
+            text_artifact_id=request.text_artifact_id,
+            language_code=request.language_code,
+            max_duration_seconds=request.max_duration_seconds,
+            include_timeline=request.include_timeline,
+            engine=self._resolve_synthesis_engine(request.synthesis_engine),
+            speaker_transcript_text=self._resolve_speaker_transcript_text(request),
+        )
+
+    def _job_state_value(self, state: SynthesisJobState) -> int:
+        mapping = {
+            SynthesisJobState.QUEUED: voice_pb2.SYNTHESIS_JOB_STATE_QUEUED,
+            SynthesisJobState.RUNNING: voice_pb2.SYNTHESIS_JOB_STATE_RUNNING,
+            SynthesisJobState.SUCCEEDED: voice_pb2.SYNTHESIS_JOB_STATE_SUCCEEDED,
+            SynthesisJobState.FAILED: voice_pb2.SYNTHESIS_JOB_STATE_FAILED,
+        }
+        return mapping[state]
+
+    def _job_response(self, record: SynthesisJobRecord):
+        response = voice_pb2.GetSynthesizeSpeechJobResponse(
+            job_id=record.job_id,
+            state=self._job_state_value(record.state),
+            error_code=record.error_code or "",
+            error_message=record.error_message or "",
+            audio_duration_seconds=record.audio_duration_seconds or 0.0,
+            timeline_artifact_id=record.timeline_artifact_id or "",
+            chunk_count=record.chunk_count or 0,
+            created_at_unix_seconds=record.created_at_unix_seconds,
+            started_at_unix_seconds=record.started_at_unix_seconds or 0.0,
+            finished_at_unix_seconds=record.finished_at_unix_seconds or 0.0,
+        )
+        if record.audio_artifact_id:
+            response.audio_artifact.CopyFrom(
+                self._artifact_ref(self.service_context.artifact_store.get_artifact(record.audio_artifact_id))
+            )
+        return response
 
     def ExtractReferenceSample(self, request, context):
         with self._request_scope(context):
@@ -61,72 +106,49 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
 
     def SynthesizeSpeech(self, request, context):
         with self._request_scope(context):
-            speaker = self.service_context.artifact_store.get_artifact(request.speaker_artifact_id)
-            text = request.text
-            if request.text_artifact_id:
-                text = self.service_context.artifact_store.read_text(request.text_artifact_id)
-            if not text.strip():
-                raise ValidationError(
-                    "dictator.grpc.voice.missing_text",
-                    "text or text_artifact_id is required",
+            prepared = self._resolve_prepared_synthesis_request(request)
+            outcome = execute_synthesis_request(
+                artifact_store=self.service_context.artifact_store,
+                execution_runtime=self.service_context.execution_runtime,
+                prepared=prepared,
+            )
+            response = voice_pb2.SynthesizeSpeechResponse(
+                audio_artifact=self._artifact_ref(outcome.audio_record),
+                audio_duration_seconds=outcome.audio_duration_seconds,
+                chunk_count=outcome.chunk_count,
+            )
+            if request.include_timeline:
+                response.timeline.extend(
+                    self._timeline_segment(segment)
+                    for segment in outcome.timeline_segments
                 )
-            from dictator.audio.ffmpeg_ops import concat_normalise
-            from dictator.synthesis.service import cleanup_synthesis_result
+                response.timeline_artifact_id = outcome.timeline_artifact_id or ""
+            return response
 
-            synthesis_engine = self._resolve_synthesis_engine(request.synthesis_engine)
-            synthesis_service = self.service_context.execution_runtime.get_synthesis_service()
-            cap_seconds = request.max_duration_seconds or None
-            speaker_transcript_text = self._resolve_speaker_transcript_text(request)
-            result = None
-            try:
-                result = synthesis_service.synthesise_text(
-                    SynthesisRequest(
-                        engine=synthesis_engine,
-                        speaker_wav=speaker.path,
-                        text=text,
-                        language_code=request.language_code or "en",
-                        cap_seconds=cap_seconds,
-                        speaker_artifact_id=request.speaker_artifact_id,
-                        speaker_transcript_text=speaker_transcript_text,
-                    )
+    def SubmitSynthesizeSpeechJob(self, request, context):
+        with self._request_scope(context):
+            if self.service_context.synthesis_job_manager is None:
+                raise ValidationError(
+                    "dictator.grpc.voice.jobs_unavailable",
+                    "synthesis job manager is not configured",
                 )
-                audio_reservation = self.service_context.artifact_store.reserve_artifact(
-                    f"{Path(speaker.filename).stem}_synth.wav",
-                    media_type="audio/wav",
-                    fallback_suffix=".wav",
+            prepared = self._resolve_prepared_synthesis_request(request)
+            record = self.service_context.synthesis_job_manager.submit(prepared)
+            return voice_pb2.SubmitSynthesizeSpeechJobResponse(
+                job_id=record.job_id,
+                state=self._job_state_value(record.state),
+            )
+
+    def GetSynthesizeSpeechJob(self, request, context):
+        with self._request_scope(context):
+            if self.service_context.synthesis_job_manager is None:
+                raise ValidationError(
+                    "dictator.grpc.voice.jobs_unavailable",
+                    "synthesis job manager is not configured",
                 )
-                concat_normalise(result.wav_paths, audio_reservation.path, cap_seconds)
-                audio_record = self.service_context.artifact_store.finalize_artifact(audio_reservation)
-                response = voice_pb2.SynthesizeSpeechResponse(
-                    audio_artifact=self._artifact_ref(audio_record),
-                    audio_duration_seconds=result.segments[-1].end_seconds if result.segments else 0.0,
-                    chunk_count=len(result.wav_paths),
+            if not request.job_id.strip():
+                raise ValidationError(
+                    "dictator.grpc.voice.job_id_required",
+                    "job_id is required",
                 )
-                if request.include_timeline:
-                    timeline_payload = {
-                        "textSegments": [segment.to_timeline_dict() for segment in result.segments],
-                        "imageCues": [],
-                        "voices": [
-                            {
-                                "id": speaker.artifact_id,
-                                "label": Path(speaker.filename).stem,
-                                "file": str(speaker.path),
-                                "engine": synthesis_engine.value,
-                            }
-                        ],
-                    }
-                    timeline_record = self.service_context.artifact_store.write_artifact(
-                        [json.dumps(timeline_payload, ensure_ascii=False, indent=2).encode("utf-8")],
-                        filename=f"{Path(audio_record.filename).stem}.timeline.json",
-                        media_type="application/json",
-                        fallback_suffix=".json",
-                    )
-                    response.timeline.extend(
-                        self._timeline_segment(segment.to_timeline_dict())
-                        for segment in result.segments
-                    )
-                    response.timeline_artifact_id = timeline_record.artifact_id
-                return response
-            finally:
-                if result is not None:
-                    cleanup_synthesis_result(result)
+            return self._job_response(self.service_context.synthesis_job_manager.get(request.job_id))

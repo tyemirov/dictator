@@ -13,6 +13,8 @@ DEFAULT_PORT = 50051
 DEFAULT_MAX_WORKERS = 4
 DEFAULT_MAX_MESSAGE_BYTES = 64 * 1024 * 1024
 DEFAULT_MAX_INFLIGHT = 4
+DEFAULT_SYNTHESIS_JOB_WORKERS = 1
+DEFAULT_MAX_PENDING_SYNTHESIS_JOBS = 32
 DEFAULT_DOWNLOAD_CHUNK_BYTES = 1024 * 1024
 DEFAULT_ARTIFACT_ROOT = ".dictator-artifacts"
 
@@ -21,6 +23,8 @@ PORT_ENV = "DICTATOR_GRPC_PORT"
 MAX_WORKERS_ENV = "DICTATOR_GRPC_MAX_WORKERS"
 MAX_MESSAGE_BYTES_ENV = "DICTATOR_GRPC_MAX_MESSAGE_BYTES"
 MAX_INFLIGHT_ENV = "DICTATOR_GRPC_MAX_INFLIGHT"
+SYNTHESIS_JOB_WORKERS_ENV = "DICTATOR_GRPC_SYNTHESIS_JOB_WORKERS"
+MAX_PENDING_SYNTHESIS_JOBS_ENV = "DICTATOR_GRPC_MAX_PENDING_SYNTHESIS_JOBS"
 DOWNLOAD_CHUNK_BYTES_ENV = "DICTATOR_GRPC_DOWNLOAD_CHUNK_BYTES"
 ARTIFACT_ROOT_ENV = "DICTATOR_GRPC_ARTIFACT_ROOT"
 AUTH_TOKEN_ENV = "DICTATOR_GRPC_AUTH_TOKEN"
@@ -33,6 +37,8 @@ _FIELD_NAMES = {
     "max_workers",
     "max_message_bytes",
     "max_inflight",
+    "synthesis_job_workers",
+    "max_pending_synthesis_jobs",
     "download_chunk_bytes",
     "artifact_root",
     "auth_token",
@@ -126,6 +132,8 @@ class ServerConfig:
     max_workers: int = DEFAULT_MAX_WORKERS
     max_message_bytes: int = DEFAULT_MAX_MESSAGE_BYTES
     max_inflight: int = DEFAULT_MAX_INFLIGHT
+    synthesis_job_workers: int = DEFAULT_SYNTHESIS_JOB_WORKERS
+    max_pending_synthesis_jobs: int = DEFAULT_MAX_PENDING_SYNTHESIS_JOBS
     download_chunk_bytes: int = DEFAULT_DOWNLOAD_CHUNK_BYTES
     artifact_root: Path = Path(DEFAULT_ARTIFACT_ROOT)
     auth_token: str | None = None
@@ -145,6 +153,14 @@ class ServerConfig:
             str(overrides.get("max_inflight", self.max_inflight)),
             "max_inflight",
         )
+        synthesis_job_workers = _parse_positive_int(
+            str(overrides.get("synthesis_job_workers", self.synthesis_job_workers)),
+            "synthesis_job_workers",
+        )
+        max_pending_synthesis_jobs = _parse_positive_int(
+            str(overrides.get("max_pending_synthesis_jobs", self.max_pending_synthesis_jobs)),
+            "max_pending_synthesis_jobs",
+        )
         download_chunk_bytes = _parse_positive_int(
             str(overrides.get("download_chunk_bytes", self.download_chunk_bytes)),
             "download_chunk_bytes",
@@ -158,6 +174,8 @@ class ServerConfig:
             max_workers=max_workers,
             max_message_bytes=max_message_bytes,
             max_inflight=max_inflight,
+            synthesis_job_workers=synthesis_job_workers,
+            max_pending_synthesis_jobs=max_pending_synthesis_jobs,
             download_chunk_bytes=download_chunk_bytes,
             artifact_root=artifact_root,
             auth_token=auth_token,
@@ -180,6 +198,14 @@ class ServerConfig:
             source.get(MAX_INFLIGHT_ENV, str(DEFAULT_MAX_INFLIGHT)),
             MAX_INFLIGHT_ENV,
         )
+        synthesis_job_workers = _parse_positive_int(
+            source.get(SYNTHESIS_JOB_WORKERS_ENV, str(DEFAULT_SYNTHESIS_JOB_WORKERS)),
+            SYNTHESIS_JOB_WORKERS_ENV,
+        )
+        max_pending_synthesis_jobs = _parse_positive_int(
+            source.get(MAX_PENDING_SYNTHESIS_JOBS_ENV, str(DEFAULT_MAX_PENDING_SYNTHESIS_JOBS)),
+            MAX_PENDING_SYNTHESIS_JOBS_ENV,
+        )
         download_chunk_bytes = _parse_positive_int(
             source.get(DOWNLOAD_CHUNK_BYTES_ENV, str(DEFAULT_DOWNLOAD_CHUNK_BYTES)),
             DOWNLOAD_CHUNK_BYTES_ENV,
@@ -192,6 +218,8 @@ class ServerConfig:
             max_workers=max_workers,
             max_message_bytes=max_message_bytes,
             max_inflight=max_inflight,
+            synthesis_job_workers=synthesis_job_workers,
+            max_pending_synthesis_jobs=max_pending_synthesis_jobs,
             download_chunk_bytes=download_chunk_bytes,
             artifact_root=artifact_root,
             auth_token=auth_token,

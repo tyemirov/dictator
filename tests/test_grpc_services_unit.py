@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-import json
 from pathlib import Path
 import sys
 import tempfile
@@ -12,6 +11,7 @@ from unittest.mock import patch
 import grpc
 
 from dictator.diarization.models import DiarizeAudioResult, DiarizedUtterance, DiarizedWord, SpeakerSummary, SpeakerSegment
+from dictator.runtime.jobs import SynthesisJobRecord, SynthesisJobState
 from dictator.runtime import DependencyError, InflightLimiter, MetricsRegistry, ProcessingError, ServiceRequestError, ValidationError
 from dictator.speech.v1 import alignment_pb2, artifacts_pb2, subtitle_pb2, transcription_pb2, voice_pb2
 from dictator.storage import LocalArtifactStore
@@ -165,6 +165,7 @@ class FakeRuntime:
         self.synthesis_service = FakeSynthesisService(synthesis_result)
         self.whisper_model = object()
         self.pipeline = object()
+        self.mark_synthesis_ready_calls = 0
 
     def get_transcription_service(self):
         return self.transcription_service
@@ -189,6 +190,24 @@ class FakeRuntime:
 
     def get_diarization_pipeline(self):
         return self.pipeline
+
+    def mark_synthesis_ready(self):
+        self.mark_synthesis_ready_calls += 1
+
+
+class FakeJobManager:
+    def __init__(self, record):
+        self.record = record
+        self.submitted = []
+        self.lookups = []
+
+    def submit(self, prepared):
+        self.submitted.append(prepared)
+        return self.record
+
+    def get(self, job_id):
+        self.lookups.append(job_id)
+        return self.record
 
 
 class GrpcServicesUnitTests(unittest.TestCase):
@@ -437,6 +456,7 @@ class GrpcServicesUnitTests(unittest.TestCase):
         self.assertFalse(response.timeline_artifact_id)
         self.assertEqual(self.runtime.synthesis_service.calls[0].speaker_artifact_id, self.audio_record.artifact_id)
         self.assertEqual(len(cleanup_calls), 1)
+        self.assertEqual(self.runtime.mark_synthesis_ready_calls, 1)
 
         timeline_result = types.SimpleNamespace(
             wav_paths=(Path(self.tmpdir.name) / "chunk.wav",),
@@ -462,6 +482,105 @@ class GrpcServicesUnitTests(unittest.TestCase):
         self.assertTrue(response.timeline_artifact_id)
         self.assertEqual(response.timeline[0].content, "hello")
 
+    def test_voice_servicer_job_submission_and_lookup(self):
+        audio_record = self.context.artifact_store.write_artifact([b"wav"], filename="result.wav", media_type="audio/wav")
+        manager = FakeJobManager(
+            SynthesisJobRecord(
+                job_id="job-1",
+                state=SynthesisJobState.SUCCEEDED,
+                engine="qwen3",
+                language_code="en",
+                include_timeline=True,
+                speaker_artifact_id=self.audio_record.artifact_id,
+                created_at_unix_seconds=1.0,
+                started_at_unix_seconds=2.0,
+                finished_at_unix_seconds=3.0,
+                audio_artifact_id=audio_record.artifact_id,
+                audio_duration_seconds=4.0,
+                timeline_artifact_id="timeline-1",
+                chunk_count=2,
+            )
+        )
+        context = ServiceContext(
+            artifact_store=self.context.artifact_store,
+            execution_runtime=self.runtime,
+            metrics=MetricsRegistry(),
+            limiter=InflightLimiter(2),
+            auth_token="secret",
+            download_chunk_bytes=4,
+            synthesis_job_manager=manager,
+        )
+        servicer = VoiceServiceServicer(context)
+
+        submit = servicer.SubmitSynthesizeSpeechJob(
+            voice_pb2.SynthesizeSpeechRequest(
+                speaker_artifact_id=self.audio_record.artifact_id,
+                text="hello world",
+                include_timeline=True,
+                synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_QWEN3,
+                speaker_transcript_text="sample transcript",
+            ),
+            FakeContext(metadata=(("x-dictator-token", "secret"),)),
+        )
+        self.assertEqual(submit.job_id, "job-1")
+        self.assertEqual(submit.state, voice_pb2.SYNTHESIS_JOB_STATE_SUCCEEDED)
+        self.assertEqual(manager.submitted[0].synthesis_request.text, "hello world")
+
+        lookup = servicer.GetSynthesizeSpeechJob(
+            voice_pb2.GetSynthesizeSpeechJobRequest(job_id="job-1"),
+            FakeContext(metadata=(("x-dictator-token", "secret"),)),
+        )
+        self.assertEqual(lookup.audio_artifact.artifact_id, audio_record.artifact_id)
+        self.assertEqual(lookup.chunk_count, 2)
+        self.assertEqual(manager.lookups, ["job-1"])
+
+    def test_voice_servicer_rejects_job_requests_without_manager_or_job_id(self):
+        servicer = VoiceServiceServicer(self.context)
+        with self.assertRaises(RpcAbort) as exc:
+            servicer.SubmitSynthesizeSpeechJob(
+                voice_pb2.SynthesizeSpeechRequest(
+                    speaker_artifact_id=self.audio_record.artifact_id,
+                    text="hello",
+                    synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_QWEN3,
+                ),
+                FakeContext(metadata=(("x-dictator-token", "secret"),)),
+            )
+        self.assertEqual(exc.exception.status, grpc.StatusCode.INVALID_ARGUMENT)
+
+        with self.assertRaises(RpcAbort) as exc:
+            servicer.GetSynthesizeSpeechJob(
+                voice_pb2.GetSynthesizeSpeechJobRequest(job_id="job-1"),
+                FakeContext(metadata=(("x-dictator-token", "secret"),)),
+            )
+        self.assertEqual(exc.exception.status, grpc.StatusCode.INVALID_ARGUMENT)
+
+        manager = FakeJobManager(
+            SynthesisJobRecord(
+                job_id="job-1",
+                state=SynthesisJobState.QUEUED,
+                engine="qwen3",
+                language_code="en",
+                include_timeline=False,
+                speaker_artifact_id=self.audio_record.artifact_id,
+                created_at_unix_seconds=1.0,
+            )
+        )
+        context = ServiceContext(
+            artifact_store=self.context.artifact_store,
+            execution_runtime=self.runtime,
+            metrics=MetricsRegistry(),
+            limiter=InflightLimiter(2),
+            auth_token="secret",
+            download_chunk_bytes=4,
+            synthesis_job_manager=manager,
+        )
+        servicer = VoiceServiceServicer(context)
+        with self.assertRaises(RpcAbort) as exc:
+            servicer.GetSynthesizeSpeechJob(
+                voice_pb2.GetSynthesizeSpeechJobRequest(job_id=""),
+                FakeContext(metadata=(("x-dictator-token", "secret"),)),
+            )
+        self.assertEqual(exc.exception.status, grpc.StatusCode.INVALID_ARGUMENT)
 
 if __name__ == "__main__":
     unittest.main()

@@ -10,11 +10,25 @@ service VoiceService {
 
   rpc SynthesizeSpeech(SynthesizeSpeechRequest)
       returns (SynthesizeSpeechResponse);
+
+  rpc SubmitSynthesizeSpeechJob(SynthesizeSpeechRequest)
+      returns (SubmitSynthesizeSpeechJobResponse);
+
+  rpc GetSynthesizeSpeechJob(GetSynthesizeSpeechJobRequest)
+      returns (GetSynthesizeSpeechJobResponse);
 }
 
 enum SynthesisEngine {
   SYNTHESIS_ENGINE_UNSPECIFIED = 0;
   SYNTHESIS_ENGINE_QWEN3 = 1;
+}
+
+enum SynthesisJobState {
+  SYNTHESIS_JOB_STATE_UNSPECIFIED = 0;
+  SYNTHESIS_JOB_STATE_QUEUED = 1;
+  SYNTHESIS_JOB_STATE_RUNNING = 2;
+  SYNTHESIS_JOB_STATE_SUCCEEDED = 3;
+  SYNTHESIS_JOB_STATE_FAILED = 4;
 }
 
 message ExtractReferenceSampleRequest {
@@ -55,4 +69,27 @@ message SynthesizeSpeechResponse {
   repeated TimelineSegment timeline = 3;
   string timeline_artifact_id = 4;
   int32 chunk_count = 5;
+}
+
+message SubmitSynthesizeSpeechJobResponse {
+  string job_id = 1;
+  SynthesisJobState state = 2;
+}
+
+message GetSynthesizeSpeechJobRequest {
+  string job_id = 1;
+}
+
+message GetSynthesizeSpeechJobResponse {
+  string job_id = 1;
+  SynthesisJobState state = 2;
+  string error_code = 3;
+  string error_message = 4;
+  ArtifactRef audio_artifact = 5;
+  double audio_duration_seconds = 6;
+  string timeline_artifact_id = 7;
+  int32 chunk_count = 8;
+  double created_at_unix_seconds = 9;
+  double started_at_unix_seconds = 10;
+  double finished_at_unix_seconds = 11;
 }

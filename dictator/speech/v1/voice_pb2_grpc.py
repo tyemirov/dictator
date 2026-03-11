@@ -44,6 +44,16 @@ class VoiceServiceStub(object):
                 request_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.SynthesizeSpeechRequest.SerializeToString,
                 response_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.SynthesizeSpeechResponse.FromString,
                 _registered_method=True)
+        self.SubmitSynthesizeSpeechJob = channel.unary_unary(
+                '/dictator.speech.v1.VoiceService/SubmitSynthesizeSpeechJob',
+                request_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.SynthesizeSpeechRequest.SerializeToString,
+                response_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.SubmitSynthesizeSpeechJobResponse.FromString,
+                _registered_method=True)
+        self.GetSynthesizeSpeechJob = channel.unary_unary(
+                '/dictator.speech.v1.VoiceService/GetSynthesizeSpeechJob',
+                request_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.GetSynthesizeSpeechJobRequest.SerializeToString,
+                response_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.GetSynthesizeSpeechJobResponse.FromString,
+                _registered_method=True)
 
 
 class VoiceServiceServicer(object):
@@ -61,6 +71,18 @@ class VoiceServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def SubmitSynthesizeSpeechJob(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetSynthesizeSpeechJob(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_VoiceServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -73,6 +95,16 @@ def add_VoiceServiceServicer_to_server(servicer, server):
                     servicer.SynthesizeSpeech,
                     request_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.SynthesizeSpeechRequest.FromString,
                     response_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.SynthesizeSpeechResponse.SerializeToString,
+            ),
+            'SubmitSynthesizeSpeechJob': grpc.unary_unary_rpc_method_handler(
+                    servicer.SubmitSynthesizeSpeechJob,
+                    request_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.SynthesizeSpeechRequest.FromString,
+                    response_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.SubmitSynthesizeSpeechJobResponse.SerializeToString,
+            ),
+            'GetSynthesizeSpeechJob': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetSynthesizeSpeechJob,
+                    request_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.GetSynthesizeSpeechJobRequest.FromString,
+                    response_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.GetSynthesizeSpeechJobResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -129,6 +161,60 @@ class VoiceService(object):
             '/dictator.speech.v1.VoiceService/SynthesizeSpeech',
             dictator_dot_speech_dot_v1_dot_voice__pb2.SynthesizeSpeechRequest.SerializeToString,
             dictator_dot_speech_dot_v1_dot_voice__pb2.SynthesizeSpeechResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SubmitSynthesizeSpeechJob(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/dictator.speech.v1.VoiceService/SubmitSynthesizeSpeechJob',
+            dictator_dot_speech_dot_v1_dot_voice__pb2.SynthesizeSpeechRequest.SerializeToString,
+            dictator_dot_speech_dot_v1_dot_voice__pb2.SubmitSynthesizeSpeechJobResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetSynthesizeSpeechJob(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/dictator.speech.v1.VoiceService/GetSynthesizeSpeechJob',
+            dictator_dot_speech_dot_v1_dot_voice__pb2.GetSynthesizeSpeechJobRequest.SerializeToString,
+            dictator_dot_speech_dot_v1_dot_voice__pb2.GetSynthesizeSpeechJobResponse.FromString,
             options,
             channel_credentials,
             insecure,

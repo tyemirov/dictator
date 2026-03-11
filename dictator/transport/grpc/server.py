@@ -11,6 +11,7 @@ from grpc_health.v1 import health_pb2
 from grpc_health.v1 import health_pb2_grpc
 
 from dictator.runtime import InflightLimiter, MetricsRegistry, SpeechExecutionRuntime
+from dictator.runtime.jobs import LocalSynthesisJobStore, SynthesisJobManager
 from dictator.storage import LocalArtifactStore
 
 from .config import ServerConfig
@@ -38,13 +39,22 @@ def build_server(
         ),
     )
     if service_context is None:
+        execution_runtime = SpeechExecutionRuntime()
+        artifact_store = LocalArtifactStore(config.artifact_root)
         service_context = ServiceContext(
-            artifact_store=LocalArtifactStore(config.artifact_root),
-            execution_runtime=SpeechExecutionRuntime(),
+            artifact_store=artifact_store,
+            execution_runtime=execution_runtime,
             metrics=MetricsRegistry(),
             limiter=InflightLimiter(config.max_inflight),
             auth_token=config.auth_token,
             download_chunk_bytes=config.download_chunk_bytes,
+            synthesis_job_manager=SynthesisJobManager(
+                job_store=LocalSynthesisJobStore(config.artifact_root / ".dictator-jobs"),
+                artifact_store=artifact_store,
+                execution_runtime=execution_runtime,
+                max_workers=config.synthesis_job_workers,
+                max_pending_jobs=config.max_pending_synthesis_jobs,
+            ),
         )
     register_services(server, service_context)
     health_service = grpc_health.HealthServicer()

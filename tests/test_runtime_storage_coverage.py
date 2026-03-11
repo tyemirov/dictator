@@ -7,13 +7,15 @@ import types
 import unittest
 from unittest.mock import patch
 
-from dictator.runtime.errors import ServiceRequestError
+from dictator.runtime.errors import ServiceRequestError, ValidationError
 from dictator.runtime.inflight import InflightLimiter
+from dictator.runtime.jobs import LocalSynthesisJobStore, SynthesisJobManager, SynthesisJobState
 from dictator.runtime.metrics import MetricsRegistry
 from dictator.runtime.service_runtime import SpeechExecutionRuntime
 from dictator.runtime.timeouts import run_with_timeout
 from dictator.synthesis.config import SynthesisConfig
-from dictator.synthesis.models import SynthesisEngine
+from dictator.synthesis.models import SynthesisEngine, SynthesisRequest
+from dictator.synthesis.workflow import PreparedSynthesisRequest, prepare_synthesis_request
 from dictator.synthesis import text as synthesis_text
 from dictator.storage.artifact_store import ArtifactReservation, LocalArtifactStore
 from duration import parse_duration
@@ -31,6 +33,19 @@ class _FakeThread:
 
     def is_alive(self):
         return self.alive
+
+
+class _ImmediateExecutor:
+    def __init__(self, *args, **kwargs):
+        return None
+
+    def submit(self, fn, *args, **kwargs):
+        fn(*args, **kwargs)
+
+
+class _ExplodingExecutor(_ImmediateExecutor):
+    def submit(self, fn, *args, **kwargs):
+        raise RuntimeError("submit failed")
 
 
 class RuntimeStorageCoverageTests(unittest.TestCase):
@@ -233,7 +248,6 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 self.assertEqual(subtitle_service.alignment_service.backend, "align-backend")
 
                 self.assertIsInstance(runtime.get_reference_extraction_service(), FakeReferenceExtractionService)
-
     def test_synthesis_config_reads_qwen_text_budget(self):
         config = SynthesisConfig.from_env(
             {
@@ -248,6 +262,122 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
             SynthesisConfig.from_env({"DICTATOR_QWEN3_TTS_TEXT_TOKEN_BUDGET": "0"})
         with self.assertRaisesRegex(ValueError, "positive integer"):
             SynthesisConfig.from_env({"DICTATOR_QWEN3_TTS_TEXT_TOKEN_BUDGET": "abc"})
+
+    def test_local_synthesis_job_store_and_manager_cover_success_failure_and_restart(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            artifact_store = LocalArtifactStore(root / "artifacts")
+            speaker = artifact_store.write_artifact([b"wav"], filename="speaker.wav", media_type="audio/wav")
+            prepared = PreparedSynthesisRequest(
+                speaker_record=speaker,
+                synthesis_request=SynthesisRequest(
+                    engine=SynthesisEngine.QWEN3,
+                    speaker_wav=speaker.path,
+                    text="hello world",
+                    language_code="en",
+                    cap_seconds=None,
+                    speaker_artifact_id=speaker.artifact_id,
+                    speaker_transcript_text="hello world",
+                ),
+                include_timeline=True,
+            )
+            store = LocalSynthesisJobStore(root / "jobs")
+            with self.assertRaisesRegex(ValueError, "max_workers must be positive"):
+                SynthesisJobManager(
+                    job_store=store,
+                    artifact_store=artifact_store,
+                    execution_runtime=object(),
+                    max_workers=0,
+                    max_pending_jobs=1,
+                )
+            with self.assertRaisesRegex(ValueError, "max_pending_jobs must be positive"):
+                SynthesisJobManager(
+                    job_store=store,
+                    artifact_store=artifact_store,
+                    execution_runtime=object(),
+                    max_workers=1,
+                    max_pending_jobs=0,
+                )
+            queued = store.create(prepared)
+            self.assertEqual(store.get(queued.job_id).state, SynthesisJobState.QUEUED)
+            store.update(queued.job_id, state=SynthesisJobState.RUNNING.value, started_at_unix_seconds=2.0)
+            running = store.get(queued.job_id)
+            self.assertEqual(running.state, SynthesisJobState.RUNNING)
+            store.fail_incomplete_jobs("restart")
+            failed = store.get(queued.job_id)
+            self.assertEqual(failed.state, SynthesisJobState.FAILED)
+            self.assertEqual(failed.error_code, "dictator.jobs.interrupted")
+
+            outcome = types.SimpleNamespace(
+                audio_record=speaker,
+                audio_duration_seconds=1.5,
+                timeline_artifact_id="timeline-1",
+                chunk_count=2,
+            )
+            with patch("dictator.runtime.jobs.ThreadPoolExecutor", _ImmediateExecutor):
+                manager = SynthesisJobManager(
+                    job_store=store,
+                    artifact_store=artifact_store,
+                    execution_runtime=object(),
+                    max_workers=1,
+                    max_pending_jobs=1,
+                )
+                with patch("dictator.runtime.jobs.execute_synthesis_request", return_value=outcome):
+                    created = manager.submit(prepared)
+                completed = manager.get(created.job_id)
+                self.assertEqual(completed.state, SynthesisJobState.SUCCEEDED)
+                self.assertEqual(completed.audio_artifact_id, speaker.artifact_id)
+                self.assertEqual(manager._pending_jobs, 0)
+
+                with patch(
+                    "dictator.runtime.jobs.execute_synthesis_request",
+                    side_effect=ValidationError("dictator.jobs.validation", "bad request"),
+                ):
+                    dictated_failure = manager.submit(prepared)
+                dictated_record = manager.get(dictated_failure.job_id)
+                self.assertEqual(dictated_record.state, SynthesisJobState.FAILED)
+                self.assertEqual(dictated_record.error_code, "dictator.jobs.validation")
+
+                with patch(
+                    "dictator.runtime.jobs.execute_synthesis_request",
+                    side_effect=RuntimeError("boom"),
+                ):
+                    failed_job = manager.submit(prepared)
+                self.assertEqual(manager.get(failed_job.job_id).state, SynthesisJobState.FAILED)
+
+                manager._pending_jobs = 1
+                with self.assertRaises(ServiceRequestError):
+                    manager.submit(prepared)
+                manager._pending_jobs = 0
+
+            with patch("dictator.runtime.jobs.ThreadPoolExecutor", _ExplodingExecutor):
+                manager = SynthesisJobManager(
+                    job_store=store,
+                    artifact_store=artifact_store,
+                    execution_runtime=object(),
+                    max_workers=1,
+                    max_pending_jobs=1,
+                )
+                with self.assertRaisesRegex(RuntimeError, "submit failed"):
+                    manager.submit(prepared)
+                self.assertEqual(manager._pending_jobs, 0)
+
+    def test_prepare_synthesis_request_requires_inline_or_artifact_text(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = LocalArtifactStore(Path(tmpdir))
+            speaker = store.write_artifact([b"wav"], filename="speaker.wav", media_type="audio/wav")
+            with self.assertRaises(ValidationError):
+                prepare_synthesis_request(
+                    store,
+                    speaker_artifact_id=speaker.artifact_id,
+                    text="   ",
+                    text_artifact_id="",
+                    language_code="en",
+                    max_duration_seconds=0.0,
+                    include_timeline=False,
+                    engine=SynthesisEngine.QWEN3,
+                    speaker_transcript_text=None,
+                )
 
     def test_speech_execution_runtime_serializes_cold_model_and_pipeline_loads(self):
         runtime = SpeechExecutionRuntime()
