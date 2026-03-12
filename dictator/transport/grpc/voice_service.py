@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from dictator.runtime import ValidationError
-from dictator.runtime.jobs import SynthesisJobRecord, SynthesisJobState
+from dictator.runtime.jobs import SynthesisJobRecord, SynthesisJobState, validate_synthesis_job_id
 from dictator.speech.v1 import voice_pb2, voice_pb2_grpc
 from dictator.synthesis.models import SynthesisEngine, SynthesisRequest
 from dictator.synthesis.workflow import (
@@ -151,4 +151,5 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
                     "dictator.grpc.voice.job_id_required",
                     "job_id is required",
                 )
-            return self._job_response(self.service_context.synthesis_job_manager.get(request.job_id))
+            job_id = validate_synthesis_job_id(request.job_id)
+            return self._job_response(self.service_context.synthesis_job_manager.get(job_id))

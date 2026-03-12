@@ -582,5 +582,11 @@ class GrpcServicesUnitTests(unittest.TestCase):
             )
         self.assertEqual(exc.exception.status, grpc.StatusCode.INVALID_ARGUMENT)
 
+        with self.assertRaises(RpcAbort) as exc:
+            servicer.GetSynthesizeSpeechJob(
+                voice_pb2.GetSynthesizeSpeechJobRequest(job_id="../escape"),
+                FakeContext(metadata=(("x-dictator-token", "secret"),)),
+            )
+        self.assertEqual(exc.exception.status, grpc.StatusCode.INVALID_ARGUMENT)
 if __name__ == "__main__":
     unittest.main()

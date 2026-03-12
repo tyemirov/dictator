@@ -8,11 +8,12 @@ from enum import Enum
 import json
 import logging
 from pathlib import Path
+import re
 import threading
 import time
 import uuid
 
-from dictator.runtime.errors import DictatorError, ServiceRequestError
+from dictator.runtime.errors import DictatorError, ServiceRequestError, ValidationError
 from dictator.storage import LocalArtifactStore
 from dictator.synthesis.workflow import PreparedSynthesisRequest, execute_synthesis_request
 
@@ -83,6 +84,24 @@ def _optional_str(value: object) -> str | None:
     return text or None
 
 
+_JOB_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
+
+
+def validate_synthesis_job_id(job_id: str) -> str:
+    normalized = job_id.strip()
+    if not normalized:
+        raise ValidationError(
+            "dictator.jobs.job_id_required",
+            "job_id is required",
+        )
+    if not _JOB_ID_PATTERN.fullmatch(normalized):
+        raise ValidationError(
+            "dictator.jobs.invalid_job_id",
+            "job_id contains unsupported characters",
+        )
+    return normalized
+
+
 class LocalSynthesisJobStore:
     """Persist synthesis job status under a local root directory."""
 
@@ -92,7 +111,8 @@ class LocalSynthesisJobStore:
         self._lock = threading.Lock()
 
     def _job_path(self, job_id: str) -> Path:
-        return self.root_dir / f"{job_id}.json"
+        normalized = validate_synthesis_job_id(job_id)
+        return self.root_dir / f"{normalized}.json"
 
     def _write_record(self, record: SynthesisJobRecord) -> None:
         path = self._job_path(record.job_id)

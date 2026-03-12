@@ -398,6 +398,16 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                     speaker_transcript_text=None,
                 )
 
+    def test_synthesis_job_store_rejects_path_traversal_job_ids(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = LocalSynthesisJobStore(Path(tmpdir))
+            with self.assertRaises(ValidationError):
+                store.get("   ")
+            with self.assertRaises(ValidationError):
+                store.get("../escape")
+            with self.assertRaises(ValidationError):
+                store.get("nested/job")
+
     def test_speech_execution_runtime_serializes_cold_model_and_pipeline_loads(self):
         runtime = SpeechExecutionRuntime()
         model_results = []
