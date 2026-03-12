@@ -16,3 +16,4 @@ class ServiceContext:
     limiter: InflightLimiter
     auth_token: str | None
     download_chunk_bytes: int
+    synthesis_job_manager: object | None = None

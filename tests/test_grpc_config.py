@@ -14,6 +14,8 @@ class ServerConfigTests(unittest.TestCase):
                 "DICTATOR_GRPC_MAX_WORKERS": "8",
                 "DICTATOR_GRPC_MAX_MESSAGE_BYTES": "1234",
                 "DICTATOR_GRPC_MAX_INFLIGHT": "6",
+                "DICTATOR_GRPC_SYNTHESIS_JOB_WORKERS": "2",
+                "DICTATOR_GRPC_MAX_PENDING_SYNTHESIS_JOBS": "16",
                 "DICTATOR_GRPC_DOWNLOAD_CHUNK_BYTES": "2048",
                 "DICTATOR_GRPC_ARTIFACT_ROOT": "~/dictator-artifacts",
                 "DICTATOR_GRPC_AUTH_TOKEN": "secret",
@@ -25,6 +27,8 @@ class ServerConfigTests(unittest.TestCase):
         self.assertEqual(config.max_workers, 8)
         self.assertEqual(config.max_message_bytes, 1234)
         self.assertEqual(config.max_inflight, 6)
+        self.assertEqual(config.synthesis_job_workers, 2)
+        self.assertEqual(config.max_pending_synthesis_jobs, 16)
         self.assertEqual(config.download_chunk_bytes, 2048)
         self.assertEqual(config.artifact_root, Path("~/dictator-artifacts").expanduser())
         self.assertEqual(config.auth_token, "secret")
@@ -42,6 +46,8 @@ class ServerConfigTests(unittest.TestCase):
                         "  max_workers: 8",
                         "  max_message_bytes: 1234",
                         "  max_inflight: 6",
+                        "  synthesis_job_workers: 2",
+                        "  max_pending_synthesis_jobs: 16",
                         "  download_chunk_bytes: 2048",
                         "  artifact_root: ~/dictator-artifacts",
                         "  auth_token: ${DICTATOR_GRPC_AUTH_TOKEN}",
@@ -59,6 +65,8 @@ class ServerConfigTests(unittest.TestCase):
         self.assertEqual(config.max_workers, 8)
         self.assertEqual(config.max_message_bytes, 1234)
         self.assertEqual(config.max_inflight, 6)
+        self.assertEqual(config.synthesis_job_workers, 2)
+        self.assertEqual(config.max_pending_synthesis_jobs, 16)
         self.assertEqual(config.download_chunk_bytes, 2048)
         self.assertEqual(config.artifact_root, Path("~/dictator-artifacts").expanduser())
         self.assertEqual(config.auth_token, "secret")
