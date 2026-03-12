@@ -202,12 +202,12 @@ class SynthesisJobManager:
         return self.job_store.get(job_id)
 
     def _run_job(self, job_id: str, prepared: PreparedSynthesisRequest) -> None:
-        self.job_store.update(
-            job_id,
-            state=SynthesisJobState.RUNNING.value,
-            started_at_unix_seconds=time.time(),
-        )
         try:
+            self.job_store.update(
+                job_id,
+                state=SynthesisJobState.RUNNING.value,
+                started_at_unix_seconds=time.time(),
+            )
             outcome = execute_synthesis_request(
                 artifact_store=self.artifact_store,
                 execution_runtime=self.execution_runtime,

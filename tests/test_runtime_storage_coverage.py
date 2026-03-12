@@ -345,6 +345,25 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                     failed_job = manager.submit(prepared)
                 self.assertEqual(manager.get(failed_job.job_id).state, SynthesisJobState.FAILED)
 
+                leaky = store.create(prepared)
+                original_update = store.update
+                first_update = True
+
+                def flaky_update(job_id, **updates):
+                    nonlocal first_update
+                    if first_update:
+                        first_update = False
+                        raise RuntimeError("transient update failure")
+                    return original_update(job_id, **updates)
+
+                manager._pending_jobs = 1
+                with patch.object(store, "update", side_effect=flaky_update):
+                    manager._run_job(leaky.job_id, prepared)
+                repaired = manager.get(leaky.job_id)
+                self.assertEqual(repaired.state, SynthesisJobState.FAILED)
+                self.assertEqual(repaired.error_code, "dictator.jobs.failed")
+                self.assertEqual(manager._pending_jobs, 0)
+
                 manager._pending_jobs = 1
                 with self.assertRaises(ServiceRequestError):
                     manager.submit(prepared)
