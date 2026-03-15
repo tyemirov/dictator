@@ -13,7 +13,10 @@ from dictator.runtime import InflightLimiter, MetricsRegistry
 from dictator.speech.v1 import alignment_pb2, subtitle_pb2, transcription_pb2, voice_pb2
 from dictator.storage import LocalArtifactStore
 from dictator.transport.grpc.context import ServiceContext
-from tests.test_grpc_services_unit import FakeContext, FakeJobManager, FakeRuntime, RpcAbort
+try:
+    from test_grpc_services_unit import FakeContext, FakeJobManager, FakeRuntime, RpcAbort
+except ModuleNotFoundError:  # pragma: no cover - package-style local test runs
+    from tests.test_grpc_services_unit import FakeContext, FakeJobManager, FakeRuntime, RpcAbort
 
 
 class _FakeRpcError(grpc.RpcError):
