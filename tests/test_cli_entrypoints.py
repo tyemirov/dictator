@@ -24,16 +24,28 @@ class CliEntrypointsTests(unittest.TestCase):
             with (
                 patch("sys.argv", ["align.py", "--input", str(input_path), "--text", str(text_path), "--output", str(output_path)]),
                 patch("builtins.input", return_value="n"),
-                patch("align.AlignmentService") as service_mock,
+                patch("align.AlignmentClient") as client_mock,
             ):
                 align.main()
 
-        service_mock.assert_not_called()
+        client_mock.assert_not_called()
 
     def test_align_main_aligns_and_logs(self):
         import align
 
-        fake_result = types.SimpleNamespace(words=(1, 2), language="en")
+        base_config = types.SimpleNamespace(
+            host="0.0.0.0",
+            port=50051,
+            auth_token="secret",
+            job_wait_timeout_seconds=300.0,
+            job_poll_interval_seconds=1.0,
+        )
+        fake_result = types.SimpleNamespace(
+            words=(1, 2),
+            language_code="en",
+            srt_text="1\n00:00:00,000 --> 00:00:00,400\nhello world\n",
+            srt_artifact_id="artifact-1",
+        )
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             input_path = root / "input.wav"
@@ -41,22 +53,27 @@ class CliEntrypointsTests(unittest.TestCase):
             output_path = root / "out.srt"
             input_path.write_bytes(b"wav")
             text_path.write_text("hello world", encoding="utf-8")
+            channel_cm = MagicMock()
+            channel_cm.__enter__.return_value = "channel"
 
             with (
                 patch("sys.argv", [
                     "align.py", "--input", str(input_path), "--text", str(text_path), "--output", str(output_path), "--language", "en", "--device", "cpu", "--remove-punctuation",
                 ]),
-                patch("align.AlignmentService") as service_mock,
+                patch("align.ServerConfig.from_sources", return_value=base_config),
+                patch("align.grpc.insecure_channel", return_value=channel_cm) as insecure_channel_mock,
+                patch("align.AlignmentClient") as client_mock,
             ):
-                service_mock.return_value.align.return_value = fake_result
+                client_mock.return_value.align_file.return_value = fake_result
                 align.main()
 
-        request = service_mock.return_value.align.call_args.args[0]
-        self.assertEqual(request.audio_path, input_path)
-        self.assertEqual(request.transcript_text, "hello world")
-        self.assertTrue(request.remove_punctuation)
-        self.assertEqual(request.device, "cpu")
-        self.assertEqual(request.output_srt_path, output_path)
+            self.assertEqual(output_path.read_text(encoding="utf-8"), fake_result.srt_text)
+            insecure_channel_mock.assert_called_once_with("127.0.0.1:50051")
+            client_mock.assert_called_once_with("channel", metadata=(("x-dictator-token", "secret"),))
+            kwargs = client_mock.return_value.align_file.call_args.kwargs
+            self.assertEqual(kwargs["transcript_file"], text_path)
+            self.assertEqual(kwargs["language_code"], "en")
+            self.assertTrue(kwargs["remove_punctuation"])
 
     def test_main_cli_handles_prompt_mp3_speech_timeline_and_cleanup(self):
         sf_module = types.SimpleNamespace(info=lambda path: types.SimpleNamespace(frames=24000, samplerate=24000))
@@ -279,7 +296,13 @@ class CliEntrypointsTests(unittest.TestCase):
     def test_dictate_main_prints_words_and_default_payload(self):
         import dictate
 
-        base_config = types.SimpleNamespace(host="0.0.0.0", port=50051, auth_token="secret")
+        base_config = types.SimpleNamespace(
+            host="0.0.0.0",
+            port=50051,
+            auth_token="secret",
+            job_wait_timeout_seconds=300.0,
+            job_poll_interval_seconds=1.0,
+        )
         fake_result = types.SimpleNamespace(text="hello", words=[{"content": "hello"}], to_http_payload=lambda: {"text": "hello"})
 
         channel_cm = MagicMock()

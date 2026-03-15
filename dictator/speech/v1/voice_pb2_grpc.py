@@ -39,6 +39,16 @@ class VoiceServiceStub(object):
                 request_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.ExtractReferenceSampleRequest.SerializeToString,
                 response_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.ExtractReferenceSampleResponse.FromString,
                 _registered_method=True)
+        self.SubmitExtractReferenceSampleJob = channel.unary_unary(
+                '/dictator.speech.v1.VoiceService/SubmitExtractReferenceSampleJob',
+                request_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.ExtractReferenceSampleRequest.SerializeToString,
+                response_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.SubmitExtractReferenceSampleJobResponse.FromString,
+                _registered_method=True)
+        self.GetExtractReferenceSampleJob = channel.unary_unary(
+                '/dictator.speech.v1.VoiceService/GetExtractReferenceSampleJob',
+                request_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.GetExtractReferenceSampleJobRequest.SerializeToString,
+                response_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.GetExtractReferenceSampleJobResponse.FromString,
+                _registered_method=True)
         self.SynthesizeSpeech = channel.unary_unary(
                 '/dictator.speech.v1.VoiceService/SynthesizeSpeech',
                 request_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.SynthesizeSpeechRequest.SerializeToString,
@@ -60,6 +70,18 @@ class VoiceServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def ExtractReferenceSample(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SubmitExtractReferenceSampleJob(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetExtractReferenceSampleJob(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -90,6 +112,16 @@ def add_VoiceServiceServicer_to_server(servicer, server):
                     servicer.ExtractReferenceSample,
                     request_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.ExtractReferenceSampleRequest.FromString,
                     response_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.ExtractReferenceSampleResponse.SerializeToString,
+            ),
+            'SubmitExtractReferenceSampleJob': grpc.unary_unary_rpc_method_handler(
+                    servicer.SubmitExtractReferenceSampleJob,
+                    request_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.ExtractReferenceSampleRequest.FromString,
+                    response_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.SubmitExtractReferenceSampleJobResponse.SerializeToString,
+            ),
+            'GetExtractReferenceSampleJob': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetExtractReferenceSampleJob,
+                    request_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.GetExtractReferenceSampleJobRequest.FromString,
+                    response_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.GetExtractReferenceSampleJobResponse.SerializeToString,
             ),
             'SynthesizeSpeech': grpc.unary_unary_rpc_method_handler(
                     servicer.SynthesizeSpeech,
@@ -134,6 +166,60 @@ class VoiceService(object):
             '/dictator.speech.v1.VoiceService/ExtractReferenceSample',
             dictator_dot_speech_dot_v1_dot_voice__pb2.ExtractReferenceSampleRequest.SerializeToString,
             dictator_dot_speech_dot_v1_dot_voice__pb2.ExtractReferenceSampleResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SubmitExtractReferenceSampleJob(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/dictator.speech.v1.VoiceService/SubmitExtractReferenceSampleJob',
+            dictator_dot_speech_dot_v1_dot_voice__pb2.ExtractReferenceSampleRequest.SerializeToString,
+            dictator_dot_speech_dot_v1_dot_voice__pb2.SubmitExtractReferenceSampleJobResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetExtractReferenceSampleJob(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/dictator.speech.v1.VoiceService/GetExtractReferenceSampleJob',
+            dictator_dot_speech_dot_v1_dot_voice__pb2.GetExtractReferenceSampleJobRequest.SerializeToString,
+            dictator_dot_speech_dot_v1_dot_voice__pb2.GetExtractReferenceSampleJobResponse.FromString,
             options,
             channel_credentials,
             insecure,

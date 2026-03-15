@@ -466,5 +466,513 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
         self.assertIs(pipeline_results[0], pipeline_results[1])
 
 
+class GenericJobRuntimeCoverageTests(unittest.TestCase):
+    @staticmethod
+    def _swap_immediate_executor(manager):
+        original = manager._executor
+        original.shutdown(wait=False, cancel_futures=True)
+        manager._executor = _ImmediateExecutor()
+        return manager
+
+    @staticmethod
+    def _write_reserved_outputs(request, source_path):
+        from pathlib import Path
+
+        for value in vars(request).values():
+            if isinstance(value, Path) and value != source_path:
+                value.parent.mkdir(parents=True, exist_ok=True)
+                if value.suffix == ".srt":
+                    value.write_text("1\n00:00:00,000 --> 00:00:00,400\nhello\n", encoding="utf-8")
+                else:
+                    value.write_bytes(b"sample")
+
+    def test_base_queued_job_manager_methods_raise(self):
+        from dictator.runtime import jobs as jobs_module
+
+        manager = jobs_module._QueuedJobManager(
+            job_store=types.SimpleNamespace(fail_incomplete_jobs=lambda _message: 0),
+            max_workers=1,
+            max_pending_jobs=1,
+            thread_name_prefix="test-jobs",
+        )
+        self.addCleanup(manager._executor.shutdown, wait=False, cancel_futures=True)
+
+        with self.assertRaises(NotImplementedError):
+            manager._create_record(None)
+        with self.assertRaises(NotImplementedError):
+            manager._run_job("job-1", None)
+
+    def test_generic_job_stores_create_and_fail_incomplete_jobs(self):
+        from dictator.runtime import jobs as jobs_module
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            audio_path = root / "audio.wav"
+            audio_path.write_bytes(b"audio")
+            audio_record = types.SimpleNamespace(artifact_id="audio-1", path=audio_path, filename="audio.wav")
+            source_record = types.SimpleNamespace(artifact_id="source-1", path=audio_path, filename="audio.wav")
+
+            cases = (
+                (
+                    jobs_module.LocalAlignmentJobStore(root / "alignment"),
+                    jobs_module.PreparedAlignmentJob(
+                        audio_record=audio_record,
+                        transcript_text="hello",
+                        language_code="en",
+                        remove_punctuation=False,
+                        include_srt_text=True,
+                    ),
+                    jobs_module.AlignmentJobState,
+                ),
+                (
+                    jobs_module.LocalTranscriptionJobStore(root / "transcription"),
+                    jobs_module.PreparedTranscriptionJob(
+                        audio_record=audio_record,
+                        language_code="en",
+                        model_size="base",
+                        include_word_segments=True,
+                    ),
+                    jobs_module.TranscriptionJobState,
+                ),
+                (
+                    jobs_module.LocalDiarizationJobStore(root / "diarization"),
+                    jobs_module.PreparedDiarizationJob(
+                        audio_record=audio_record,
+                        language_code="en",
+                        model_size="base",
+                        include_words=True,
+                        include_utterances=True,
+                        include_speakers=True,
+                        include_speaker_segments=True,
+                        utterance_gap_seconds=0.8,
+                        persist_json_artifact=True,
+                    ),
+                    jobs_module.DiarizationJobState,
+                ),
+                (
+                    jobs_module.LocalSubtitleJobStore(root / "subtitle"),
+                    jobs_module.PreparedSubtitleJob(
+                        audio_record=audio_record,
+                        language_code="en",
+                        model_size="base",
+                        granularity="words",
+                        group_size=1,
+                        source_text="hello",
+                        source_text_name="source.txt",
+                        include_srt_text=True,
+                    ),
+                    jobs_module.SubtitleJobState,
+                ),
+                (
+                    jobs_module.LocalExtractReferenceSampleJobStore(root / "extract"),
+                    jobs_module.PreparedExtractReferenceSampleJob(
+                        source_record=source_record,
+                        model_size="base",
+                        language_code="en",
+                        duration_seconds=10.0,
+                        max_speech_rate=4.0,
+                        min_centroid_hz=500.0,
+                        max_centroid_hz=4000.0,
+                    ),
+                    jobs_module.ExtractReferenceSampleJobState,
+                ),
+            )
+
+            for store, prepared, state_enum in cases:
+                with self.subTest(store=type(store).__name__):
+                    record = store.create(prepared)
+                    self.assertEqual(record.state, state_enum.QUEUED)
+                    store.fail_incomplete_jobs("service restarted before the job completed")
+                    failed = store.get(record.job_id)
+                    self.assertEqual(failed.state, state_enum.FAILED)
+                    self.assertEqual(failed.error_code, "dictator.jobs.interrupted")
+
+    def test_generic_job_managers_succeed(self):
+        from dictator.alignment.models import AlignedWord
+        from dictator.runtime import jobs as jobs_module
+
+        class _AlignmentService:
+            def __init__(self, source_path):
+                self._source_path = source_path
+
+            def align(self, request):
+                GenericJobRuntimeCoverageTests._write_reserved_outputs(request, self._source_path)
+                return types.SimpleNamespace(
+                    language="en",
+                    words=(AlignedWord(text="hello", start_seconds=0.0, end_seconds=0.4),),
+                    srt_text="1\n00:00:00,000 --> 00:00:00,400\nhello\n",
+                )
+
+        class _TranscriptionService:
+            def transcribe(self, *_args, **_kwargs):
+                return types.SimpleNamespace(
+                    text="hello",
+                    language="en",
+                    words=(types.SimpleNamespace(text="hello", start_seconds=0.0, end_seconds=0.4),),
+                )
+
+        class _DiarizationResult:
+            text = "hello"
+            language = "en"
+
+            def to_json_dict(self, **_kwargs):
+                return {"text": "hello", "speakers": [{"speaker": "S1"}]}
+
+        class _DiarizationService:
+            def diarize(self, *_args, **_kwargs):
+                return _DiarizationResult()
+
+        class _SubtitleService:
+            def __init__(self, source_path):
+                self._source_path = source_path
+
+            def render(self, request, **_kwargs):
+                GenericJobRuntimeCoverageTests._write_reserved_outputs(request, self._source_path)
+                return types.SimpleNamespace(
+                    language="en",
+                    mode="forced_alignment",
+                    output_format="srt",
+                    granularity="words",
+                    group_size=1,
+                    cues=(types.SimpleNamespace(index=1, text="hello", content="hello", start_seconds=0.0, end_seconds=0.4, item_count=1),),
+                    srt_text="1\n00:00:00,000 --> 00:00:00,400\nhello\n",
+                )
+
+        class _ReferenceExtractionRequest:
+            def __init__(self, *args, **kwargs):
+                self.__dict__.update(kwargs)
+
+        class _ExtractionService:
+            def __init__(self, source_path):
+                self._source_path = source_path
+
+            def extract(self, request, **_kwargs):
+                GenericJobRuntimeCoverageTests._write_reserved_outputs(request, self._source_path)
+                return types.SimpleNamespace(
+                    trim_start_seconds=0.5,
+                    trim_end_seconds=1.5,
+                    window_start_seconds=0.0,
+                    window_end_seconds=2.0,
+                    dominant_speaker_words=("a", "b"),
+                )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            artifact_store = LocalArtifactStore(root / "artifacts")
+            audio_path = root / "audio.wav"
+            audio_path.write_bytes(b"audio")
+            audio_record = types.SimpleNamespace(artifact_id="audio-1", path=audio_path, filename="audio.wav")
+            source_record = types.SimpleNamespace(artifact_id="source-1", path=audio_path, filename="audio.wav")
+            runtime = types.SimpleNamespace(
+                get_alignment_service=lambda: _AlignmentService(audio_path),
+                get_transcription_service=lambda: _TranscriptionService(),
+                get_diarization_service=lambda: _DiarizationService(),
+                get_subtitle_service=lambda: _SubtitleService(audio_path),
+                get_reference_extraction_service=lambda: _ExtractionService(audio_path),
+                get_whisper_model=lambda _model_size: object(),
+                get_diarization_pipeline=lambda: object(),
+            )
+
+            with patch.dict(
+                sys.modules,
+                {
+                    "dictator.extraction": types.SimpleNamespace(models=types.SimpleNamespace(ReferenceExtractionRequest=_ReferenceExtractionRequest)),
+                    "dictator.extraction.models": types.SimpleNamespace(ReferenceExtractionRequest=_ReferenceExtractionRequest),
+                },
+            ):
+                cases = (
+                    (
+                        self._swap_immediate_executor(
+                            jobs_module.AlignmentJobManager(
+                                job_store=jobs_module.LocalAlignmentJobStore(root / "alignment"),
+                                artifact_store=artifact_store,
+                                execution_runtime=runtime,
+                                max_workers=1,
+                                max_pending_jobs=4,
+                            )
+                        ),
+                        jobs_module.PreparedAlignmentJob(
+                            audio_record=audio_record,
+                            transcript_text="hello",
+                            language_code="en",
+                            remove_punctuation=False,
+                            include_srt_text=True,
+                        ),
+                        lambda record: (
+                            self.assertEqual(record.state, jobs_module.AlignmentJobState.SUCCEEDED),
+                            self.assertEqual(record.language_code, "en"),
+                            self.assertEqual(record.words[0].text, "hello"),
+                            self.assertTrue(record.srt_artifact_id),
+                        ),
+                    ),
+                    (
+                        self._swap_immediate_executor(
+                            jobs_module.TranscriptionJobManager(
+                                job_store=jobs_module.LocalTranscriptionJobStore(root / "transcription"),
+                                artifact_store=artifact_store,
+                                execution_runtime=runtime,
+                                max_workers=1,
+                                max_pending_jobs=4,
+                            )
+                        ),
+                        jobs_module.PreparedTranscriptionJob(
+                            audio_record=audio_record,
+                            language_code="en",
+                            model_size="base",
+                            include_word_segments=True,
+                        ),
+                        lambda record: (
+                            self.assertEqual(record.state, jobs_module.TranscriptionJobState.SUCCEEDED),
+                            self.assertEqual(record.text, "hello"),
+                            self.assertEqual(record.words[0].text, "hello"),
+                        ),
+                    ),
+                    (
+                        self._swap_immediate_executor(
+                            jobs_module.DiarizationJobManager(
+                                job_store=jobs_module.LocalDiarizationJobStore(root / "diarization"),
+                                artifact_store=artifact_store,
+                                execution_runtime=runtime,
+                                max_workers=1,
+                                max_pending_jobs=4,
+                            )
+                        ),
+                        jobs_module.PreparedDiarizationJob(
+                            audio_record=audio_record,
+                            language_code="en",
+                            model_size="base",
+                            include_words=True,
+                            include_utterances=True,
+                            include_speakers=True,
+                            include_speaker_segments=True,
+                            utterance_gap_seconds=0.8,
+                            persist_json_artifact=True,
+                        ),
+                        lambda record: (
+                            self.assertEqual(record.state, jobs_module.DiarizationJobState.SUCCEEDED),
+                            self.assertEqual(record.diarization["text"], "hello"),
+                            self.assertTrue(record.diarization_artifact_id),
+                        ),
+                    ),
+                    (
+                        self._swap_immediate_executor(
+                            jobs_module.SubtitleJobManager(
+                                job_store=jobs_module.LocalSubtitleJobStore(root / "subtitle"),
+                                artifact_store=artifact_store,
+                                execution_runtime=runtime,
+                                max_workers=1,
+                                max_pending_jobs=4,
+                            )
+                        ),
+                        jobs_module.PreparedSubtitleJob(
+                            audio_record=audio_record,
+                            language_code="en",
+                            model_size="base",
+                            granularity="words",
+                            group_size=1,
+                            source_text="hello",
+                            source_text_name="source.txt",
+                            include_srt_text=True,
+                        ),
+                        lambda record: (
+                            self.assertEqual(record.state, jobs_module.SubtitleJobState.SUCCEEDED),
+                            self.assertEqual(record.mode, "forced_alignment"),
+                            self.assertTrue(record.srt_artifact_id),
+                        ),
+                    ),
+                    (
+                        self._swap_immediate_executor(
+                            jobs_module.ExtractReferenceSampleJobManager(
+                                job_store=jobs_module.LocalExtractReferenceSampleJobStore(root / "extract"),
+                                artifact_store=artifact_store,
+                                execution_runtime=runtime,
+                                max_workers=1,
+                                max_pending_jobs=4,
+                            )
+                        ),
+                        jobs_module.PreparedExtractReferenceSampleJob(
+                            source_record=source_record,
+                            model_size="base",
+                            language_code="en",
+                            duration_seconds=10.0,
+                            max_speech_rate=4.0,
+                            min_centroid_hz=500.0,
+                            max_centroid_hz=4000.0,
+                        ),
+                        lambda record: (
+                            self.assertEqual(record.state, jobs_module.ExtractReferenceSampleJobState.SUCCEEDED),
+                            self.assertTrue(record.sample_artifact_id),
+                            self.assertEqual(record.dominant_speaker_word_count, 2),
+                        ),
+                    ),
+                )
+
+                for manager, prepared, assertion in cases:
+                    with self.subTest(manager=type(manager).__name__):
+                        submitted = manager.submit(prepared)
+                        record = manager.get(submitted.job_id)
+                        assertion(record)
+
+    def test_generic_job_managers_capture_expected_failures(self):
+        from dictator.runtime import jobs as jobs_module
+
+        class _ReferenceExtractionRequest:
+            def __init__(self, *args, **kwargs):
+                self.__dict__.update(kwargs)
+
+        def _runtime_for(mode):
+            def _raise():
+                if mode == "dictator":
+                    raise jobs_module.DictatorError("dictator.test.failure", "broken")
+                raise RuntimeError("broken")
+
+            return types.SimpleNamespace(
+                get_alignment_service=lambda: types.SimpleNamespace(align=lambda *_args, **_kwargs: _raise()),
+                get_transcription_service=lambda: types.SimpleNamespace(transcribe=lambda *_args, **_kwargs: _raise()),
+                get_diarization_service=lambda: types.SimpleNamespace(diarize=lambda *_args, **_kwargs: _raise()),
+                get_subtitle_service=lambda: types.SimpleNamespace(render=lambda *_args, **_kwargs: _raise()),
+                get_reference_extraction_service=lambda: types.SimpleNamespace(extract=lambda *_args, **_kwargs: _raise()),
+                get_whisper_model=lambda _model_size: object(),
+                get_diarization_pipeline=lambda: object(),
+            )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            artifact_store = LocalArtifactStore(root / "artifacts")
+            audio_path = root / "audio.wav"
+            audio_path.write_bytes(b"audio")
+            audio_record = types.SimpleNamespace(artifact_id="audio-1", path=audio_path, filename="audio.wav")
+            source_record = types.SimpleNamespace(artifact_id="source-1", path=audio_path, filename="audio.wav")
+
+            def _cases(runtime):
+                return (
+                    (
+                        self._swap_immediate_executor(
+                            jobs_module.AlignmentJobManager(
+                                job_store=jobs_module.LocalAlignmentJobStore(root / f"alignment-{id(runtime)}"),
+                                artifact_store=artifact_store,
+                                execution_runtime=runtime,
+                                max_workers=1,
+                                max_pending_jobs=4,
+                            )
+                        ),
+                        jobs_module.PreparedAlignmentJob(
+                            audio_record=audio_record,
+                            transcript_text="hello",
+                            language_code="en",
+                            remove_punctuation=False,
+                            include_srt_text=True,
+                        ),
+                        jobs_module.AlignmentJobState,
+                    ),
+                    (
+                        self._swap_immediate_executor(
+                            jobs_module.TranscriptionJobManager(
+                                job_store=jobs_module.LocalTranscriptionJobStore(root / f"transcription-{id(runtime)}"),
+                                artifact_store=artifact_store,
+                                execution_runtime=runtime,
+                                max_workers=1,
+                                max_pending_jobs=4,
+                            )
+                        ),
+                        jobs_module.PreparedTranscriptionJob(
+                            audio_record=audio_record,
+                            language_code="en",
+                            model_size="base",
+                            include_word_segments=True,
+                        ),
+                        jobs_module.TranscriptionJobState,
+                    ),
+                    (
+                        self._swap_immediate_executor(
+                            jobs_module.DiarizationJobManager(
+                                job_store=jobs_module.LocalDiarizationJobStore(root / f"diarization-{id(runtime)}"),
+                                artifact_store=artifact_store,
+                                execution_runtime=runtime,
+                                max_workers=1,
+                                max_pending_jobs=4,
+                            )
+                        ),
+                        jobs_module.PreparedDiarizationJob(
+                            audio_record=audio_record,
+                            language_code="en",
+                            model_size="base",
+                            include_words=True,
+                            include_utterances=True,
+                            include_speakers=True,
+                            include_speaker_segments=True,
+                            utterance_gap_seconds=0.8,
+                            persist_json_artifact=True,
+                        ),
+                        jobs_module.DiarizationJobState,
+                    ),
+                    (
+                        self._swap_immediate_executor(
+                            jobs_module.SubtitleJobManager(
+                                job_store=jobs_module.LocalSubtitleJobStore(root / f"subtitle-{id(runtime)}"),
+                                artifact_store=artifact_store,
+                                execution_runtime=runtime,
+                                max_workers=1,
+                                max_pending_jobs=4,
+                            )
+                        ),
+                        jobs_module.PreparedSubtitleJob(
+                            audio_record=audio_record,
+                            language_code="en",
+                            model_size="base",
+                            granularity="words",
+                            group_size=1,
+                            source_text="hello",
+                            source_text_name="source.txt",
+                            include_srt_text=True,
+                        ),
+                        jobs_module.SubtitleJobState,
+                    ),
+                    (
+                        self._swap_immediate_executor(
+                            jobs_module.ExtractReferenceSampleJobManager(
+                                job_store=jobs_module.LocalExtractReferenceSampleJobStore(root / f"extract-{id(runtime)}"),
+                                artifact_store=artifact_store,
+                                execution_runtime=runtime,
+                                max_workers=1,
+                                max_pending_jobs=4,
+                            )
+                        ),
+                        jobs_module.PreparedExtractReferenceSampleJob(
+                            source_record=source_record,
+                            model_size="base",
+                            language_code="en",
+                            duration_seconds=10.0,
+                            max_speech_rate=4.0,
+                            min_centroid_hz=500.0,
+                            max_centroid_hz=4000.0,
+                        ),
+                        jobs_module.ExtractReferenceSampleJobState,
+                    ),
+                )
+
+            for mode, expected_code in (("dictator", "dictator.test.failure"), ("unexpected", "dictator.jobs.failed")):
+                runtime = _runtime_for(mode)
+                with patch.dict(
+                    sys.modules,
+                    {
+                        "dictator.extraction": types.SimpleNamespace(models=types.SimpleNamespace(ReferenceExtractionRequest=_ReferenceExtractionRequest)),
+                        "dictator.extraction.models": types.SimpleNamespace(ReferenceExtractionRequest=_ReferenceExtractionRequest),
+                    },
+                ):
+                    with patch("dictator.runtime.jobs.logging.exception") as logging_exception:
+                        for manager, prepared, state_enum in _cases(runtime):
+                            with self.subTest(mode=mode, manager=type(manager).__name__):
+                                submitted = manager.submit(prepared)
+                                record = manager.get(submitted.job_id)
+                                self.assertEqual(record.state, state_enum.FAILED)
+                                self.assertEqual(record.error_code, expected_code)
+                                self.assertIn("broken", record.error_message)
+                        if mode == "dictator":
+                            logging_exception.assert_not_called()
+                        else:
+                            self.assertGreaterEqual(logging_exception.call_count, 5)
+
+
 if __name__ == "__main__":
     unittest.main()

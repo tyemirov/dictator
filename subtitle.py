@@ -59,6 +59,8 @@ def main() -> None:
             source_text_file=args.source_text_file,
             source_text_name=args.source_text_name,
             include_srt_text=True,
+            timeout_seconds=base.job_wait_timeout_seconds,
+            poll_interval_seconds=base.job_poll_interval_seconds,
         )
     if args.output is not None:
         args.output.write_text(result.srt_text, encoding="utf-8")

@@ -4,6 +4,20 @@ grpc:
   max_workers: 4
   max_message_bytes: 67108864
   max_inflight: 4
+  synthesis_job_workers: 1
+  max_pending_synthesis_jobs: 32
+  alignment_job_workers: 1
+  max_pending_alignment_jobs: 32
+  transcription_job_workers: 1
+  max_pending_transcription_jobs: 32
+  diarization_job_workers: 1
+  max_pending_diarization_jobs: 32
+  subtitle_job_workers: 1
+  max_pending_subtitle_jobs: 32
+  reference_extraction_job_workers: 1
+  max_pending_reference_extraction_jobs: 32
+  job_wait_timeout_seconds: 300.0
+  job_poll_interval_seconds: 1.0
   download_chunk_bytes: 1048576
   artifact_root: .dictator-artifacts
   auth_token: ${DICTATOR_GRPC_AUTH_TOKEN}

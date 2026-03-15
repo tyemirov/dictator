@@ -16,6 +16,7 @@ from google.protobuf import struct_pb2
 from dictator.client.diarization import DiarizationClient
 from dictator.client.dictation import DictationClient
 from dictator.diarization.models import DiarizedUtterance, DiarizedWord
+from dictator.speech.v1 import transcription_pb2
 from dictator.transport.grpc import config as grpc_config
 from dictator.transport.grpc.config import ServerConfig
 from dictator.transport.grpc.server import serve as serve_grpc
@@ -43,16 +44,32 @@ class ClientConfigServerCoverageTests(unittest.TestCase):
 
     def test_diarization_client_file_and_gap_field_paths(self):
         response = types.SimpleNamespace(
+            job_id="dia-1",
+            state=transcription_pb2.DIARIZATION_JOB_STATE_SUCCEEDED,
+            error_code="",
+            error_message="",
             text="hello",
             language_code="en",
             diarization=struct_pb2.Struct(),
             diarization_artifact_id="json1",
+            created_at_unix_seconds=1.0,
+            started_at_unix_seconds=2.0,
+            finished_at_unix_seconds=3.0,
+        )
+        stub = types.SimpleNamespace(
+            SubmitDiarizeAudioJob=MagicMock(
+                return_value=types.SimpleNamespace(
+                    job_id="dia-1",
+                    state=transcription_pb2.DIARIZATION_JOB_STATE_QUEUED,
+                )
+            ),
+            GetDiarizeAudioJob=MagicMock(return_value=response),
         )
         with (
             patch("dictator.client.diarization.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
             patch(
                 "dictator.client.diarization.transcription_pb2_grpc.TranscriptionServiceStub",
-                return_value=types.SimpleNamespace(DiarizeAudio=MagicMock(return_value=response)),
+                return_value=stub,
             ),
             patch("dictator.client.diarization.upload_audio_artifact", return_value=types.SimpleNamespace(artifact_id="audio1")),
             patch("dictator.client.diarization.MessageToDict", return_value={"text": "hello"}),
@@ -72,7 +89,7 @@ class ClientConfigServerCoverageTests(unittest.TestCase):
                 utterance_gap_seconds=1.25,
             )
             self.assertEqual(result.diarization_artifact_id, "json1")
-            request = client._transcription_stub.DiarizeAudio.call_args.args[0]
+            request = client._transcription_stub.SubmitDiarizeAudioJob.call_args.args[0]
             self.assertTrue(request.HasField("utterance_gap_seconds"))
             self.assertAlmostEqual(request.utterance_gap_seconds, 1.25)
 

@@ -8,7 +8,7 @@ from google.protobuf.json_format import MessageToDict
 
 from dictator.alignment.models import AlignTranscriptResult, AlignedWord
 from dictator.alignment.srt import build_srt
-from dictator.client import DiarizationClient, DictationClient, SubtitleClient
+from dictator.client import AlignmentClient, DiarizationClient, DictationClient, SubtitleClient
 from dictator.diarization.models import (
     DiarizeAudioResult,
     DiarizedUtterance,
@@ -396,6 +396,21 @@ class GrpcTransportIntegrationTests(unittest.TestCase):
         self.assertEqual(result.language_code, "en")
         self.assertEqual(result.cues[0]["content"], "hello world")
         self.assertIn("hello world", result.srt_text)
+        self.assertTrue(result.srt_artifact_id)
+
+    def test_alignment_client_returns_alignment_payload(self):
+        client = AlignmentClient(self.channel, metadata=self._auth_metadata, chunk_bytes=2)
+        result = client.align_bytes(
+            b"abcdef",
+            filename="audio.webm",
+            transcript_text="hello world",
+            language_code="en",
+        )
+        self.assertEqual(result.language_code, "en")
+        self.assertEqual([word["content"] for word in result.words], ["hello", "world"])
+        self.assertIn("00:00:00,000 --> 00:00:00,400", result.srt_text)
+        self.assertIn("hello", result.srt_text)
+        self.assertIn("world", result.srt_text)
         self.assertTrue(result.srt_artifact_id)
 
     def test_render_subtitles_uses_alignment_when_source_text_is_present(self):

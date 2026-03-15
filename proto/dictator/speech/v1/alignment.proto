@@ -6,6 +6,18 @@ import "dictator/speech/v1/common.proto";
 
 service AlignmentService {
   rpc AlignTranscript(AlignTranscriptRequest) returns (AlignTranscriptResponse);
+  rpc SubmitAlignTranscriptJob(AlignTranscriptRequest)
+      returns (SubmitAlignTranscriptJobResponse);
+  rpc GetAlignTranscriptJob(GetAlignTranscriptJobRequest)
+      returns (GetAlignTranscriptJobResponse);
+}
+
+enum AlignmentJobState {
+  ALIGNMENT_JOB_STATE_UNSPECIFIED = 0;
+  ALIGNMENT_JOB_STATE_QUEUED = 1;
+  ALIGNMENT_JOB_STATE_RUNNING = 2;
+  ALIGNMENT_JOB_STATE_SUCCEEDED = 3;
+  ALIGNMENT_JOB_STATE_FAILED = 4;
 }
 
 message AlignTranscriptRequest {
@@ -24,4 +36,27 @@ message AlignTranscriptResponse {
   repeated WordSegment words = 2;
   string srt_text = 3;
   string srt_artifact_id = 4;
+}
+
+message SubmitAlignTranscriptJobResponse {
+  string job_id = 1;
+  AlignmentJobState state = 2;
+}
+
+message GetAlignTranscriptJobRequest {
+  string job_id = 1;
+}
+
+message GetAlignTranscriptJobResponse {
+  string job_id = 1;
+  AlignmentJobState state = 2;
+  string error_code = 3;
+  string error_message = 4;
+  string language_code = 5;
+  repeated WordSegment words = 6;
+  string srt_text = 7;
+  string srt_artifact_id = 8;
+  double created_at_unix_seconds = 9;
+  double started_at_unix_seconds = 10;
+  double finished_at_unix_seconds = 11;
 }

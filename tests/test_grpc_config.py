@@ -33,7 +33,7 @@ class ServerConfigTests(unittest.TestCase):
         self.assertEqual(config.artifact_root, Path("~/dictator-artifacts").expanduser())
         self.assertEqual(config.auth_token, "secret")
 
-    def test_from_sources_reads_config_file_and_process_env(self):
+    def test_from_sources_reads_config_file_with_placeholder_substitution(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             config_file = root / "config.yml"
@@ -71,6 +71,20 @@ class ServerConfigTests(unittest.TestCase):
         self.assertEqual(config.artifact_root, Path("~/dictator-artifacts").expanduser())
         self.assertEqual(config.auth_token, "secret")
 
+    def test_from_sources_ignores_environment_overrides_not_declared_in_file(self):
+        config = ServerConfig.from_sources(
+            config_file=None,
+            env={
+                "DICTATOR_GRPC_HOST": "127.0.0.1",
+                "DICTATOR_GRPC_PORT": "55001",
+                "DICTATOR_GRPC_AUTH_TOKEN": "secret",
+            },
+        )
+
+        self.assertEqual(config.host, "0.0.0.0")
+        self.assertEqual(config.port, 50051)
+        self.assertIsNone(config.auth_token)
+
     def test_from_sources_raises_for_missing_placeholder_env(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
@@ -91,7 +105,7 @@ class ServerConfigTests(unittest.TestCase):
                     env={},
                 )
 
-    def test_from_sources_reads_process_environment_without_env_file(self):
+    def test_from_sources_reads_placeholder_from_supplied_environment(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             config_file = root / "config.yml"

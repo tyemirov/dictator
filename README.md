@@ -184,6 +184,30 @@ The container starts the gRPC server with:
 python serve.py --config /app/config.yml
 ```
 
+For the current Python client contract, async job model, integration path, and best practices, see [docs/client-integration.md](docs/client-integration.md).
+
+### Python client quick start
+
+For most callers, the Python convenience clients are the right integration surface.
+
+```python
+import grpc
+from pathlib import Path
+
+from dictator.client import AlignmentClient
+
+channel = grpc.insecure_channel("127.0.0.1:50051")
+client = AlignmentClient(channel, metadata=(("x-dictator-token", "your-token"),))
+result = client.align_file(
+    Path("sample.wav"),
+    transcript_file=Path("sample.txt"),
+    language_code="en",
+)
+print(result.srt_artifact_id)
+```
+
+Use the blocking convenience methods by default. For explicit submit/get/wait job flows and endpoint-specific contract details, use [docs/client-integration.md](docs/client-integration.md).
+
 The compose setup mounts persistent caches for Hugging Face, Whisper, and Torch models, plus `.dictator-artifacts` for generated service artifacts.
 
 ### Notes

@@ -17,3 +17,8 @@ class ServiceContext:
     auth_token: str | None
     download_chunk_bytes: int
     synthesis_job_manager: object | None = None
+    alignment_job_manager: object | None = None
+    transcription_job_manager: object | None = None
+    diarization_job_manager: object | None = None
+    subtitle_job_manager: object | None = None
+    reference_extraction_job_manager: object | None = None

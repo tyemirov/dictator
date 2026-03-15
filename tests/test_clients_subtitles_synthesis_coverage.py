@@ -13,7 +13,7 @@ sys.modules.setdefault("torch", types.SimpleNamespace(cuda=types.SimpleNamespace
 from dictator.client import DiarizationClient, DictationClient, SubtitleClient, SubtitleResult
 from dictator.diarization.models import DiarizeAudioResult, DiarizedUtterance, DiarizedWord, SpeakerSegment, SpeakerSummary
 from dictator.runtime import ProcessingError, ValidationError
-from dictator.speech.v1 import subtitle_pb2
+from dictator.speech.v1 import subtitle_pb2, transcription_pb2
 from dictator.subtitles.models import RenderSubtitlesRequest, TimedWord
 from dictator.subtitles.service import (
     SubtitleService,
@@ -34,17 +34,30 @@ class _ArtifactStub:
 
 
 class _TranscriptionStub:
-    def __init__(self, response):
-        self.response = response
+    def __init__(self, transcribe_response=None, diarize_response=None):
+        self.transcribe_response = transcribe_response
+        self.diarize_response = diarize_response
         self.calls = []
 
-    def Transcribe(self, request, metadata=()):
+    def SubmitTranscribeJob(self, request, metadata=()):
         self.calls.append((request, metadata))
-        return self.response
+        return types.SimpleNamespace(
+            job_id="tx-1",
+            state=transcription_pb2.TRANSCRIPTION_JOB_STATE_QUEUED,
+        )
 
-    def DiarizeAudio(self, request, metadata=()):
+    def GetTranscribeJob(self, request, metadata=()):
+        return self.transcribe_response
+
+    def SubmitDiarizeAudioJob(self, request, metadata=()):
         self.calls.append((request, metadata))
-        return self.response
+        return types.SimpleNamespace(
+            job_id="dia-1",
+            state=transcription_pb2.DIARIZATION_JOB_STATE_QUEUED,
+        )
+
+    def GetDiarizeAudioJob(self, request, metadata=()):
+        return self.diarize_response
 
 
 class _SubtitleStub:
@@ -52,8 +65,14 @@ class _SubtitleStub:
         self.response = response
         self.calls = []
 
-    def RenderSubtitles(self, request, metadata=()):
+    def SubmitRenderSubtitlesJob(self, request, metadata=()):
         self.calls.append((request, metadata))
+        return types.SimpleNamespace(
+            job_id="sub-1",
+            state=subtitle_pb2.SUBTITLE_JOB_STATE_QUEUED,
+        )
+
+    def GetRenderSubtitlesJob(self, request, metadata=()):
         return self.response
 
 
@@ -85,11 +104,18 @@ class _FakeBackend:
 class ClientsSubtitlesSynthesisCoverageTests(unittest.TestCase):
     def test_client_helpers_cover_file_path_and_edge_flags(self):
         dictation_response = types.SimpleNamespace(
+            job_id="tx-1",
+            state=transcription_pb2.TRANSCRIPTION_JOB_STATE_SUCCEEDED,
+            error_code="",
+            error_message="",
             text="hello",
             language_code="en",
             words=[types.SimpleNamespace(content="hello", start_seconds=0.0, end_seconds=0.4)],
+            created_at_unix_seconds=1.0,
+            started_at_unix_seconds=2.0,
+            finished_at_unix_seconds=3.0,
         )
-        dictation_stub = _TranscriptionStub(dictation_response)
+        dictation_stub = _TranscriptionStub(transcribe_response=dictation_response)
         with patch("dictator.client.dictation.artifacts_pb2_grpc.ArtifactServiceStub", return_value=_ArtifactStub()), patch(
             "dictator.client.dictation.transcription_pb2_grpc.TranscriptionServiceStub",
             return_value=dictation_stub,
@@ -109,12 +135,19 @@ class ClientsSubtitlesSynthesisCoverageTests(unittest.TestCase):
 
         diarization_struct = types.SimpleNamespace()
         diarization_response = types.SimpleNamespace(
+            job_id="dia-1",
+            state=transcription_pb2.DIARIZATION_JOB_STATE_SUCCEEDED,
+            error_code="",
+            error_message="",
             text="hello",
             language_code="en",
             diarization=diarization_struct,
             diarization_artifact_id="json-1",
+            created_at_unix_seconds=1.0,
+            started_at_unix_seconds=2.0,
+            finished_at_unix_seconds=3.0,
         )
-        diarization_stub = _TranscriptionStub(diarization_response)
+        diarization_stub = _TranscriptionStub(diarize_response=diarization_response)
         with patch("dictator.client.diarization.artifacts_pb2_grpc.ArtifactServiceStub", return_value=_ArtifactStub()), patch(
             "dictator.client.diarization.transcription_pb2_grpc.TranscriptionServiceStub",
             return_value=diarization_stub,
@@ -132,12 +165,20 @@ class ClientsSubtitlesSynthesisCoverageTests(unittest.TestCase):
         self.assertEqual(result.diarization_artifact_id, "json-1")
 
         subtitle_response = types.SimpleNamespace(
+            job_id="sub-1",
+            state=subtitle_pb2.SUBTITLE_JOB_STATE_SUCCEEDED,
+            error_code="",
+            error_message="",
             language_code="en",
             mode=subtitle_pb2.SUBTITLE_MODE_FORCED_ALIGNMENT,
+            granularity=subtitle_pb2.SUBTITLE_GRANULARITY_SENTENCES,
             group_size=2,
             srt_artifact_id="srt-1",
             srt_text="1\n00:00:00,000 --> 00:00:00,400\nhello world\n",
             cues=[types.SimpleNamespace(content="hello world", start_seconds=0.0, end_seconds=0.4, item_count=2)],
+            created_at_unix_seconds=1.0,
+            started_at_unix_seconds=2.0,
+            finished_at_unix_seconds=3.0,
         )
         subtitle_stub = _SubtitleStub(subtitle_response)
         with (

@@ -48,6 +48,8 @@ def main() -> None:
             language_code=args.language,
             autodetect_language=args.autodetect_language or not bool(args.language.strip()),
             include_word_segments=args.include_words,
+            timeout_seconds=base.job_wait_timeout_seconds,
+            poll_interval_seconds=base.job_poll_interval_seconds,
         )
     if args.include_words:
         print(json.dumps({"text": result.text, "words": result.words}, ensure_ascii=False))

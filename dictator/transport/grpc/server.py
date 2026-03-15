@@ -11,7 +11,20 @@ from grpc_health.v1 import health_pb2
 from grpc_health.v1 import health_pb2_grpc
 
 from dictator.runtime import InflightLimiter, MetricsRegistry, SpeechExecutionRuntime
-from dictator.runtime.jobs import LocalSynthesisJobStore, SynthesisJobManager
+from dictator.runtime.jobs import (
+    AlignmentJobManager,
+    DiarizationJobManager,
+    ExtractReferenceSampleJobManager,
+    LocalAlignmentJobStore,
+    LocalDiarizationJobStore,
+    LocalExtractReferenceSampleJobStore,
+    LocalSynthesisJobStore,
+    LocalSubtitleJobStore,
+    LocalTranscriptionJobStore,
+    SynthesisJobManager,
+    SubtitleJobManager,
+    TranscriptionJobManager,
+)
 from dictator.storage import LocalArtifactStore
 
 from .config import ServerConfig
@@ -54,6 +67,43 @@ def build_server(
                 execution_runtime=execution_runtime,
                 max_workers=config.synthesis_job_workers,
                 max_pending_jobs=config.max_pending_synthesis_jobs,
+            ),
+            alignment_job_manager=AlignmentJobManager(
+                job_store=LocalAlignmentJobStore(config.artifact_root / ".dictator-alignment-jobs"),
+                artifact_store=artifact_store,
+                execution_runtime=execution_runtime,
+                max_workers=config.alignment_job_workers,
+                max_pending_jobs=config.max_pending_alignment_jobs,
+            ),
+            transcription_job_manager=TranscriptionJobManager(
+                job_store=LocalTranscriptionJobStore(config.artifact_root / ".dictator-transcription-jobs"),
+                artifact_store=artifact_store,
+                execution_runtime=execution_runtime,
+                max_workers=config.transcription_job_workers,
+                max_pending_jobs=config.max_pending_transcription_jobs,
+            ),
+            diarization_job_manager=DiarizationJobManager(
+                job_store=LocalDiarizationJobStore(config.artifact_root / ".dictator-diarization-jobs"),
+                artifact_store=artifact_store,
+                execution_runtime=execution_runtime,
+                max_workers=config.diarization_job_workers,
+                max_pending_jobs=config.max_pending_diarization_jobs,
+            ),
+            subtitle_job_manager=SubtitleJobManager(
+                job_store=LocalSubtitleJobStore(config.artifact_root / ".dictator-subtitle-jobs"),
+                artifact_store=artifact_store,
+                execution_runtime=execution_runtime,
+                max_workers=config.subtitle_job_workers,
+                max_pending_jobs=config.max_pending_subtitle_jobs,
+            ),
+            reference_extraction_job_manager=ExtractReferenceSampleJobManager(
+                job_store=LocalExtractReferenceSampleJobStore(
+                    config.artifact_root / ".dictator-reference-extraction-jobs"
+                ),
+                artifact_store=artifact_store,
+                execution_runtime=execution_runtime,
+                max_workers=config.reference_extraction_job_workers,
+                max_pending_jobs=config.max_pending_reference_extraction_jobs,
             ),
         )
     register_services(server, service_context)
