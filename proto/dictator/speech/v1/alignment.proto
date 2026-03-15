@@ -59,4 +59,5 @@ message GetAlignTranscriptJobResponse {
   double created_at_unix_seconds = 9;
   double started_at_unix_seconds = 10;
   double finished_at_unix_seconds = 11;
+  string source_artifact_id = 12;
 }

@@ -68,7 +68,7 @@ class SubtitleClient:
         source_text_name: str = "",
         include_srt_text: bool = True,
         media_type: str | None = None,
-        timeout_seconds: float | None = 300.0,
+        timeout_seconds: float | None = None,
         poll_interval_seconds: float = 1.0,
     ) -> SubtitleResult:
         inline_source_text, resolved_source_name = self._resolve_source_text(
@@ -106,44 +106,9 @@ class SubtitleClient:
         source_text: str | None = None,
         source_text_name: str = "",
         include_srt_text: bool = True,
-        timeout_seconds: float | None = 300.0,
+        timeout_seconds: float | None = None,
         poll_interval_seconds: float = 1.0,
     ) -> SubtitleResult:
-        try:
-            submitted = self.submit_render_bytes_job(
-                payload,
-                filename=filename,
-                media_type=media_type,
-                model_size=model_size,
-                language_code=language_code,
-                autodetect_language=autodetect_language,
-                granularity=granularity,
-                group_size=group_size,
-                source_text=source_text,
-                source_text_name=source_text_name,
-                include_srt_text=include_srt_text,
-            )
-            finished = self.wait_for_subtitle_job(
-                submitted.job_id,
-                timeout_seconds=timeout_seconds,
-                poll_interval_seconds=poll_interval_seconds,
-            )
-            if finished.result is None:
-                raise RuntimeError("subtitle job succeeded without a result payload")
-            return SubtitleResult(
-                language_code=finished.result.language_code,
-                mode=finished.result.mode,
-                granularity=finished.result.granularity,
-                group_size=finished.result.group_size,
-                source_artifact_id=submitted.source_artifact_id,
-                srt_artifact_id=finished.result.srt_artifact_id,
-                srt_text=finished.result.srt_text,
-                cues=finished.result.cues,
-            )
-        except grpc.RpcError as error:
-            if not self._should_fallback_to_sync(error):
-                raise
-
         resolved_autodetect = DictationClient._resolve_autodetect(
             language_code=language_code,
             autodetect_language=autodetect_language,
@@ -156,19 +121,53 @@ class SubtitleClient:
             filename=filename,
             media_type=media_type or DEFAULT_MEDIA_TYPE,
         )
-        request = subtitle_pb2.RenderSubtitlesRequest(
+        request = self._build_request(
             audio_artifact_id=artifact.artifact_id,
             language_code=language_code,
             autodetect_language=resolved_autodetect,
             model_size=model_size,
-            output_format=subtitle_pb2.SUBTITLE_FORMAT_SRT,
-            granularity=self._resolve_granularity(granularity),
+            granularity=granularity,
             group_size=group_size,
+            source_text=source_text,
             source_text_name=source_text_name,
             include_srt_text=include_srt_text,
         )
-        if source_text is not None:
-            request.source_text = source_text
+        try:
+            response = self._subtitle_stub.SubmitRenderSubtitlesJob(
+                request,
+                metadata=self._metadata,
+            )
+            submitted = SubtitleJob(
+                job_id=response.job_id,
+                state=subtitle_pb2.SubtitleJobState.Name(response.state),
+                source_artifact_id=artifact.artifact_id,
+            )
+            finished = self.wait_for_subtitle_job(
+                submitted.job_id,
+                timeout_seconds=timeout_seconds,
+                poll_interval_seconds=poll_interval_seconds,
+            )
+            if finished.result is None:
+                raise RuntimeError("subtitle job succeeded without a result payload")
+            source_artifact_id = (
+                finished.result.source_artifact_id
+                or finished.source_artifact_id
+                or submitted.source_artifact_id
+            )
+            return SubtitleResult(
+                language_code=finished.result.language_code,
+                mode=finished.result.mode,
+                granularity=finished.result.granularity,
+                group_size=finished.result.group_size,
+                source_artifact_id=source_artifact_id,
+                srt_artifact_id=finished.result.srt_artifact_id,
+                srt_text=finished.result.srt_text,
+                cues=finished.result.cues,
+            )
+        except grpc.RpcError as error:
+            if not self._should_fallback_to_sync(error):
+                raise
+
         response = self._subtitle_stub.RenderSubtitles(
             request,
             metadata=self._metadata,
@@ -253,21 +252,18 @@ class SubtitleClient:
             filename=filename,
             media_type=media_type or DEFAULT_MEDIA_TYPE,
         )
-        request = subtitle_pb2.RenderSubtitlesRequest(
-            audio_artifact_id=artifact.artifact_id,
-            language_code=language_code,
-            autodetect_language=resolved_autodetect,
-            model_size=model_size,
-            output_format=subtitle_pb2.SUBTITLE_FORMAT_SRT,
-            granularity=self._resolve_granularity(granularity),
-            group_size=group_size,
-            source_text_name=source_text_name,
-            include_srt_text=include_srt_text,
-        )
-        if source_text is not None:
-            request.source_text = source_text
         response = self._subtitle_stub.SubmitRenderSubtitlesJob(
-            request,
+            self._build_request(
+                audio_artifact_id=artifact.artifact_id,
+                language_code=language_code,
+                autodetect_language=resolved_autodetect,
+                model_size=model_size,
+                granularity=granularity,
+                group_size=group_size,
+                source_text=source_text,
+                source_text_name=source_text_name,
+                include_srt_text=include_srt_text,
+            ),
             metadata=self._metadata,
         )
         return SubtitleJob(
@@ -281,6 +277,7 @@ class SubtitleClient:
             subtitle_pb2.GetRenderSubtitlesJobRequest(job_id=job_id),
             metadata=self._metadata,
         )
+        source_artifact_id = getattr(response, "source_artifact_id", "")
         result = None
         if response.state == subtitle_pb2.SUBTITLE_JOB_STATE_SUCCEEDED:
             result = SubtitleResult(
@@ -288,7 +285,7 @@ class SubtitleClient:
                 mode=self._resolve_mode(response.mode),
                 granularity=self._resolve_granularity_name(response.granularity),
                 group_size=response.group_size,
-                source_artifact_id="",
+                source_artifact_id=source_artifact_id,
                 srt_artifact_id=response.srt_artifact_id,
                 srt_text=response.srt_text,
                 cues=tuple(
@@ -304,6 +301,7 @@ class SubtitleClient:
         return SubtitleJob(
             job_id=response.job_id,
             state=subtitle_pb2.SubtitleJobState.Name(response.state),
+            source_artifact_id=source_artifact_id,
             error_code=response.error_code,
             error_message=response.error_message,
             result=result,
@@ -316,7 +314,7 @@ class SubtitleClient:
         self,
         job_id: str,
         *,
-        timeout_seconds: float | None = 300.0,
+        timeout_seconds: float | None = None,
         poll_interval_seconds: float = 1.0,
     ) -> SubtitleJob:
         return wait_for_job(
@@ -324,6 +322,34 @@ class SubtitleClient:
             timeout_seconds=timeout_seconds,
             poll_interval_seconds=poll_interval_seconds,
         )
+
+    def _build_request(
+        self,
+        *,
+        audio_artifact_id: str,
+        language_code: str,
+        autodetect_language: bool,
+        model_size: str,
+        granularity: str,
+        group_size: int,
+        source_text: str | None,
+        source_text_name: str,
+        include_srt_text: bool,
+    ) -> subtitle_pb2.RenderSubtitlesRequest:
+        request = subtitle_pb2.RenderSubtitlesRequest(
+            audio_artifact_id=audio_artifact_id,
+            language_code=language_code,
+            autodetect_language=autodetect_language,
+            model_size=model_size,
+            output_format=subtitle_pb2.SUBTITLE_FORMAT_SRT,
+            granularity=self._resolve_granularity(granularity),
+            group_size=group_size,
+            source_text_name=source_text_name,
+            include_srt_text=include_srt_text,
+        )
+        if source_text is not None:
+            request.source_text = source_text
+        return request
 
     @staticmethod
     def _should_fallback_to_sync(error: grpc.RpcError) -> bool:

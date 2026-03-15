@@ -66,7 +66,7 @@ class DiarizationClient:
         utterance_gap_seconds: float | None = None,
         persist_json_artifact: bool = False,
         media_type: str | None = None,
-        timeout_seconds: float | None = 300.0,
+        timeout_seconds: float | None = None,
         poll_interval_seconds: float = 1.0,
     ) -> DiarizationResult:
         payload = audio_path.read_bytes()
@@ -102,42 +102,9 @@ class DiarizationClient:
         include_speaker_segments: bool = False,
         utterance_gap_seconds: float | None = None,
         persist_json_artifact: bool = False,
-        timeout_seconds: float | None = 300.0,
+        timeout_seconds: float | None = None,
         poll_interval_seconds: float = 1.0,
     ) -> DiarizationResult:
-        try:
-            submitted = self.submit_diarize_bytes_job(
-                payload,
-                filename=filename,
-                media_type=media_type,
-                model_size=model_size,
-                language_code=language_code,
-                autodetect_language=autodetect_language,
-                include_words=include_words,
-                include_utterances=include_utterances,
-                include_speakers=include_speakers,
-                include_speaker_segments=include_speaker_segments,
-                utterance_gap_seconds=utterance_gap_seconds,
-                persist_json_artifact=persist_json_artifact,
-            )
-            finished = self.wait_for_diarization_job(
-                submitted.job_id,
-                timeout_seconds=timeout_seconds,
-                poll_interval_seconds=poll_interval_seconds,
-            )
-            if finished.result is None:
-                raise RuntimeError("diarization job succeeded without a result payload")
-            return DiarizationResult(
-                text=finished.result.text,
-                language_code=finished.result.language_code,
-                source_artifact_id=submitted.source_artifact_id,
-                diarization=finished.result.diarization,
-                diarization_artifact_id=finished.result.diarization_artifact_id,
-            )
-        except grpc.RpcError as error:
-            if not self._should_fallback_to_sync(error):
-                raise
-
         resolved_autodetect = DictationClient._resolve_autodetect(
             language_code=language_code,
             autodetect_language=autodetect_language,
@@ -150,7 +117,7 @@ class DiarizationClient:
             filename=filename,
             media_type=media_type or DEFAULT_MEDIA_TYPE,
         )
-        request = transcription_pb2.DiarizeAudioRequest(
+        request = self._build_request(
             audio_artifact_id=artifact.artifact_id,
             language_code=language_code,
             model_size=model_size,
@@ -158,11 +125,43 @@ class DiarizationClient:
             include_utterances=include_utterances,
             include_speakers=include_speakers,
             include_speaker_segments=include_speaker_segments,
+            utterance_gap_seconds=utterance_gap_seconds,
             persist_json_artifact=persist_json_artifact,
             autodetect_language=resolved_autodetect,
         )
-        if utterance_gap_seconds is not None:
-            request.utterance_gap_seconds = utterance_gap_seconds
+        try:
+            response = self._transcription_stub.SubmitDiarizeAudioJob(
+                request,
+                metadata=self._metadata,
+            )
+            submitted = DiarizationJob(
+                job_id=response.job_id,
+                state=transcription_pb2.DiarizationJobState.Name(response.state),
+                source_artifact_id=artifact.artifact_id,
+            )
+            finished = self.wait_for_diarization_job(
+                submitted.job_id,
+                timeout_seconds=timeout_seconds,
+                poll_interval_seconds=poll_interval_seconds,
+            )
+            if finished.result is None:
+                raise RuntimeError("diarization job succeeded without a result payload")
+            source_artifact_id = (
+                finished.result.source_artifact_id
+                or finished.source_artifact_id
+                or submitted.source_artifact_id
+            )
+            return DiarizationResult(
+                text=finished.result.text,
+                language_code=finished.result.language_code,
+                source_artifact_id=source_artifact_id,
+                diarization=finished.result.diarization,
+                diarization_artifact_id=finished.result.diarization_artifact_id,
+            )
+        except grpc.RpcError as error:
+            if not self._should_fallback_to_sync(error):
+                raise
+
         response = self._transcription_stub.DiarizeAudio(
             request,
             metadata=self._metadata,
@@ -236,21 +235,19 @@ class DiarizationClient:
             filename=filename,
             media_type=media_type or DEFAULT_MEDIA_TYPE,
         )
-        request = transcription_pb2.DiarizeAudioRequest(
-            audio_artifact_id=artifact.artifact_id,
-            language_code=language_code,
-            model_size=model_size,
-            include_words=include_words,
-            include_utterances=include_utterances,
-            include_speakers=include_speakers,
-            include_speaker_segments=include_speaker_segments,
-            persist_json_artifact=persist_json_artifact,
-            autodetect_language=resolved_autodetect,
-        )
-        if utterance_gap_seconds is not None:
-            request.utterance_gap_seconds = utterance_gap_seconds
         response = self._transcription_stub.SubmitDiarizeAudioJob(
-            request,
+            self._build_request(
+                audio_artifact_id=artifact.artifact_id,
+                language_code=language_code,
+                model_size=model_size,
+                include_words=include_words,
+                include_utterances=include_utterances,
+                include_speakers=include_speakers,
+                include_speaker_segments=include_speaker_segments,
+                utterance_gap_seconds=utterance_gap_seconds,
+                persist_json_artifact=persist_json_artifact,
+                autodetect_language=resolved_autodetect,
+            ),
             metadata=self._metadata,
         )
         return DiarizationJob(
@@ -264,12 +261,13 @@ class DiarizationClient:
             transcription_pb2.GetDiarizeAudioJobRequest(job_id=job_id),
             metadata=self._metadata,
         )
+        source_artifact_id = getattr(response, "source_artifact_id", "")
         result = None
         if response.state == transcription_pb2.DIARIZATION_JOB_STATE_SUCCEEDED:
             result = DiarizationResult(
                 text=response.text,
                 language_code=response.language_code,
-                source_artifact_id="",
+                source_artifact_id=source_artifact_id,
                 diarization=MessageToDict(
                     response.diarization,
                     preserving_proto_field_name=True,
@@ -279,6 +277,7 @@ class DiarizationClient:
         return DiarizationJob(
             job_id=response.job_id,
             state=transcription_pb2.DiarizationJobState.Name(response.state),
+            source_artifact_id=source_artifact_id,
             error_code=response.error_code,
             error_message=response.error_message,
             result=result,
@@ -291,7 +290,7 @@ class DiarizationClient:
         self,
         job_id: str,
         *,
-        timeout_seconds: float | None = 300.0,
+        timeout_seconds: float | None = None,
         poll_interval_seconds: float = 1.0,
     ) -> DiarizationJob:
         return wait_for_job(
@@ -299,6 +298,35 @@ class DiarizationClient:
             timeout_seconds=timeout_seconds,
             poll_interval_seconds=poll_interval_seconds,
         )
+
+    @staticmethod
+    def _build_request(
+        *,
+        audio_artifact_id: str,
+        language_code: str,
+        model_size: str,
+        include_words: bool,
+        include_utterances: bool,
+        include_speakers: bool,
+        include_speaker_segments: bool,
+        utterance_gap_seconds: float | None,
+        persist_json_artifact: bool,
+        autodetect_language: bool,
+    ) -> transcription_pb2.DiarizeAudioRequest:
+        request = transcription_pb2.DiarizeAudioRequest(
+            audio_artifact_id=audio_artifact_id,
+            language_code=language_code,
+            model_size=model_size,
+            include_words=include_words,
+            include_utterances=include_utterances,
+            include_speakers=include_speakers,
+            include_speaker_segments=include_speaker_segments,
+            persist_json_artifact=persist_json_artifact,
+            autodetect_language=autodetect_language,
+        )
+        if utterance_gap_seconds is not None:
+            request.utterance_gap_seconds = utterance_gap_seconds
+        return request
 
     @staticmethod
     def _should_fallback_to_sync(error: grpc.RpcError) -> bool:

@@ -231,23 +231,29 @@ class AlignmentClientTests(unittest.TestCase):
         with (
             patch("dictator.client.alignment.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
             patch("dictator.client.alignment.alignment_pb2_grpc.AlignmentServiceStub", return_value=object()),
+            patch("dictator.client.alignment.upload_audio_artifact", return_value=types.SimpleNamespace(artifact_id="audio-3")),
         ):
             client = AlignmentClient(object())
+        client._alignment_stub = types.SimpleNamespace(
+            SubmitAlignTranscriptJob=MagicMock(
+                return_value=types.SimpleNamespace(
+                    job_id="align-3",
+                    state=alignment_pb2.ALIGNMENT_JOB_STATE_QUEUED,
+                )
+            )
+        )
         with (
-            patch.object(
-                client,
-                "submit_align_bytes_job",
-                return_value=types.SimpleNamespace(job_id="align-3", source_artifact_id="audio-3"),
-            ),
+            patch("dictator.client.alignment.upload_audio_artifact", return_value=types.SimpleNamespace(artifact_id="audio-3")),
             patch.object(client, "wait_for_alignment_job", return_value=types.SimpleNamespace(result=None)),
         ):
             with self.assertRaisesRegex(RuntimeError, "without a result payload"):
                 client.align_bytes(b"abc", transcript_text="hello")
-        with patch.object(
-            client,
-            "submit_align_bytes_job",
-            side_effect=_FakeRpcError(grpc.StatusCode.INTERNAL, "boom"),
-        ):
+        client._alignment_stub = types.SimpleNamespace(
+            SubmitAlignTranscriptJob=MagicMock(
+                side_effect=_FakeRpcError(grpc.StatusCode.INTERNAL, "boom"),
+            )
+        )
+        with patch("dictator.client.alignment.upload_audio_artifact", return_value=types.SimpleNamespace(artifact_id="audio-3")):
             with self.assertRaises(grpc.RpcError):
                 client.align_bytes(b"abc", transcript_text="hello")
 

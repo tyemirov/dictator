@@ -61,7 +61,7 @@ class AlignmentClient:
         remove_punctuation: bool = False,
         include_srt_text: bool = True,
         media_type: str | None = None,
-        timeout_seconds: float | None = 300.0,
+        timeout_seconds: float | None = None,
         poll_interval_seconds: float = 1.0,
     ) -> AlignmentResult:
         resolved_text, resolved_artifact_id = self._resolve_transcript_source(
@@ -93,38 +93,9 @@ class AlignmentClient:
         language_code: str = "",
         remove_punctuation: bool = False,
         include_srt_text: bool = True,
-        timeout_seconds: float | None = 300.0,
+        timeout_seconds: float | None = None,
         poll_interval_seconds: float = 1.0,
     ) -> AlignmentResult:
-        try:
-            submitted = self.submit_align_bytes_job(
-                payload,
-                filename=filename,
-                media_type=media_type,
-                transcript_text=transcript_text,
-                transcript_artifact_id=transcript_artifact_id,
-                language_code=language_code,
-                remove_punctuation=remove_punctuation,
-                include_srt_text=include_srt_text,
-            )
-            finished = self.wait_for_alignment_job(
-                submitted.job_id,
-                timeout_seconds=timeout_seconds,
-                poll_interval_seconds=poll_interval_seconds,
-            )
-            if finished.result is None:
-                raise RuntimeError("alignment job succeeded without a result payload")
-            return AlignmentResult(
-                language_code=finished.result.language_code,
-                source_artifact_id=submitted.source_artifact_id,
-                srt_artifact_id=finished.result.srt_artifact_id,
-                srt_text=finished.result.srt_text,
-                words=finished.result.words,
-            )
-        except grpc.RpcError as error:
-            if not self._should_fallback_to_sync(error):
-                raise
-
         resolved_text, resolved_artifact_id = self._resolve_transcript_source(
             transcript_text=transcript_text,
             transcript_file=None,
@@ -138,15 +109,49 @@ class AlignmentClient:
             filename=filename,
             media_type=media_type or DEFAULT_MEDIA_TYPE,
         )
+        request = self._build_request(
+            audio_artifact_id=artifact.artifact_id,
+            transcript_text=resolved_text,
+            transcript_artifact_id=resolved_artifact_id,
+            language_code=language_code,
+            remove_punctuation=remove_punctuation,
+            include_srt_text=include_srt_text,
+        )
+        try:
+            response = self._alignment_stub.SubmitAlignTranscriptJob(
+                request,
+                metadata=self._metadata,
+            )
+            submitted = AlignmentJob(
+                job_id=response.job_id,
+                state=alignment_pb2.AlignmentJobState.Name(response.state),
+                source_artifact_id=artifact.artifact_id,
+            )
+            finished = self.wait_for_alignment_job(
+                submitted.job_id,
+                timeout_seconds=timeout_seconds,
+                poll_interval_seconds=poll_interval_seconds,
+            )
+            if finished.result is None:
+                raise RuntimeError("alignment job succeeded without a result payload")
+            source_artifact_id = (
+                finished.result.source_artifact_id
+                or finished.source_artifact_id
+                or submitted.source_artifact_id
+            )
+            return AlignmentResult(
+                language_code=finished.result.language_code,
+                source_artifact_id=source_artifact_id,
+                srt_artifact_id=finished.result.srt_artifact_id,
+                srt_text=finished.result.srt_text,
+                words=finished.result.words,
+            )
+        except grpc.RpcError as error:
+            if not self._should_fallback_to_sync(error):
+                raise
+
         response = self._alignment_stub.AlignTranscript(
-            self._build_request(
-                audio_artifact_id=artifact.artifact_id,
-                transcript_text=resolved_text,
-                transcript_artifact_id=resolved_artifact_id,
-                language_code=language_code,
-                remove_punctuation=remove_punctuation,
-                include_srt_text=include_srt_text,
-            ),
+            request,
             metadata=self._metadata,
         )
         return AlignmentResult(
@@ -232,11 +237,12 @@ class AlignmentClient:
             alignment_pb2.GetAlignTranscriptJobRequest(job_id=job_id),
             metadata=self._metadata,
         )
+        source_artifact_id = getattr(response, "source_artifact_id", "")
         result = None
         if response.state == alignment_pb2.ALIGNMENT_JOB_STATE_SUCCEEDED:
             result = AlignmentResult(
                 language_code=response.language_code,
-                source_artifact_id="",
+                source_artifact_id=source_artifact_id,
                 srt_artifact_id=response.srt_artifact_id,
                 srt_text=response.srt_text,
                 words=self._words_from_segments(response.words),
@@ -244,6 +250,7 @@ class AlignmentClient:
         return AlignmentJob(
             job_id=response.job_id,
             state=alignment_pb2.AlignmentJobState.Name(response.state),
+            source_artifact_id=source_artifact_id,
             error_code=response.error_code,
             error_message=response.error_message,
             result=result,
@@ -256,7 +263,7 @@ class AlignmentClient:
         self,
         job_id: str,
         *,
-        timeout_seconds: float | None = 300.0,
+        timeout_seconds: float | None = None,
         poll_interval_seconds: float = 1.0,
     ) -> AlignmentJob:
         return wait_for_job(

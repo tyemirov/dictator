@@ -56,6 +56,7 @@ class AlignmentServiceServicer(BaseServicer, alignment_pb2_grpc.AlignmentService
             created_at_unix_seconds=record.created_at_unix_seconds,
             started_at_unix_seconds=record.started_at_unix_seconds or 0.0,
             finished_at_unix_seconds=record.finished_at_unix_seconds or 0.0,
+            source_artifact_id=record.audio_artifact_id,
         )
         response.words.extend(
             common_pb2.WordSegment(

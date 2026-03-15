@@ -62,7 +62,7 @@ class ReferenceSampleClient:
         min_centroid_hz: float = 500.0,
         max_centroid_hz: float = 4000.0,
         media_type: str | None = None,
-        timeout_seconds: float | None = 300.0,
+        timeout_seconds: float | None = None,
         poll_interval_seconds: float = 1.0,
     ) -> ReferenceSampleResult:
         return self.extract_bytes(
@@ -91,7 +91,7 @@ class ReferenceSampleClient:
         max_speech_rate: float = 4.0,
         min_centroid_hz: float = 500.0,
         max_centroid_hz: float = 4000.0,
-        timeout_seconds: float | None = 300.0,
+        timeout_seconds: float | None = None,
         poll_interval_seconds: float = 1.0,
     ) -> ReferenceSampleResult:
         submitted = self.submit_extract_bytes_job(
@@ -182,6 +182,7 @@ class ReferenceSampleClient:
             voice_pb2.GetExtractReferenceSampleJobRequest(job_id=job_id),
             metadata=self._metadata,
         )
+        source_artifact_id = getattr(response, "source_artifact_id", "")
         result = None
         if response.state == voice_pb2.EXTRACT_REFERENCE_SAMPLE_JOB_STATE_SUCCEEDED:
             result = ReferenceSampleResult(
@@ -195,6 +196,7 @@ class ReferenceSampleClient:
         return ReferenceSampleJob(
             job_id=response.job_id,
             state=voice_pb2.ExtractReferenceSampleJobState.Name(response.state),
+            source_artifact_id=source_artifact_id,
             error_code=response.error_code,
             error_message=response.error_message,
             result=result,
@@ -207,7 +209,7 @@ class ReferenceSampleClient:
         self,
         job_id: str,
         *,
-        timeout_seconds: float | None = 300.0,
+        timeout_seconds: float | None = None,
         poll_interval_seconds: float = 1.0,
     ) -> ReferenceSampleJob:
         return wait_for_job(
