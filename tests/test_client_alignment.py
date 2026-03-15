@@ -178,6 +178,15 @@ class AlignmentClientTests(unittest.TestCase):
                 align_bytes_mock.call_args.kwargs["transcript_text"],
                 "hello from file",
             )
+            with patch.object(client, "submit_align_bytes_job", return_value="submitted") as submit_mock:
+                self.assertEqual(
+                    client.submit_align_file_job(audio, transcript_file=transcript, language_code="en"),
+                    "submitted",
+                )
+            self.assertEqual(
+                submit_mock.call_args.kwargs["transcript_text"],
+                "hello from file",
+            )
 
         with self.assertRaisesRegex(ValueError, "exactly one"):
             AlignmentClient._resolve_transcript_source(
@@ -191,6 +200,56 @@ class AlignmentClientTests(unittest.TestCase):
                 transcript_file=Path("transcript.txt"),
                 transcript_artifact_id="artifact-1",
             )
+
+    def test_alignment_artifact_source_and_error_paths(self):
+        from dictator.client.alignment import AlignmentClient
+
+        submit_stub = types.SimpleNamespace(
+            SubmitAlignTranscriptJob=MagicMock(
+                return_value=types.SimpleNamespace(
+                    job_id="align-artifact",
+                    state=alignment_pb2.ALIGNMENT_JOB_STATE_QUEUED,
+                )
+            )
+        )
+        with (
+            patch("dictator.client.alignment.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
+            patch("dictator.client.alignment.alignment_pb2_grpc.AlignmentServiceStub", return_value=submit_stub),
+            patch("dictator.client.alignment.upload_audio_artifact", return_value=types.SimpleNamespace(artifact_id="audio-artifact")),
+        ):
+            client = AlignmentClient(object())
+            submitted = client.submit_align_bytes_job(
+                b"abc",
+                transcript_artifact_id="transcript-1",
+                language_code="en",
+            )
+        self.assertEqual(submitted.source_artifact_id, "audio-artifact")
+        submit_request = submit_stub.SubmitAlignTranscriptJob.call_args.args[0]
+        self.assertEqual(submit_request.transcript_artifact_id, "transcript-1")
+        self.assertEqual(submit_request.transcript_text, "")
+
+        with (
+            patch("dictator.client.alignment.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
+            patch("dictator.client.alignment.alignment_pb2_grpc.AlignmentServiceStub", return_value=object()),
+        ):
+            client = AlignmentClient(object())
+        with (
+            patch.object(
+                client,
+                "submit_align_bytes_job",
+                return_value=types.SimpleNamespace(job_id="align-3", source_artifact_id="audio-3"),
+            ),
+            patch.object(client, "wait_for_alignment_job", return_value=types.SimpleNamespace(result=None)),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "without a result payload"):
+                client.align_bytes(b"abc", transcript_text="hello")
+        with patch.object(
+            client,
+            "submit_align_bytes_job",
+            side_effect=_FakeRpcError(grpc.StatusCode.INTERNAL, "boom"),
+        ):
+            with self.assertRaises(grpc.RpcError):
+                client.align_bytes(b"abc", transcript_text="hello")
 
 
 if __name__ == "__main__":

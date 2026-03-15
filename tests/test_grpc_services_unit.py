@@ -588,5 +588,139 @@ class GrpcServicesUnitTests(unittest.TestCase):
                 FakeContext(metadata=(("x-dictator-token", "secret"),)),
             )
         self.assertEqual(exc.exception.status, grpc.StatusCode.INVALID_ARGUMENT)
+
+
+class AlignmentJobGrpcServiceTests(unittest.TestCase):
+    def _make_service(self, *, record):
+        import types
+        from pathlib import Path
+        from unittest.mock import MagicMock
+
+        from dictator.transport.grpc.alignment_service import AlignmentServiceServicer
+
+        artifact_store = types.SimpleNamespace(
+            get_artifact=MagicMock(
+                return_value=types.SimpleNamespace(
+                    artifact_id="audio-1",
+                    path=Path("/tmp/audio.wav"),
+                    filename="audio.wav",
+                )
+            ),
+            read_text=MagicMock(return_value="hello world"),
+        )
+        service_context = ServiceContext(
+            artifact_store=artifact_store,
+            execution_runtime=FakeRuntime(),
+            metrics=MetricsRegistry(),
+            limiter=InflightLimiter(2),
+            auth_token="",
+            download_chunk_bytes=4,
+            alignment_job_manager=FakeJobManager(record),
+        )
+        return AlignmentServiceServicer(service_context), service_context
+
+    def test_submit_alignment_job_uses_job_manager(self):
+        from dictator.runtime.jobs import AlignmentJobRecord, AlignmentJobState
+
+        service, service_context = self._make_service(
+            record=AlignmentJobRecord(
+                job_id="align-1",
+                state=AlignmentJobState.QUEUED,
+                audio_artifact_id="audio-1",
+                include_srt_text=True,
+                created_at_unix_seconds=1.0,
+            )
+        )
+
+        response = service.SubmitAlignTranscriptJob(
+            alignment_pb2.AlignTranscriptRequest(
+                audio_artifact_id="audio-1",
+                transcript_text="hello world",
+                language_code="en",
+                remove_punctuation=True,
+                include_srt_text=True,
+            ),
+            FakeContext(),
+        )
+
+        self.assertEqual(response.job_id, "align-1")
+        self.assertEqual(response.state, alignment_pb2.ALIGNMENT_JOB_STATE_QUEUED)
+        prepared = service_context.alignment_job_manager.submitted[0]
+        self.assertEqual(prepared.audio_record.artifact_id, "audio-1")
+        self.assertEqual(prepared.transcript_text, "hello world")
+        self.assertTrue(prepared.remove_punctuation)
+        self.assertTrue(prepared.include_srt_text)
+
+    def test_get_alignment_job_returns_marshaled_record(self):
+        from dictator.alignment.models import AlignedWord
+        from dictator.runtime.jobs import AlignmentJobRecord, AlignmentJobState
+
+        service, _ = self._make_service(
+            record=AlignmentJobRecord(
+                job_id="align-2",
+                state=AlignmentJobState.SUCCEEDED,
+                audio_artifact_id="audio-1",
+                include_srt_text=True,
+                created_at_unix_seconds=1.0,
+                started_at_unix_seconds=2.0,
+                finished_at_unix_seconds=3.0,
+                language_code="en",
+                words=(AlignedWord(text="hello", start_seconds=0.0, end_seconds=0.4),),
+                srt_text="1\n00:00:00,000 --> 00:00:00,400\nhello\n",
+                srt_artifact_id="srt-1",
+            )
+        )
+
+        response = service.GetAlignTranscriptJob(
+            alignment_pb2.GetAlignTranscriptJobRequest(job_id="align-2"),
+            FakeContext(),
+        )
+
+        self.assertEqual(response.job_id, "align-2")
+        self.assertEqual(response.state, alignment_pb2.ALIGNMENT_JOB_STATE_SUCCEEDED)
+        self.assertEqual(response.language_code, "en")
+        self.assertEqual(response.words[0].content, "hello")
+        self.assertEqual(response.srt_artifact_id, "srt-1")
+
+    def test_alignment_job_response_maps_all_states_and_validates_job_id(self):
+        from dictator.runtime.jobs import AlignmentJobRecord, AlignmentJobState
+
+        service, service_context = self._make_service(
+            record=AlignmentJobRecord(
+                job_id="align-3",
+                state=AlignmentJobState.QUEUED,
+                audio_artifact_id="audio-1",
+                include_srt_text=True,
+                created_at_unix_seconds=1.0,
+            )
+        )
+
+        for state, expected in (
+            (AlignmentJobState.QUEUED, alignment_pb2.ALIGNMENT_JOB_STATE_QUEUED),
+            (AlignmentJobState.RUNNING, alignment_pb2.ALIGNMENT_JOB_STATE_RUNNING),
+            (AlignmentJobState.SUCCEEDED, alignment_pb2.ALIGNMENT_JOB_STATE_SUCCEEDED),
+            (AlignmentJobState.FAILED, alignment_pb2.ALIGNMENT_JOB_STATE_FAILED),
+        ):
+            with self.subTest(state=state):
+                record = AlignmentJobRecord(
+                    job_id="align-state",
+                    state=state,
+                    audio_artifact_id="audio-1",
+                    include_srt_text=True,
+                    created_at_unix_seconds=1.0,
+                    error_code="dictator.jobs.failed" if state is AlignmentJobState.FAILED else None,
+                    error_message="broken" if state is AlignmentJobState.FAILED else None,
+                )
+                self.assertEqual(service._job_response(record).state, expected)
+
+        with self.assertRaises(RpcAbort) as raised:
+            service.GetAlignTranscriptJob(
+                alignment_pb2.GetAlignTranscriptJobRequest(job_id=" "),
+                FakeContext(),
+            )
+        self.assertEqual(raised.exception.status, grpc.StatusCode.INVALID_ARGUMENT)
+        self.assertEqual(service_context.alignment_job_manager.lookups, [])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -4,6 +4,7 @@ import types
 import unittest
 from unittest.mock import MagicMock, patch
 
+import grpc
 from google.protobuf import struct_pb2
 
 from dictator.client import (
@@ -15,6 +16,19 @@ from dictator.client import (
     SubtitleClient,
 )
 from dictator.speech.v1 import subtitle_pb2, transcription_pb2, voice_pb2
+
+
+class _FakeRpcError(grpc.RpcError):
+    def __init__(self, status_code: grpc.StatusCode, details: str) -> None:
+        super().__init__()
+        self._status_code = status_code
+        self._details = details
+
+    def code(self):
+        return self._status_code
+
+    def details(self):
+        return self._details
 
 
 class ClientJobHelpersTests(unittest.TestCase):
@@ -264,3 +278,263 @@ class ClientJobHelpersTests(unittest.TestCase):
                 dominant_speaker_word_count=9,
             ),
         )
+
+    def test_wait_for_job_validates_inputs_and_times_out(self):
+        from dictator.client._jobs import wait_for_job
+
+        with self.assertRaisesRegex(ValueError, "timeout_seconds"):
+            wait_for_job(lambda: types.SimpleNamespace(state="QUEUED"), timeout_seconds=0.0)
+        with self.assertRaisesRegex(ValueError, "poll_interval_seconds"):
+            wait_for_job(
+                lambda: types.SimpleNamespace(state="QUEUED"),
+                timeout_seconds=1.0,
+                poll_interval_seconds=0.0,
+            )
+
+        with (
+            patch("dictator.client._jobs.time.monotonic", side_effect=[10.0, 11.1]),
+            patch("dictator.client._jobs.time.sleep"),
+        ):
+            with self.assertRaisesRegex(TimeoutError, "did not complete"):
+                wait_for_job(
+                    lambda: types.SimpleNamespace(state="TRANSCRIPTION_JOB_STATE_QUEUED"),
+                    timeout_seconds=1.0,
+                    poll_interval_seconds=0.1,
+                )
+
+    def test_dictation_sync_fallback_and_error_paths(self):
+        sync_stub = types.SimpleNamespace(
+            SubmitTranscribeJob=MagicMock(
+                side_effect=_FakeRpcError(
+                    grpc.StatusCode.INVALID_ARGUMENT,
+                    "transcription job manager is not configured",
+                )
+            ),
+            Transcribe=MagicMock(
+                return_value=types.SimpleNamespace(
+                    text="fallback",
+                    language_code="en",
+                    words=[types.SimpleNamespace(content="fallback", start_seconds=0.0, end_seconds=0.4)],
+                )
+            ),
+        )
+        with (
+            patch("dictator.client.dictation.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
+            patch("dictator.client.dictation.transcription_pb2_grpc.TranscriptionServiceStub", return_value=sync_stub),
+            patch("dictator.client.dictation.upload_audio_artifact", return_value=types.SimpleNamespace(artifact_id="audio-sync")),
+        ):
+            client = DictationClient(object())
+            result = client.dictate_bytes(b"abc", language_code="en")
+        self.assertEqual(result.text, "fallback")
+        self.assertEqual(result.artifact_id, "audio-sync")
+        sync_stub.Transcribe.assert_called_once()
+
+        with (
+            patch("dictator.client.dictation.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
+            patch("dictator.client.dictation.transcription_pb2_grpc.TranscriptionServiceStub", return_value=object()),
+        ):
+            client = DictationClient(object())
+        with (
+            patch.object(
+                client,
+                "submit_dictate_bytes_job",
+                return_value=types.SimpleNamespace(job_id="tx-3", source_artifact_id="audio-3"),
+            ),
+            patch.object(client, "wait_for_dictation_job", return_value=types.SimpleNamespace(result=None)),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "without a result payload"):
+                client.dictate_bytes(b"abc")
+        with patch.object(
+            client,
+            "submit_dictate_bytes_job",
+            side_effect=_FakeRpcError(grpc.StatusCode.INTERNAL, "boom"),
+        ):
+            with self.assertRaises(grpc.RpcError):
+                client.dictate_bytes(b"abc")
+
+    def test_diarization_sync_fallback_and_error_paths(self):
+        diarization_struct = struct_pb2.Struct()
+        diarization_struct.update({"text": "fallback", "speakers": [{"speaker": "S1"}]})
+        sync_stub = types.SimpleNamespace(
+            SubmitDiarizeAudioJob=MagicMock(
+                side_effect=_FakeRpcError(
+                    grpc.StatusCode.INVALID_ARGUMENT,
+                    "diarization job manager is not configured",
+                )
+            ),
+            DiarizeAudio=MagicMock(
+                return_value=types.SimpleNamespace(
+                    text="fallback",
+                    language_code="en",
+                    diarization=diarization_struct,
+                    diarization_artifact_id="json-sync",
+                )
+            ),
+        )
+        with (
+            patch("dictator.client.diarization.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
+            patch("dictator.client.diarization.transcription_pb2_grpc.TranscriptionServiceStub", return_value=sync_stub),
+            patch("dictator.client.diarization.upload_audio_artifact", return_value=types.SimpleNamespace(artifact_id="audio-sync")),
+        ):
+            client = DiarizationClient(object())
+            result = client.diarize_bytes(
+                b"abc",
+                language_code="en",
+                utterance_gap_seconds=0.5,
+                persist_json_artifact=True,
+            )
+        self.assertEqual(result.diarization["text"], "fallback")
+        self.assertEqual(result.diarization_artifact_id, "json-sync")
+        sync_stub.DiarizeAudio.assert_called_once()
+
+        with (
+            patch("dictator.client.diarization.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
+            patch("dictator.client.diarization.transcription_pb2_grpc.TranscriptionServiceStub", return_value=object()),
+        ):
+            client = DiarizationClient(object())
+        with (
+            patch.object(
+                client,
+                "submit_diarize_bytes_job",
+                return_value=types.SimpleNamespace(job_id="dia-2", source_artifact_id="audio-2"),
+            ),
+            patch.object(client, "wait_for_diarization_job", return_value=types.SimpleNamespace(result=None)),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "without a result payload"):
+                client.diarize_bytes(b"abc")
+        with patch.object(
+            client,
+            "submit_diarize_bytes_job",
+            side_effect=_FakeRpcError(grpc.StatusCode.INTERNAL, "boom"),
+        ):
+            with self.assertRaises(grpc.RpcError):
+                client.diarize_bytes(b"abc")
+
+    def test_subtitle_sync_fallback_and_error_paths(self):
+        sync_stub = types.SimpleNamespace(
+            SubmitRenderSubtitlesJob=MagicMock(
+                side_effect=_FakeRpcError(
+                    grpc.StatusCode.INVALID_ARGUMENT,
+                    "subtitle job manager is not configured",
+                )
+            ),
+            RenderSubtitles=MagicMock(
+                return_value=types.SimpleNamespace(
+                    language_code="en",
+                    mode=subtitle_pb2.SUBTITLE_MODE_FORCED_ALIGNMENT,
+                    group_size=1,
+                    cues=[types.SimpleNamespace(content="fallback", start_seconds=0.0, end_seconds=0.4, item_count=1)],
+                    srt_text="1\n00:00:00,000 --> 00:00:00,400\nfallback\n",
+                    srt_artifact_id="srt-sync",
+                )
+            ),
+        )
+        with (
+            patch("dictator.client.subtitles.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
+            patch("dictator.client.subtitles.subtitle_pb2_grpc.SubtitleServiceStub", return_value=sync_stub),
+            patch("dictator.client.subtitles.upload_audio_artifact", return_value=types.SimpleNamespace(artifact_id="audio-sync")),
+        ):
+            client = SubtitleClient(object())
+            result = client.render_bytes(
+                b"abc",
+                language_code="en",
+                source_text="fallback",
+                granularity="words",
+            )
+        self.assertEqual(result.mode, "forced_alignment")
+        self.assertEqual(result.srt_artifact_id, "srt-sync")
+        sync_stub.RenderSubtitles.assert_called_once()
+
+        with (
+            patch("dictator.client.subtitles.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
+            patch("dictator.client.subtitles.subtitle_pb2_grpc.SubtitleServiceStub", return_value=object()),
+        ):
+            client = SubtitleClient(object())
+        with (
+            patch.object(
+                client,
+                "submit_render_bytes_job",
+                return_value=types.SimpleNamespace(job_id="sub-2", source_artifact_id="audio-2"),
+            ),
+            patch.object(client, "wait_for_subtitle_job", return_value=types.SimpleNamespace(result=None)),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "without a result payload"):
+                client.render_bytes(b"abc", source_text="fallback")
+        with patch.object(
+            client,
+            "submit_render_bytes_job",
+            side_effect=_FakeRpcError(grpc.StatusCode.INTERNAL, "boom"),
+        ):
+            with self.assertRaises(grpc.RpcError):
+                client.render_bytes(b"abc", source_text="fallback")
+
+    def test_file_submit_helpers_forward_bytes(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            audio = root / "audio.wav"
+            transcript = root / "source.txt"
+            audio.write_bytes(b"audio")
+            transcript.write_text("subtitle source", encoding="utf-8")
+
+            with (
+                patch("dictator.client.dictation.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
+                patch("dictator.client.dictation.transcription_pb2_grpc.TranscriptionServiceStub", return_value=object()),
+                patch("dictator.client.diarization.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
+                patch("dictator.client.diarization.transcription_pb2_grpc.TranscriptionServiceStub", return_value=object()),
+                patch("dictator.client.subtitles.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
+                patch("dictator.client.subtitles.subtitle_pb2_grpc.SubtitleServiceStub", return_value=object()),
+                patch("dictator.client.voice.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
+                patch("dictator.client.voice.voice_pb2_grpc.VoiceServiceStub", return_value=object()),
+            ):
+                dictation_client = DictationClient(object())
+                diarization_client = DiarizationClient(object())
+                subtitle_client = SubtitleClient(object())
+                reference_client = ReferenceSampleClient(object())
+
+            with patch.object(dictation_client, "submit_dictate_bytes_job", return_value="dictation-ok") as submit_mock:
+                self.assertEqual(dictation_client.submit_dictate_file_job(audio, language_code="en"), "dictation-ok")
+            self.assertEqual(submit_mock.call_args.args[0], b"audio")
+            self.assertEqual(submit_mock.call_args.kwargs["filename"], "audio.wav")
+
+            with patch.object(diarization_client, "submit_diarize_bytes_job", return_value="diarization-ok") as submit_mock:
+                self.assertEqual(diarization_client.submit_diarize_file_job(audio, language_code="en"), "diarization-ok")
+            self.assertEqual(submit_mock.call_args.args[0], b"audio")
+            self.assertEqual(submit_mock.call_args.kwargs["filename"], "audio.wav")
+
+            with patch.object(subtitle_client, "submit_render_bytes_job", return_value="subtitle-ok") as submit_mock:
+                self.assertEqual(
+                    subtitle_client.submit_render_file_job(
+                        audio,
+                        language_code="en",
+                        source_text_file=transcript,
+                    ),
+                    "subtitle-ok",
+                )
+            self.assertEqual(submit_mock.call_args.args[0], b"audio")
+            self.assertEqual(submit_mock.call_args.kwargs["source_text"], "subtitle source")
+            self.assertEqual(submit_mock.call_args.kwargs["source_text_name"], "source.txt")
+
+            with patch.object(reference_client, "submit_extract_bytes_job", return_value="reference-ok") as submit_mock:
+                self.assertEqual(reference_client.submit_extract_file_job(audio, language_code="en"), "reference-ok")
+            self.assertEqual(submit_mock.call_args.args[0], b"audio")
+            self.assertEqual(submit_mock.call_args.kwargs["filename"], "audio.wav")
+
+    def test_reference_sample_missing_result(self):
+        with (
+            patch("dictator.client.voice.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
+            patch("dictator.client.voice.voice_pb2_grpc.VoiceServiceStub", return_value=object()),
+        ):
+            client = ReferenceSampleClient(object())
+        with (
+            patch.object(
+                client,
+                "submit_extract_bytes_job",
+                return_value=types.SimpleNamespace(job_id="ref-3", source_artifact_id="audio-3"),
+            ),
+            patch.object(client, "wait_for_reference_sample_job", return_value=types.SimpleNamespace(result=None)),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "without a result payload"):
+                client.extract_bytes(b"abc")
