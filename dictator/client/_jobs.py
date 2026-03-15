@@ -23,7 +23,7 @@ class RemoteJobFailedError(RuntimeError):
 def wait_for_job(
     fetch_job: Callable[[], JobT],
     *,
-    timeout_seconds: float | None = 300.0,
+    timeout_seconds: float | None = None,
     poll_interval_seconds: float = 1.0,
 ) -> JobT:
     if timeout_seconds is not None and timeout_seconds <= 0:

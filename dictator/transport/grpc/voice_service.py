@@ -110,6 +110,7 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
             created_at_unix_seconds=record.created_at_unix_seconds,
             started_at_unix_seconds=record.started_at_unix_seconds or 0.0,
             finished_at_unix_seconds=record.finished_at_unix_seconds or 0.0,
+            source_artifact_id=record.source_artifact_id,
         )
         if record.sample_artifact_id:
             response.sample_artifact.CopyFrom(

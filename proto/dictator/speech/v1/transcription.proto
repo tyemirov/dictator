@@ -64,6 +64,7 @@ message GetTranscribeJobResponse {
   double created_at_unix_seconds = 8;
   double started_at_unix_seconds = 9;
   double finished_at_unix_seconds = 10;
+  string source_artifact_id = 11;
 }
 
 message DiarizeAudioRequest {
@@ -107,4 +108,5 @@ message GetDiarizeAudioJobResponse {
   double created_at_unix_seconds = 9;
   double started_at_unix_seconds = 10;
   double finished_at_unix_seconds = 11;
+  string source_artifact_id = 12;
 }

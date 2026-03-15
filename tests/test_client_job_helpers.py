@@ -332,23 +332,29 @@ class ClientJobHelpersTests(unittest.TestCase):
         with (
             patch("dictator.client.dictation.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
             patch("dictator.client.dictation.transcription_pb2_grpc.TranscriptionServiceStub", return_value=object()),
+            patch("dictator.client.dictation.upload_audio_artifact", return_value=types.SimpleNamespace(artifact_id="audio-3")),
         ):
             client = DictationClient(object())
+        client._transcription_stub = types.SimpleNamespace(
+            SubmitTranscribeJob=MagicMock(
+                return_value=types.SimpleNamespace(
+                    job_id="tx-3",
+                    state=transcription_pb2.TRANSCRIPTION_JOB_STATE_QUEUED,
+                )
+            )
+        )
         with (
-            patch.object(
-                client,
-                "submit_dictate_bytes_job",
-                return_value=types.SimpleNamespace(job_id="tx-3", source_artifact_id="audio-3"),
-            ),
+            patch("dictator.client.dictation.upload_audio_artifact", return_value=types.SimpleNamespace(artifact_id="audio-3")),
             patch.object(client, "wait_for_dictation_job", return_value=types.SimpleNamespace(result=None)),
         ):
             with self.assertRaisesRegex(RuntimeError, "without a result payload"):
                 client.dictate_bytes(b"abc")
-        with patch.object(
-            client,
-            "submit_dictate_bytes_job",
-            side_effect=_FakeRpcError(grpc.StatusCode.INTERNAL, "boom"),
-        ):
+        client._transcription_stub = types.SimpleNamespace(
+            SubmitTranscribeJob=MagicMock(
+                side_effect=_FakeRpcError(grpc.StatusCode.INTERNAL, "boom"),
+            )
+        )
+        with patch("dictator.client.dictation.upload_audio_artifact", return_value=types.SimpleNamespace(artifact_id="audio-3")):
             with self.assertRaises(grpc.RpcError):
                 client.dictate_bytes(b"abc")
 
@@ -390,23 +396,29 @@ class ClientJobHelpersTests(unittest.TestCase):
         with (
             patch("dictator.client.diarization.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
             patch("dictator.client.diarization.transcription_pb2_grpc.TranscriptionServiceStub", return_value=object()),
+            patch("dictator.client.diarization.upload_audio_artifact", return_value=types.SimpleNamespace(artifact_id="audio-2")),
         ):
             client = DiarizationClient(object())
+        client._transcription_stub = types.SimpleNamespace(
+            SubmitDiarizeAudioJob=MagicMock(
+                return_value=types.SimpleNamespace(
+                    job_id="dia-2",
+                    state=transcription_pb2.DIARIZATION_JOB_STATE_QUEUED,
+                )
+            )
+        )
         with (
-            patch.object(
-                client,
-                "submit_diarize_bytes_job",
-                return_value=types.SimpleNamespace(job_id="dia-2", source_artifact_id="audio-2"),
-            ),
+            patch("dictator.client.diarization.upload_audio_artifact", return_value=types.SimpleNamespace(artifact_id="audio-2")),
             patch.object(client, "wait_for_diarization_job", return_value=types.SimpleNamespace(result=None)),
         ):
             with self.assertRaisesRegex(RuntimeError, "without a result payload"):
                 client.diarize_bytes(b"abc")
-        with patch.object(
-            client,
-            "submit_diarize_bytes_job",
-            side_effect=_FakeRpcError(grpc.StatusCode.INTERNAL, "boom"),
-        ):
+        client._transcription_stub = types.SimpleNamespace(
+            SubmitDiarizeAudioJob=MagicMock(
+                side_effect=_FakeRpcError(grpc.StatusCode.INTERNAL, "boom"),
+            )
+        )
+        with patch("dictator.client.diarization.upload_audio_artifact", return_value=types.SimpleNamespace(artifact_id="audio-2")):
             with self.assertRaises(grpc.RpcError):
                 client.diarize_bytes(b"abc")
 
@@ -448,23 +460,29 @@ class ClientJobHelpersTests(unittest.TestCase):
         with (
             patch("dictator.client.subtitles.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
             patch("dictator.client.subtitles.subtitle_pb2_grpc.SubtitleServiceStub", return_value=object()),
+            patch("dictator.client.subtitles.upload_audio_artifact", return_value=types.SimpleNamespace(artifact_id="audio-2")),
         ):
             client = SubtitleClient(object())
+        client._subtitle_stub = types.SimpleNamespace(
+            SubmitRenderSubtitlesJob=MagicMock(
+                return_value=types.SimpleNamespace(
+                    job_id="sub-2",
+                    state=subtitle_pb2.SUBTITLE_JOB_STATE_QUEUED,
+                )
+            )
+        )
         with (
-            patch.object(
-                client,
-                "submit_render_bytes_job",
-                return_value=types.SimpleNamespace(job_id="sub-2", source_artifact_id="audio-2"),
-            ),
+            patch("dictator.client.subtitles.upload_audio_artifact", return_value=types.SimpleNamespace(artifact_id="audio-2")),
             patch.object(client, "wait_for_subtitle_job", return_value=types.SimpleNamespace(result=None)),
         ):
             with self.assertRaisesRegex(RuntimeError, "without a result payload"):
                 client.render_bytes(b"abc", source_text="fallback")
-        with patch.object(
-            client,
-            "submit_render_bytes_job",
-            side_effect=_FakeRpcError(grpc.StatusCode.INTERNAL, "boom"),
-        ):
+        client._subtitle_stub = types.SimpleNamespace(
+            SubmitRenderSubtitlesJob=MagicMock(
+                side_effect=_FakeRpcError(grpc.StatusCode.INTERNAL, "boom"),
+            )
+        )
+        with patch("dictator.client.subtitles.upload_audio_artifact", return_value=types.SimpleNamespace(artifact_id="audio-2")):
             with self.assertRaises(grpc.RpcError):
                 client.render_bytes(b"abc", source_text="fallback")
 

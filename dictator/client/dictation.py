@@ -60,7 +60,7 @@ class DictationClient:
         autodetect_language: bool | None = None,
         include_word_segments: bool = False,
         media_type: str | None = None,
-        timeout_seconds: float | None = 300.0,
+        timeout_seconds: float | None = None,
         poll_interval_seconds: float = 1.0,
     ) -> DictationResult:
         payload = audio_path.read_bytes()
@@ -85,36 +85,9 @@ class DictationClient:
         language_code: str = "",
         autodetect_language: bool | None = None,
         include_word_segments: bool = False,
-        timeout_seconds: float | None = 300.0,
+        timeout_seconds: float | None = None,
         poll_interval_seconds: float = 1.0,
     ) -> DictationResult:
-        try:
-            submitted = self.submit_dictate_bytes_job(
-                payload,
-                filename=filename,
-                media_type=media_type,
-                model_size=model_size,
-                language_code=language_code,
-                autodetect_language=autodetect_language,
-                include_word_segments=include_word_segments,
-            )
-            finished = self.wait_for_dictation_job(
-                submitted.job_id,
-                timeout_seconds=timeout_seconds,
-                poll_interval_seconds=poll_interval_seconds,
-            )
-            if finished.result is None:
-                raise RuntimeError("dictation job succeeded without a result payload")
-            return DictationResult(
-                text=finished.result.text,
-                language_code=finished.result.language_code,
-                artifact_id=submitted.source_artifact_id,
-                words=finished.result.words,
-            )
-        except grpc.RpcError as error:
-            if not self._should_fallback_to_sync(error):
-                raise
-
         resolved_autodetect = self._resolve_autodetect(
             language_code=language_code,
             autodetect_language=autodetect_language,
@@ -127,14 +100,47 @@ class DictationClient:
             filename=filename,
             media_type=media_type or DEFAULT_MEDIA_TYPE,
         )
+        request = self._build_transcribe_request(
+            audio_artifact_id=artifact.artifact_id,
+            language_code=language_code,
+            model_size=model_size,
+            include_word_segments=include_word_segments,
+            autodetect_language=resolved_autodetect,
+        )
+        try:
+            response = self._transcription_stub.SubmitTranscribeJob(
+                request,
+                metadata=self._metadata,
+            )
+            submitted = DictationJob(
+                job_id=response.job_id,
+                state=transcription_pb2.TranscriptionJobState.Name(response.state),
+                source_artifact_id=artifact.artifact_id,
+            )
+            finished = self.wait_for_dictation_job(
+                submitted.job_id,
+                timeout_seconds=timeout_seconds,
+                poll_interval_seconds=poll_interval_seconds,
+            )
+            if finished.result is None:
+                raise RuntimeError("dictation job succeeded without a result payload")
+            source_artifact_id = (
+                finished.result.artifact_id
+                or finished.source_artifact_id
+                or submitted.source_artifact_id
+            )
+            return DictationResult(
+                text=finished.result.text,
+                language_code=finished.result.language_code,
+                artifact_id=source_artifact_id,
+                words=finished.result.words,
+            )
+        except grpc.RpcError as error:
+            if not self._should_fallback_to_sync(error):
+                raise
+
         response = self._transcription_stub.Transcribe(
-            transcription_pb2.TranscribeRequest(
-                audio_artifact_id=artifact.artifact_id,
-                language_code=language_code,
-                model_size=model_size,
-                include_word_segments=include_word_segments,
-                autodetect_language=resolved_autodetect,
-            ),
+            request,
             metadata=self._metadata,
         )
         return DictationResult(
@@ -194,7 +200,7 @@ class DictationClient:
             media_type=media_type or DEFAULT_MEDIA_TYPE,
         )
         response = self._transcription_stub.SubmitTranscribeJob(
-            transcription_pb2.TranscribeRequest(
+            self._build_transcribe_request(
                 audio_artifact_id=artifact.artifact_id,
                 language_code=language_code,
                 model_size=model_size,
@@ -214,12 +220,13 @@ class DictationClient:
             transcription_pb2.GetTranscribeJobRequest(job_id=job_id),
             metadata=self._metadata,
         )
+        source_artifact_id = getattr(response, "source_artifact_id", "")
         result = None
         if response.state == transcription_pb2.TRANSCRIPTION_JOB_STATE_SUCCEEDED:
             result = DictationResult(
                 text=response.text,
                 language_code=response.language_code,
-                artifact_id="",
+                artifact_id=source_artifact_id,
                 words=tuple(
                     {
                         "content": word.content,
@@ -232,6 +239,7 @@ class DictationClient:
         return DictationJob(
             job_id=response.job_id,
             state=transcription_pb2.TranscriptionJobState.Name(response.state),
+            source_artifact_id=source_artifact_id,
             error_code=response.error_code,
             error_message=response.error_message,
             result=result,
@@ -244,13 +252,30 @@ class DictationClient:
         self,
         job_id: str,
         *,
-        timeout_seconds: float | None = 300.0,
+        timeout_seconds: float | None = None,
         poll_interval_seconds: float = 1.0,
     ) -> DictationJob:
         return wait_for_job(
             lambda: self.get_dictation_job(job_id),
             timeout_seconds=timeout_seconds,
             poll_interval_seconds=poll_interval_seconds,
+        )
+
+    @staticmethod
+    def _build_transcribe_request(
+        *,
+        audio_artifact_id: str,
+        language_code: str,
+        model_size: str,
+        include_word_segments: bool,
+        autodetect_language: bool,
+    ) -> transcription_pb2.TranscribeRequest:
+        return transcription_pb2.TranscribeRequest(
+            audio_artifact_id=audio_artifact_id,
+            language_code=language_code,
+            model_size=model_size,
+            include_word_segments=include_word_segments,
+            autodetect_language=autodetect_language,
         )
 
     @staticmethod

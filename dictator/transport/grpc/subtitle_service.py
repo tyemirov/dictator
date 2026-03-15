@@ -103,6 +103,7 @@ class SubtitleServiceServicer(BaseServicer, subtitle_pb2_grpc.SubtitleServiceSer
             created_at_unix_seconds=record.created_at_unix_seconds,
             started_at_unix_seconds=record.started_at_unix_seconds or 0.0,
             finished_at_unix_seconds=record.finished_at_unix_seconds or 0.0,
+            source_artifact_id=record.audio_artifact_id,
         )
         response.cues.extend(self._subtitle_cue(cue) for cue in record.cues)
         return response
