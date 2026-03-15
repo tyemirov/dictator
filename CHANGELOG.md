@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## [v1.4.0]
+
+### Features ✨
+- Add asynchronous synthesis job APIs for background processing.
+- Implement local persistent store for synthesis job statuses.
+- Include gRPC methods to submit and query synthesis speech jobs by ID.
+
+### Improvements ⚙️
+- Guard synthesis job pending counter against start failures to maintain accurate state.
+- Enhance synthesis job handling with detailed job state tracking and error reporting.
+
+### Bug Fixes 🐛
+- Reject synthesis job IDs that are invalid or contain unsupported characters.
+
+### Testing 🧪
+- Add unit tests for gRPC services and runtime storage coverage related to synthesis jobs and job status persistence.
+
+### Docs 📚
+- _No changes._
+
 ## [v1.3.0]
 
 ### Features ✨
