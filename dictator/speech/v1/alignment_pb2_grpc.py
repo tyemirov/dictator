@@ -39,12 +39,34 @@ class AlignmentServiceStub(object):
                 request_serializer=dictator_dot_speech_dot_v1_dot_alignment__pb2.AlignTranscriptRequest.SerializeToString,
                 response_deserializer=dictator_dot_speech_dot_v1_dot_alignment__pb2.AlignTranscriptResponse.FromString,
                 _registered_method=True)
+        self.SubmitAlignTranscriptJob = channel.unary_unary(
+                '/dictator.speech.v1.AlignmentService/SubmitAlignTranscriptJob',
+                request_serializer=dictator_dot_speech_dot_v1_dot_alignment__pb2.AlignTranscriptRequest.SerializeToString,
+                response_deserializer=dictator_dot_speech_dot_v1_dot_alignment__pb2.SubmitAlignTranscriptJobResponse.FromString,
+                _registered_method=True)
+        self.GetAlignTranscriptJob = channel.unary_unary(
+                '/dictator.speech.v1.AlignmentService/GetAlignTranscriptJob',
+                request_serializer=dictator_dot_speech_dot_v1_dot_alignment__pb2.GetAlignTranscriptJobRequest.SerializeToString,
+                response_deserializer=dictator_dot_speech_dot_v1_dot_alignment__pb2.GetAlignTranscriptJobResponse.FromString,
+                _registered_method=True)
 
 
 class AlignmentServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def AlignTranscript(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SubmitAlignTranscriptJob(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetAlignTranscriptJob(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -57,6 +79,16 @@ def add_AlignmentServiceServicer_to_server(servicer, server):
                     servicer.AlignTranscript,
                     request_deserializer=dictator_dot_speech_dot_v1_dot_alignment__pb2.AlignTranscriptRequest.FromString,
                     response_serializer=dictator_dot_speech_dot_v1_dot_alignment__pb2.AlignTranscriptResponse.SerializeToString,
+            ),
+            'SubmitAlignTranscriptJob': grpc.unary_unary_rpc_method_handler(
+                    servicer.SubmitAlignTranscriptJob,
+                    request_deserializer=dictator_dot_speech_dot_v1_dot_alignment__pb2.AlignTranscriptRequest.FromString,
+                    response_serializer=dictator_dot_speech_dot_v1_dot_alignment__pb2.SubmitAlignTranscriptJobResponse.SerializeToString,
+            ),
+            'GetAlignTranscriptJob': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetAlignTranscriptJob,
+                    request_deserializer=dictator_dot_speech_dot_v1_dot_alignment__pb2.GetAlignTranscriptJobRequest.FromString,
+                    response_serializer=dictator_dot_speech_dot_v1_dot_alignment__pb2.GetAlignTranscriptJobResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -86,6 +118,60 @@ class AlignmentService(object):
             '/dictator.speech.v1.AlignmentService/AlignTranscript',
             dictator_dot_speech_dot_v1_dot_alignment__pb2.AlignTranscriptRequest.SerializeToString,
             dictator_dot_speech_dot_v1_dot_alignment__pb2.AlignTranscriptResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SubmitAlignTranscriptJob(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/dictator.speech.v1.AlignmentService/SubmitAlignTranscriptJob',
+            dictator_dot_speech_dot_v1_dot_alignment__pb2.AlignTranscriptRequest.SerializeToString,
+            dictator_dot_speech_dot_v1_dot_alignment__pb2.SubmitAlignTranscriptJobResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetAlignTranscriptJob(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/dictator.speech.v1.AlignmentService/GetAlignTranscriptJob',
+            dictator_dot_speech_dot_v1_dot_alignment__pb2.GetAlignTranscriptJobRequest.SerializeToString,
+            dictator_dot_speech_dot_v1_dot_alignment__pb2.GetAlignTranscriptJobResponse.FromString,
             options,
             channel_credentials,
             insecure,

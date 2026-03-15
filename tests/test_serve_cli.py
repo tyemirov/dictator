@@ -7,7 +7,7 @@ import serve
 
 
 class ServeCliTests(unittest.TestCase):
-    def test_main_uses_process_environment_without_env_file(self):
+    def test_main_loads_config_file_as_single_service_config_source(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             config_file = root / "config.yml"
@@ -41,6 +41,11 @@ class ServeCliTests(unittest.TestCase):
                 for call in logging_info_mock.call_args_list
             )
         )
+
+    def test_main_rejects_removed_cli_overrides(self):
+        with self.assertRaises(SystemExit):
+            with patch("sys.argv", ["serve.py", "--host", "127.0.0.1"]):
+                serve.main()
 
 
 if __name__ == "__main__":

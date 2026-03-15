@@ -26,21 +26,37 @@ from dictator.speech.v1 import common_pb2 as dictator_dot_speech_dot_v1_dot_comm
 from google.protobuf import struct_pb2 as google_dot_protobuf_dot_struct__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n&dictator/speech/v1/transcription.proto\x12\x12\x64ictator.speech.v1\x1a\x1f\x64ictator/speech/v1/common.proto\x1a\x1cgoogle/protobuf/struct.proto\"\x95\x01\n\x11TranscribeRequest\x12\x19\n\x11\x61udio_artifact_id\x18\x01 \x01(\t\x12\x15\n\rlanguage_code\x18\x02 \x01(\t\x12\x12\n\nmodel_size\x18\x03 \x01(\t\x12\x1d\n\x15include_word_segments\x18\x04 \x01(\x08\x12\x1b\n\x13\x61utodetect_language\x18\x05 \x01(\x08\"i\n\x12TranscribeResponse\x12\x0c\n\x04text\x18\x01 \x01(\t\x12\x15\n\rlanguage_code\x18\x02 \x01(\t\x12.\n\x05words\x18\x03 \x03(\x0b\x32\x1f.dictator.speech.v1.WordSegment\"\xc4\x02\n\x13\x44iarizeAudioRequest\x12\x19\n\x11\x61udio_artifact_id\x18\x01 \x01(\t\x12\x15\n\rlanguage_code\x18\x02 \x01(\t\x12\x12\n\nmodel_size\x18\x03 \x01(\t\x12\x15\n\rinclude_words\x18\x04 \x01(\x08\x12\x1a\n\x12include_utterances\x18\x05 \x01(\x08\x12 \n\x18include_speaker_segments\x18\x06 \x01(\x08\x12\"\n\x15utterance_gap_seconds\x18\x07 \x01(\x01H\x00\x88\x01\x01\x12\x1d\n\x15persist_json_artifact\x18\x08 \x01(\x08\x12\x18\n\x10include_speakers\x18\t \x01(\x08\x12\x1b\n\x13\x61utodetect_language\x18\n \x01(\x08\x42\x18\n\x16_utterance_gap_seconds\"\x8a\x01\n\x14\x44iarizeAudioResponse\x12\x0c\n\x04text\x18\x01 \x01(\t\x12\x15\n\rlanguage_code\x18\x02 \x01(\t\x12,\n\x0b\x64iarization\x18\x03 \x01(\x0b\x32\x17.google.protobuf.Struct\x12\x1f\n\x17\x64iarization_artifact_id\x18\x04 \x01(\t2\xd6\x01\n\x14TranscriptionService\x12[\n\nTranscribe\x12%.dictator.speech.v1.TranscribeRequest\x1a&.dictator.speech.v1.TranscribeResponse\x12\x61\n\x0c\x44iarizeAudio\x12\'.dictator.speech.v1.DiarizeAudioRequest\x1a(.dictator.speech.v1.DiarizeAudioResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n&dictator/speech/v1/transcription.proto\x12\x12\x64ictator.speech.v1\x1a\x1f\x64ictator/speech/v1/common.proto\x1a\x1cgoogle/protobuf/struct.proto\"\x95\x01\n\x11TranscribeRequest\x12\x19\n\x11\x61udio_artifact_id\x18\x01 \x01(\t\x12\x15\n\rlanguage_code\x18\x02 \x01(\t\x12\x12\n\nmodel_size\x18\x03 \x01(\t\x12\x1d\n\x15include_word_segments\x18\x04 \x01(\x08\x12\x1b\n\x13\x61utodetect_language\x18\x05 \x01(\x08\"i\n\x12TranscribeResponse\x12\x0c\n\x04text\x18\x01 \x01(\t\x12\x15\n\rlanguage_code\x18\x02 \x01(\t\x12.\n\x05words\x18\x03 \x03(\x0b\x32\x1f.dictator.speech.v1.WordSegment\"g\n\x1bSubmitTranscribeJobResponse\x12\x0e\n\x06job_id\x18\x01 \x01(\t\x12\x38\n\x05state\x18\x02 \x01(\x0e\x32).dictator.speech.v1.TranscriptionJobState\")\n\x17GetTranscribeJobRequest\x12\x0e\n\x06job_id\x18\x01 \x01(\t\"\xc8\x02\n\x18GetTranscribeJobResponse\x12\x0e\n\x06job_id\x18\x01 \x01(\t\x12\x38\n\x05state\x18\x02 \x01(\x0e\x32).dictator.speech.v1.TranscriptionJobState\x12\x12\n\nerror_code\x18\x03 \x01(\t\x12\x15\n\rerror_message\x18\x04 \x01(\t\x12\x0c\n\x04text\x18\x05 \x01(\t\x12\x15\n\rlanguage_code\x18\x06 \x01(\t\x12.\n\x05words\x18\x07 \x03(\x0b\x32\x1f.dictator.speech.v1.WordSegment\x12\x1f\n\x17\x63reated_at_unix_seconds\x18\x08 \x01(\x01\x12\x1f\n\x17started_at_unix_seconds\x18\t \x01(\x01\x12 \n\x18\x66inished_at_unix_seconds\x18\n \x01(\x01\"\xc4\x02\n\x13\x44iarizeAudioRequest\x12\x19\n\x11\x61udio_artifact_id\x18\x01 \x01(\t\x12\x15\n\rlanguage_code\x18\x02 \x01(\t\x12\x12\n\nmodel_size\x18\x03 \x01(\t\x12\x15\n\rinclude_words\x18\x04 \x01(\x08\x12\x1a\n\x12include_utterances\x18\x05 \x01(\x08\x12 \n\x18include_speaker_segments\x18\x06 \x01(\x08\x12\"\n\x15utterance_gap_seconds\x18\x07 \x01(\x01H\x00\x88\x01\x01\x12\x1d\n\x15persist_json_artifact\x18\x08 \x01(\x08\x12\x18\n\x10include_speakers\x18\t \x01(\x08\x12\x1b\n\x13\x61utodetect_language\x18\n \x01(\x08\x42\x18\n\x16_utterance_gap_seconds\"\x8a\x01\n\x14\x44iarizeAudioResponse\x12\x0c\n\x04text\x18\x01 \x01(\t\x12\x15\n\rlanguage_code\x18\x02 \x01(\t\x12,\n\x0b\x64iarization\x18\x03 \x01(\x0b\x32\x17.google.protobuf.Struct\x12\x1f\n\x17\x64iarization_artifact_id\x18\x04 \x01(\t\"g\n\x1dSubmitDiarizeAudioJobResponse\x12\x0e\n\x06job_id\x18\x01 \x01(\t\x12\x36\n\x05state\x18\x02 \x01(\x0e\x32\'.dictator.speech.v1.DiarizationJobState\"+\n\x19GetDiarizeAudioJobRequest\x12\x0e\n\x06job_id\x18\x01 \x01(\t\"\xe7\x02\n\x1aGetDiarizeAudioJobResponse\x12\x0e\n\x06job_id\x18\x01 \x01(\t\x12\x36\n\x05state\x18\x02 \x01(\x0e\x32\'.dictator.speech.v1.DiarizationJobState\x12\x12\n\nerror_code\x18\x03 \x01(\t\x12\x15\n\rerror_message\x18\x04 \x01(\t\x12\x0c\n\x04text\x18\x05 \x01(\t\x12\x15\n\rlanguage_code\x18\x06 \x01(\t\x12,\n\x0b\x64iarization\x18\x07 \x01(\x0b\x32\x17.google.protobuf.Struct\x12\x1f\n\x17\x64iarization_artifact_id\x18\x08 \x01(\t\x12\x1f\n\x17\x63reated_at_unix_seconds\x18\t \x01(\x01\x12\x1f\n\x17started_at_unix_seconds\x18\n \x01(\x01\x12 \n\x18\x66inished_at_unix_seconds\x18\x0b \x01(\x01*\xd4\x01\n\x15TranscriptionJobState\x12\'\n#TRANSCRIPTION_JOB_STATE_UNSPECIFIED\x10\x00\x12\"\n\x1eTRANSCRIPTION_JOB_STATE_QUEUED\x10\x01\x12#\n\x1fTRANSCRIPTION_JOB_STATE_RUNNING\x10\x02\x12%\n!TRANSCRIPTION_JOB_STATE_SUCCEEDED\x10\x03\x12\"\n\x1eTRANSCRIPTION_JOB_STATE_FAILED\x10\x04*\xc8\x01\n\x13\x44iarizationJobState\x12%\n!DIARIZATION_JOB_STATE_UNSPECIFIED\x10\x00\x12 \n\x1c\x44IARIZATION_JOB_STATE_QUEUED\x10\x01\x12!\n\x1d\x44IARIZATION_JOB_STATE_RUNNING\x10\x02\x12#\n\x1f\x44IARIZATION_JOB_STATE_SUCCEEDED\x10\x03\x12 \n\x1c\x44IARIZATION_JOB_STATE_FAILED\x10\x04\x32\x9e\x05\n\x14TranscriptionService\x12[\n\nTranscribe\x12%.dictator.speech.v1.TranscribeRequest\x1a&.dictator.speech.v1.TranscribeResponse\x12m\n\x13SubmitTranscribeJob\x12%.dictator.speech.v1.TranscribeRequest\x1a/.dictator.speech.v1.SubmitTranscribeJobResponse\x12m\n\x10GetTranscribeJob\x12+.dictator.speech.v1.GetTranscribeJobRequest\x1a,.dictator.speech.v1.GetTranscribeJobResponse\x12\x61\n\x0c\x44iarizeAudio\x12\'.dictator.speech.v1.DiarizeAudioRequest\x1a(.dictator.speech.v1.DiarizeAudioResponse\x12s\n\x15SubmitDiarizeAudioJob\x12\'.dictator.speech.v1.DiarizeAudioRequest\x1a\x31.dictator.speech.v1.SubmitDiarizeAudioJobResponse\x12s\n\x12GetDiarizeAudioJob\x12-.dictator.speech.v1.GetDiarizeAudioJobRequest\x1a..dictator.speech.v1.GetDiarizeAudioJobResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'dictator.speech.v1.transcription_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
+  _globals['_TRANSCRIPTIONJOBSTATE']._serialized_start=1844
+  _globals['_TRANSCRIPTIONJOBSTATE']._serialized_end=2056
+  _globals['_DIARIZATIONJOBSTATE']._serialized_start=2059
+  _globals['_DIARIZATIONJOBSTATE']._serialized_end=2259
   _globals['_TRANSCRIBEREQUEST']._serialized_start=126
   _globals['_TRANSCRIBEREQUEST']._serialized_end=275
   _globals['_TRANSCRIBERESPONSE']._serialized_start=277
   _globals['_TRANSCRIBERESPONSE']._serialized_end=382
-  _globals['_DIARIZEAUDIOREQUEST']._serialized_start=385
-  _globals['_DIARIZEAUDIOREQUEST']._serialized_end=709
-  _globals['_DIARIZEAUDIORESPONSE']._serialized_start=712
-  _globals['_DIARIZEAUDIORESPONSE']._serialized_end=850
-  _globals['_TRANSCRIPTIONSERVICE']._serialized_start=853
-  _globals['_TRANSCRIPTIONSERVICE']._serialized_end=1067
+  _globals['_SUBMITTRANSCRIBEJOBRESPONSE']._serialized_start=384
+  _globals['_SUBMITTRANSCRIBEJOBRESPONSE']._serialized_end=487
+  _globals['_GETTRANSCRIBEJOBREQUEST']._serialized_start=489
+  _globals['_GETTRANSCRIBEJOBREQUEST']._serialized_end=530
+  _globals['_GETTRANSCRIBEJOBRESPONSE']._serialized_start=533
+  _globals['_GETTRANSCRIBEJOBRESPONSE']._serialized_end=861
+  _globals['_DIARIZEAUDIOREQUEST']._serialized_start=864
+  _globals['_DIARIZEAUDIOREQUEST']._serialized_end=1188
+  _globals['_DIARIZEAUDIORESPONSE']._serialized_start=1191
+  _globals['_DIARIZEAUDIORESPONSE']._serialized_end=1329
+  _globals['_SUBMITDIARIZEAUDIOJOBRESPONSE']._serialized_start=1331
+  _globals['_SUBMITDIARIZEAUDIOJOBRESPONSE']._serialized_end=1434
+  _globals['_GETDIARIZEAUDIOJOBREQUEST']._serialized_start=1436
+  _globals['_GETDIARIZEAUDIOJOBREQUEST']._serialized_end=1479
+  _globals['_GETDIARIZEAUDIOJOBRESPONSE']._serialized_start=1482
+  _globals['_GETDIARIZEAUDIOJOBRESPONSE']._serialized_end=1841
+  _globals['_TRANSCRIPTIONSERVICE']._serialized_start=2262
+  _globals['_TRANSCRIPTIONSERVICE']._serialized_end=2932
 # @@protoc_insertion_point(module_scope)

@@ -39,12 +39,34 @@ class SubtitleServiceStub(object):
                 request_serializer=dictator_dot_speech_dot_v1_dot_subtitle__pb2.RenderSubtitlesRequest.SerializeToString,
                 response_deserializer=dictator_dot_speech_dot_v1_dot_subtitle__pb2.RenderSubtitlesResponse.FromString,
                 _registered_method=True)
+        self.SubmitRenderSubtitlesJob = channel.unary_unary(
+                '/dictator.speech.v1.SubtitleService/SubmitRenderSubtitlesJob',
+                request_serializer=dictator_dot_speech_dot_v1_dot_subtitle__pb2.RenderSubtitlesRequest.SerializeToString,
+                response_deserializer=dictator_dot_speech_dot_v1_dot_subtitle__pb2.SubmitRenderSubtitlesJobResponse.FromString,
+                _registered_method=True)
+        self.GetRenderSubtitlesJob = channel.unary_unary(
+                '/dictator.speech.v1.SubtitleService/GetRenderSubtitlesJob',
+                request_serializer=dictator_dot_speech_dot_v1_dot_subtitle__pb2.GetRenderSubtitlesJobRequest.SerializeToString,
+                response_deserializer=dictator_dot_speech_dot_v1_dot_subtitle__pb2.GetRenderSubtitlesJobResponse.FromString,
+                _registered_method=True)
 
 
 class SubtitleServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def RenderSubtitles(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SubmitRenderSubtitlesJob(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetRenderSubtitlesJob(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -57,6 +79,16 @@ def add_SubtitleServiceServicer_to_server(servicer, server):
                     servicer.RenderSubtitles,
                     request_deserializer=dictator_dot_speech_dot_v1_dot_subtitle__pb2.RenderSubtitlesRequest.FromString,
                     response_serializer=dictator_dot_speech_dot_v1_dot_subtitle__pb2.RenderSubtitlesResponse.SerializeToString,
+            ),
+            'SubmitRenderSubtitlesJob': grpc.unary_unary_rpc_method_handler(
+                    servicer.SubmitRenderSubtitlesJob,
+                    request_deserializer=dictator_dot_speech_dot_v1_dot_subtitle__pb2.RenderSubtitlesRequest.FromString,
+                    response_serializer=dictator_dot_speech_dot_v1_dot_subtitle__pb2.SubmitRenderSubtitlesJobResponse.SerializeToString,
+            ),
+            'GetRenderSubtitlesJob': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetRenderSubtitlesJob,
+                    request_deserializer=dictator_dot_speech_dot_v1_dot_subtitle__pb2.GetRenderSubtitlesJobRequest.FromString,
+                    response_serializer=dictator_dot_speech_dot_v1_dot_subtitle__pb2.GetRenderSubtitlesJobResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -86,6 +118,60 @@ class SubtitleService(object):
             '/dictator.speech.v1.SubtitleService/RenderSubtitles',
             dictator_dot_speech_dot_v1_dot_subtitle__pb2.RenderSubtitlesRequest.SerializeToString,
             dictator_dot_speech_dot_v1_dot_subtitle__pb2.RenderSubtitlesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SubmitRenderSubtitlesJob(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/dictator.speech.v1.SubtitleService/SubmitRenderSubtitlesJob',
+            dictator_dot_speech_dot_v1_dot_subtitle__pb2.RenderSubtitlesRequest.SerializeToString,
+            dictator_dot_speech_dot_v1_dot_subtitle__pb2.SubmitRenderSubtitlesJobResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetRenderSubtitlesJob(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/dictator.speech.v1.SubtitleService/GetRenderSubtitlesJob',
+            dictator_dot_speech_dot_v1_dot_subtitle__pb2.GetRenderSubtitlesJobRequest.SerializeToString,
+            dictator_dot_speech_dot_v1_dot_subtitle__pb2.GetRenderSubtitlesJobResponse.FromString,
             options,
             channel_credentials,
             insecure,

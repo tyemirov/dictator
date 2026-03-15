@@ -4,6 +4,18 @@ package dictator.speech.v1;
 
 service SubtitleService {
   rpc RenderSubtitles(RenderSubtitlesRequest) returns (RenderSubtitlesResponse);
+  rpc SubmitRenderSubtitlesJob(RenderSubtitlesRequest)
+      returns (SubmitRenderSubtitlesJobResponse);
+  rpc GetRenderSubtitlesJob(GetRenderSubtitlesJobRequest)
+      returns (GetRenderSubtitlesJobResponse);
+}
+
+enum SubtitleJobState {
+  SUBTITLE_JOB_STATE_UNSPECIFIED = 0;
+  SUBTITLE_JOB_STATE_QUEUED = 1;
+  SUBTITLE_JOB_STATE_RUNNING = 2;
+  SUBTITLE_JOB_STATE_SUCCEEDED = 3;
+  SUBTITLE_JOB_STATE_FAILED = 4;
 }
 
 enum SubtitleFormat {
@@ -55,4 +67,31 @@ message RenderSubtitlesResponse {
   repeated SubtitleCue cues = 6;
   string srt_text = 7;
   string srt_artifact_id = 8;
+}
+
+message SubmitRenderSubtitlesJobResponse {
+  string job_id = 1;
+  SubtitleJobState state = 2;
+}
+
+message GetRenderSubtitlesJobRequest {
+  string job_id = 1;
+}
+
+message GetRenderSubtitlesJobResponse {
+  string job_id = 1;
+  SubtitleJobState state = 2;
+  string error_code = 3;
+  string error_message = 4;
+  string language_code = 5;
+  SubtitleMode mode = 6;
+  SubtitleFormat output_format = 7;
+  SubtitleGranularity granularity = 8;
+  int32 group_size = 9;
+  repeated SubtitleCue cues = 10;
+  string srt_text = 11;
+  string srt_artifact_id = 12;
+  double created_at_unix_seconds = 13;
+  double started_at_unix_seconds = 14;
+  double finished_at_unix_seconds = 15;
 }
