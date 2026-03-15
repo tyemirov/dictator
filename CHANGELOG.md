@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## [v1.5.0] - 2026-03-15
+
+### Features ✨
+- Add universal async job APIs and comprehensive client support for alignment, dictation, subtitles, diarization, and voice reference samples.
+- Introduce Python client `AlignmentClient` with async and sync job support plus poll-based waiting helper utilities.
+- Provide detailed client integration documentation and examples for gRPC service usage and async job workflows.
+
+### Improvements ⚙️
+- Enhance async job coverage and fix regressions in async client job management.
+- Add new configuration parameters for synthesis, alignment, transcription, diarization, subtitle, and reference extraction job workers and queues.
+- Update CLI tools (`align.py`, `dictate.py`) to use new async job client APIs with timeout and polling controls.
+
+### Bug Fixes 🐛
+- Fix async client job regressions and CI test discovery import errors.
+- Address async job coverage gaps to improve stability and reliability.
+
+### Testing 🧪
+- Add extensive tests for async client regressions, job coverage, async job endpoints, and runtime storage.
+- Expand client alignment, CLI job polling config, and gRPC transport integration tests to cover new async client functionality.
+
+### Docs 📚
+- Document the client integration contract and usage patterns in `docs/client-integration.md`.
+- Update README with Python client quick start and async job best practices.
+
 ## [v1.4.0]
 
 ### Features ✨
