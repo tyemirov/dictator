@@ -313,8 +313,9 @@ class SpeechSynthesisService:
     ) -> SynthesisResult:
         if not chunks:
             raise ValueError("No text chunks provided")
+        estimated_total_chunks = len(chunks)
         if progress_callback is not None:
-            progress_callback(0, len(chunks))
+            progress_callback(0, estimated_total_chunks)
 
         temp_dir = Path(tempfile.mkdtemp(prefix="dictator_tts_"))
         wav_paths: list[Path] = []
@@ -344,7 +345,10 @@ class SpeechSynthesisService:
                         len(chunk.units),
                         cap_seconds - elapsed,
                     )
+                    estimated_total_chunks += len(refined_chunks) - 1
                     pending_chunks = list(refined_chunks) + pending_chunks
+                    if progress_callback is not None:
+                        progress_callback(len(wav_paths), estimated_total_chunks)
                     continue
                 logging.warning(
                     "Chunk %.1fs longer than remaining cap (%.1fs) - skipped",
@@ -378,7 +382,7 @@ class SpeechSynthesisService:
                 elapsed,
             )
             if progress_callback is not None:
-                progress_callback(len(wav_paths), len(chunks))
+                progress_callback(len(wav_paths), estimated_total_chunks)
             chunk_index += 1
 
         if cap_seconds is not None and not wav_paths:

@@ -13,8 +13,6 @@ def clean(text: str) -> str:
     """Unicode-normalise, strip controls, and collapse whitespace."""
     text = unicodedata.normalize("NFKC", text.translate(CTRL_REMOVE))
     text = text.replace("\r\n", "\n").replace("\r", "\n")
-    text = re.sub(r"(?<=[.!?])\n+", " ", text)
-    text = text.replace("\n", "")
     return " ".join(text.split())
 
 

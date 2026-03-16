@@ -55,7 +55,8 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
         with self.assertRaisesRegex(Exception, "invalid duration"):
             parse_duration("abc")
 
-        self.assertEqual(synthesis_text.clean("A\x00  B\nC"), "A BC")
+        self.assertEqual(synthesis_text.clean("A\x00  B\nC"), "A B C")
+        self.assertEqual(synthesis_text.clean("Though;\nHe"), "Though; He")
         self.assertEqual(synthesis_text.split_into_sentences("Hi. There?"), ["Hi.", "There?"])
         self.assertEqual(synthesis_text.parse_length(None), None)
         self.assertEqual(synthesis_text.parse_length("2m"), 120.0)
