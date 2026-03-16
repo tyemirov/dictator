@@ -54,6 +54,8 @@ class SynthesisJobRecord:
     audio_duration_seconds: float | None = None
     timeline_artifact_id: str | None = None
     chunk_count: int | None = None
+    estimated_total_chunks: int | None = None
+    completed_chunks: int | None = None
 
     def to_json_dict(self) -> dict[str, object]:
         payload = asdict(self)
@@ -78,6 +80,8 @@ class SynthesisJobRecord:
             audio_duration_seconds=_optional_float(payload.get("audio_duration_seconds")),
             timeline_artifact_id=_optional_str(payload.get("timeline_artifact_id")),
             chunk_count=_optional_int(payload.get("chunk_count")),
+            estimated_total_chunks=_optional_int(payload.get("estimated_total_chunks")),
+            completed_chunks=_optional_int(payload.get("completed_chunks")),
         )
 
 
@@ -563,6 +567,8 @@ class LocalSynthesisJobStore(_LocalJsonJobStore[SynthesisJobRecord]):
                 include_timeline=prepared.include_timeline,
                 speaker_artifact_id=prepared.speaker_record.artifact_id,
                 created_at_unix_seconds=time.time(),
+                estimated_total_chunks=0,
+                completed_chunks=0,
             )
             self._write_record(record)
             return record
@@ -588,6 +594,8 @@ class LocalSynthesisJobStore(_LocalJsonJobStore[SynthesisJobRecord]):
                     audio_duration_seconds=record.audio_duration_seconds,
                     timeline_artifact_id=record.timeline_artifact_id,
                     chunk_count=record.chunk_count,
+                    estimated_total_chunks=record.estimated_total_chunks,
+                    completed_chunks=record.completed_chunks,
                 )
                 self._write_record(failed)
 
@@ -900,6 +908,13 @@ class SynthesisJobManager(_QueuedJobManager[PreparedSynthesisRequest, SynthesisJ
         return self.job_store.create(prepared)
 
     def _run_job(self, job_id: str, prepared: PreparedSynthesisRequest) -> None:
+        def update_progress(completed_chunks: int, estimated_total_chunks: int) -> None:
+            self.job_store.update(
+                job_id,
+                completed_chunks=completed_chunks,
+                estimated_total_chunks=estimated_total_chunks,
+            )
+
         try:
             self.job_store.update(
                 job_id,
@@ -910,6 +925,7 @@ class SynthesisJobManager(_QueuedJobManager[PreparedSynthesisRequest, SynthesisJ
                 artifact_store=self.artifact_store,
                 execution_runtime=self.execution_runtime,
                 prepared=prepared,
+                progress_callback=update_progress,
             )
         except DictatorError as exc:
             self.job_store.update(
@@ -937,6 +953,8 @@ class SynthesisJobManager(_QueuedJobManager[PreparedSynthesisRequest, SynthesisJ
                 audio_duration_seconds=outcome.audio_duration_seconds,
                 timeline_artifact_id=outcome.timeline_artifact_id,
                 chunk_count=outcome.chunk_count,
+                estimated_total_chunks=outcome.chunk_count,
+                completed_chunks=outcome.chunk_count,
             )
         finally:
             with self._lock:

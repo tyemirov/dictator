@@ -310,7 +310,7 @@ class ServiceLogicCoverageTests(unittest.TestCase):
 
             def synthesise_chunk(self, text):
                 self.calls.append(("synthesise_chunk", text))
-                duration = 1.0 if text == "One. Two." else 0.4
+                duration = 1.0 if text in {"One. Two.", "One.\n\nTwo."} else 0.4
                 return backend_module.SynthesisedAudioChunk(
                     samples=np.array([0.1, -0.1], dtype=np.float32),
                     sample_rate=2,
@@ -330,6 +330,7 @@ class ServiceLogicCoverageTests(unittest.TestCase):
 
         fake_session_backend = FakeSessionBackend()
         soundfile_module = types.SimpleNamespace(write=MagicMock())
+        progress_updates = []
         with patch.dict(sys.modules, {"soundfile": soundfile_module}):
             result = backend_module.SpeechSynthesisService(
                 backends={SynthesisEngine.QWEN3: fake_session_backend}
@@ -341,10 +342,12 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                     language_code="ru",
                     cap_seconds=None,
                     speaker_transcript_text="sample transcript",
-                )
+                ),
+                progress_callback=lambda completed, total: progress_updates.append((completed, total)),
             )
-        self.assertEqual(fake_session_backend.requests[0].text, "One.Two.")
+        self.assertEqual(fake_session_backend.requests[0].text, "One. Two.")
         self.assertEqual(result.segments[1].text, "Two.")
+        self.assertEqual(progress_updates, [(0, 2), (1, 2), (2, 2)])
         soundfile_module.write.assert_called()
 
         with patch.dict(sys.modules, {"soundfile": types.SimpleNamespace(write=MagicMock())}):
@@ -364,6 +367,7 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                 )
 
         refining_backend = FakeSessionBackend(session=RefiningInMemorySession())
+        refined_progress_updates = []
         with patch.dict(sys.modules, {"soundfile": types.SimpleNamespace(write=MagicMock())}):
             refined_result = backend_module.SpeechSynthesisService(
                 backends={SynthesisEngine.QWEN3: refining_backend}
@@ -373,13 +377,16 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                     speaker_wav=Path("speaker.wav"),
                     text="One. Two.",
                     language_code="ru",
-                    cap_seconds=0.8,
+                    cap_seconds=0.99,
                     speaker_artifact_id="speaker-1",
                     speaker_transcript_text="sample transcript",
                 )
+                ,
+                progress_callback=lambda completed, total: refined_progress_updates.append((completed, total)),
             )
         self.assertEqual([segment.text for segment in refined_result.segments], ["One.", "Two."])
         self.assertIn(("refine_chunk", "One. Two."), refining_backend.session.calls)
+        self.assertEqual(refined_progress_updates, [(0, 1), (0, 2), (1, 2), (2, 2)])
 
         class SmallChunkSession(FakeSession):
             def synthesise_chunk(self, text):

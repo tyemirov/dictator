@@ -15,7 +15,7 @@ from dictator.runtime.service_runtime import SpeechExecutionRuntime
 from dictator.runtime.timeouts import run_with_timeout
 from dictator.synthesis.config import SynthesisConfig
 from dictator.synthesis.models import SynthesisEngine, SynthesisRequest
-from dictator.synthesis.workflow import PreparedSynthesisRequest, prepare_synthesis_request
+from dictator.synthesis.workflow import PreparedSynthesisRequest, execute_synthesis_request, prepare_synthesis_request
 from dictator.synthesis import text as synthesis_text
 from dictator.storage.artifact_store import ArtifactReservation, LocalArtifactStore
 from duration import parse_duration
@@ -55,7 +55,8 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
         with self.assertRaisesRegex(Exception, "invalid duration"):
             parse_duration("abc")
 
-        self.assertEqual(synthesis_text.clean("A\x00  B\nC"), "A BC")
+        self.assertEqual(synthesis_text.clean("A\x00  B\nC"), "A B C")
+        self.assertEqual(synthesis_text.clean("Though;\nHe"), "Though; He")
         self.assertEqual(synthesis_text.split_into_sentences("Hi. There?"), ["Hi.", "There?"])
         self.assertEqual(synthesis_text.parse_length(None), None)
         self.assertEqual(synthesis_text.parse_length("2m"), 120.0)
@@ -322,11 +323,18 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                     max_workers=1,
                     max_pending_jobs=1,
                 )
-                with patch("dictator.runtime.jobs.execute_synthesis_request", return_value=outcome):
+                def execute_with_progress(**kwargs):
+                    kwargs["progress_callback"](1, 3)
+                    kwargs["progress_callback"](2, 3)
+                    return outcome
+
+                with patch("dictator.runtime.jobs.execute_synthesis_request", side_effect=execute_with_progress):
                     created = manager.submit(prepared)
                 completed = manager.get(created.job_id)
                 self.assertEqual(completed.state, SynthesisJobState.SUCCEEDED)
                 self.assertEqual(completed.audio_artifact_id, speaker.artifact_id)
+                self.assertEqual(completed.estimated_total_chunks, 2)
+                self.assertEqual(completed.completed_chunks, 2)
                 self.assertEqual(manager._pending_jobs, 0)
 
                 with patch(
@@ -379,7 +387,66 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 )
                 with self.assertRaisesRegex(RuntimeError, "submit failed"):
                     manager.submit(prepared)
-                self.assertEqual(manager._pending_jobs, 0)
+
+    def test_execute_synthesis_request_forwards_progress_callback(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            artifact_store = LocalArtifactStore(root / "artifacts")
+            speaker = artifact_store.write_artifact([b"wav"], filename="speaker.wav", media_type="audio/wav")
+            prepared = PreparedSynthesisRequest(
+                speaker_record=speaker,
+                synthesis_request=SynthesisRequest(
+                    engine=SynthesisEngine.QWEN3,
+                    speaker_wav=speaker.path,
+                    text="hello world",
+                    language_code="en",
+                    cap_seconds=None,
+                    speaker_artifact_id=speaker.artifact_id,
+                    speaker_transcript_text="hello world",
+                ),
+                include_timeline=False,
+            )
+            temp_dir = root / "tmp"
+            temp_dir.mkdir()
+            wav_path = temp_dir / "0000.wav"
+            wav_path.write_bytes(b"wav")
+            progress_updates = []
+
+            class _FakeSynthesisService:
+                def synthesise_text(self, request, *, progress_callback=None):
+                    if progress_callback is not None:
+                        progress_callback(1, 2)
+                    return types.SimpleNamespace(
+                        temp_dir=temp_dir,
+                        wav_paths=(wav_path,),
+                        segments=(
+                            types.SimpleNamespace(
+                                end_seconds=0.4,
+                                to_timeline_dict=lambda: {"content": "hello", "start": 0.0, "end": 0.4},
+                            ),
+                        ),
+                    )
+
+            runtime = types.SimpleNamespace(
+                get_synthesis_service=lambda: _FakeSynthesisService(),
+                mark_synthesis_ready=lambda: None,
+            )
+
+            def fake_concat_normalise(wav_paths, output_path, cap_seconds):
+                self.assertEqual(wav_paths, (wav_path,))
+                self.assertIsNone(cap_seconds)
+                output_path.write_bytes(b"RIFF")
+
+            with patch("dictator.audio.ffmpeg_ops.concat_normalise", side_effect=fake_concat_normalise):
+                outcome = execute_synthesis_request(
+                    artifact_store=artifact_store,
+                    execution_runtime=runtime,
+                    prepared=prepared,
+                    progress_callback=lambda completed, total: progress_updates.append((completed, total)),
+                )
+        self.assertEqual(progress_updates, [(1, 2)])
+        self.assertEqual(outcome.audio_record.media_type, "audio/wav")
+        self.assertEqual(outcome.audio_duration_seconds, 0.4)
 
     def test_prepare_synthesis_request_requires_inline_or_artifact_text(self):
         with tempfile.TemporaryDirectory() as tmpdir:

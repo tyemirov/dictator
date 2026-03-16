@@ -176,6 +176,26 @@
         color: #28592e;
       }
 
+      .progress-panel {
+        display: grid;
+        gap: 0.45rem;
+      }
+
+      .progress-panel[hidden] {
+        display: none;
+      }
+
+      .progress-panel progress {
+        width: 100%;
+        height: 0.9rem;
+        accent-color: #244b5a;
+      }
+
+      .progress-meta {
+        font-size: 0.88rem;
+        color: rgba(32, 23, 21, 0.72);
+      }
+
       .download {
         display: inline-flex;
         align-items: center;
@@ -412,6 +432,10 @@ If you know me well, you can hear the difference between my polite voice, my tir
             <button id="generate-voice" type="button" disabled>Make Reading</button>
           </div>
           <div id="status" class="status" aria-live="polite"></div>
+          <div id="progress-panel" class="progress-panel" hidden>
+            <progress id="generation-progress" value="0" max="1"></progress>
+            <div id="progress-meta" class="progress-meta"></div>
+          </div>
           <div>
             <label for="render-text">Selected Reading</label>
             <textarea id="render-text" readonly>Genesis 1:1-10, King James Version.
@@ -454,11 +478,16 @@ And God called the dry land Earth; and the gathering together of the waters call
       const recordedAudio = document.getElementById("recorded-audio");
       const generatedAudio = document.getElementById("generated-audio");
       const downloadLink = document.getElementById("download-link");
+      const progressPanel = document.getElementById("progress-panel");
+      const generationProgress = document.getElementById("generation-progress");
+      const progressMeta = document.getElementById("progress-meta");
 
       let recorder;
       let mediaStream;
       let recordedBlob;
       let recordedMimeType = "audio/webm";
+      let recordedAudioUrl = "";
+      let generatedAudioUrl = "";
 
       const renderPresets = {
         genesis: {
@@ -563,6 +592,88 @@ And miles to go before I sleep.`
             : "Click the record button, read the sample slowly and clearly, then click the microphone to stop.");
       }
 
+      function resetGenerationProgress() {
+        progressPanel.hidden = true;
+        generationProgress.value = 0;
+        progressMeta.textContent = "";
+      }
+
+      function clearGeneratedPlayback() {
+        generatedAudio.pause();
+        generatedAudio.removeAttribute("src");
+        generatedAudio.load();
+        if (generatedAudioUrl) {
+          URL.revokeObjectURL(generatedAudioUrl);
+          generatedAudioUrl = "";
+        }
+        downloadLink.removeAttribute("href");
+        downloadLink.hidden = true;
+      }
+
+      function showGenerationProgress(job, label) {
+        progressPanel.hidden = false;
+        const progressPercent = Number(job.progressPercent) || 0;
+        generationProgress.value = Math.max(0, Math.min(progressPercent, 1));
+        const totalChunks = Number(job.estimatedTotalChunks) || 0;
+        const completedChunks = Number(job.completedChunks) || 0;
+
+        if (job.state === "SYNTHESIS_JOB_STATE_QUEUED") {
+          progressMeta.textContent = "Queued on the Dictator backend.";
+          setStatus(`Queued ${label}. Waiting for a synthesis worker...`);
+          return;
+        }
+        if (job.state === "SYNTHESIS_JOB_STATE_RUNNING") {
+          if (totalChunks > 0 && completedChunks < totalChunks) {
+            progressMeta.textContent = `Completed ${completedChunks} of ${totalChunks} synthesis chunks.`;
+            setStatus(`Generating ${label}: chunk ${completedChunks + 1} of ${totalChunks}...`);
+            return;
+          }
+          if (totalChunks > 0) {
+            progressMeta.textContent = `All ${totalChunks} chunks generated. Finalizing audio...`;
+            setStatus(`Finalizing ${label}...`);
+            return;
+          }
+          progressMeta.textContent = "Preparing text chunks for synthesis.";
+          setStatus(`Preparing ${label}...`);
+          return;
+        }
+        if (job.state === "SYNTHESIS_JOB_STATE_SUCCEEDED") {
+          generationProgress.value = 1;
+          progressMeta.textContent = "Voice generation complete.";
+        }
+      }
+
+      function sleep(milliseconds) {
+        return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+      }
+
+      async function pollCloneJob(jobId, selectedPreset) {
+        while (true) {
+          const response = await fetch(`/api/clone-jobs/${encodeURIComponent(jobId)}`);
+          if (!response.ok) {
+            let message = `Job status failed with HTTP ${response.status}.`;
+            try {
+              const errorPayload = await response.json();
+              if (errorPayload.error) {
+                message = errorPayload.error;
+              }
+            } catch (_) {
+              // Keep the fallback message.
+            }
+            throw new Error(message);
+          }
+          const job = await response.json();
+          showGenerationProgress(job, selectedPreset.label);
+          if (job.state === "SYNTHESIS_JOB_STATE_FAILED") {
+            throw new Error(job.errorMessage || job.errorCode || "Voice generation failed.");
+          }
+          if (job.state === "SYNTHESIS_JOB_STATE_SUCCEEDED" && job.audioReady) {
+            return job;
+          }
+          await sleep(1000);
+        }
+      }
+
       renderPresetSelect.addEventListener("change", () => {
         syncRenderPresetUi();
         if (!recordedBlob) {
@@ -572,6 +683,7 @@ And miles to go before I sleep.`
 
       syncRenderPresetUi();
       setRecordingUi(false);
+      resetGenerationProgress();
 
       recordButton.addEventListener("click", async () => {
         if (recorder && recorder.state !== "inactive") {
@@ -595,7 +707,13 @@ And miles to go before I sleep.`
           });
           recorder.addEventListener("stop", () => {
             recordedBlob = new Blob(chunks, { type: recordedMimeType });
-            recordedAudio.src = URL.createObjectURL(recordedBlob);
+            if (recordedAudioUrl) {
+              URL.revokeObjectURL(recordedAudioUrl);
+            }
+            recordedAudioUrl = URL.createObjectURL(recordedBlob);
+            recordedAudio.src = recordedAudioUrl;
+            recordedAudio.load();
+            clearGeneratedPlayback();
             generateButton.disabled = false;
             if (mediaStream) {
               mediaStream.getTracks().forEach((track) => track.stop());
@@ -629,8 +747,10 @@ And miles to go before I sleep.`
         try {
           const selectedPreset = currentRenderPreset();
           generateButton.disabled = true;
-          setStatus(`Uploading your sample to Dictator and generating ${selectedPreset.label}...`);
-          const response = await fetch("/api/clone", {
+          resetGenerationProgress();
+          clearGeneratedPlayback();
+          setStatus(`Uploading your sample to Dictator and queueing ${selectedPreset.label}...`);
+          const submitResponse = await fetch("/api/clone-jobs", {
             method: "POST",
             headers: {
               "Content-Type": "application/json"
@@ -642,10 +762,10 @@ And miles to go before I sleep.`
               audioBase64: await blobToBase64(recordedBlob)
             })
           });
-          if (!response.ok) {
-            let message = `Request failed with HTTP ${response.status}.`;
+          if (!submitResponse.ok) {
+            let message = `Request failed with HTTP ${submitResponse.status}.`;
             try {
-              const errorPayload = await response.json();
+              const errorPayload = await submitResponse.json();
               if (errorPayload.error) {
                 message = errorPayload.error;
               }
@@ -654,11 +774,34 @@ And miles to go before I sleep.`
             }
             throw new Error(message);
           }
+          const submittedJob = await submitResponse.json();
+          showGenerationProgress(submittedJob, selectedPreset.label);
+          await pollCloneJob(submittedJob.jobId, selectedPreset);
+          setStatus(`Downloading ${selectedPreset.label}...`);
+          const response = await fetch(
+            `/api/clone-jobs/${encodeURIComponent(submittedJob.jobId)}/audio?renderPreset=${encodeURIComponent(renderPresetSelect.value)}`
+          );
+          if (!response.ok) {
+            let message = `Download failed with HTTP ${response.status}.`;
+            try {
+              const errorPayload = await response.json();
+              if (errorPayload.error) {
+                message = errorPayload.error;
+              }
+            } catch (_) {
+              // Keep the fallback message.
+            }
+            throw new Error(message);
+          }
           const audioBlob = await response.blob();
-          const audioUrl = URL.createObjectURL(audioBlob);
+          if (generatedAudioUrl) {
+            URL.revokeObjectURL(generatedAudioUrl);
+          }
+          generatedAudioUrl = URL.createObjectURL(audioBlob);
           const filename = parseDownloadFilename(response, selectedPreset.filename);
-          generatedAudio.src = audioUrl;
-          downloadLink.href = audioUrl;
+          generatedAudio.src = generatedAudioUrl;
+          generatedAudio.load();
+          downloadLink.href = generatedAudioUrl;
           downloadLink.download = filename;
           downloadLink.hidden = false;
           setStatus(`${selectedPreset.label} is ready. Play it back or download the WAV.`, "ok");

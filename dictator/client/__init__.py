@@ -4,7 +4,14 @@ from ._jobs import RemoteJobFailedError
 from .diarization import DiarizationClient, DiarizationResult
 from .dictation import DictationClient, DictationJob, DictationResult
 from .subtitles import SubtitleClient, SubtitleJob, SubtitleResult
-from .voice import ReferenceSampleClient, ReferenceSampleJob, ReferenceSampleResult
+from .voice import (
+    ReferenceSampleClient,
+    ReferenceSampleJob,
+    ReferenceSampleResult,
+    SynthesisClient,
+    SynthesisJob,
+    SynthesisResult,
+)
 from .diarization import DiarizationJob
 
 __all__ = [
@@ -18,6 +25,9 @@ __all__ = [
     "ReferenceSampleJob",
     "ReferenceSampleResult",
     "RemoteJobFailedError",
+    "SynthesisClient",
+    "SynthesisJob",
+    "SynthesisResult",
     "SubtitleClient",
     "SubtitleJob",
     "SubtitleResult",

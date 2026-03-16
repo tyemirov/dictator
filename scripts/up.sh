@@ -6,17 +6,15 @@ usage() {
   cat <<'EOF'
 Usage: scripts/up.sh [docker compose up args...]
 
-Pulls the GHCR GPU image and starts the GHCR GPU service profile from docker-compose.yml.
-
-Environment:
-  DICTATOR_IMAGE  Override the default image, e.g. ghcr.io/tyemirov/dictator-gpu:1.2.3
+Builds the local GPU image from the current checkout and starts Dictator from
+docker-compose.yml.
 EOF
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-COMPOSE_ARGS=(--profile ghcr-gpu)
-SERVICES=(dictator-ghcr)
+COMPOSE_ARGS=()
+SERVICES=(dictator)
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage
@@ -35,5 +33,4 @@ if [[ "${#UP_ARGS[@]}" -eq 0 ]]; then
   UP_ARGS=(-d)
 fi
 
-docker compose "${COMPOSE_ARGS[@]}" pull "${SERVICES[@]}"
-docker compose "${COMPOSE_ARGS[@]}" up "${UP_ARGS[@]}" "${SERVICES[@]}"
+docker compose "${COMPOSE_ARGS[@]}" up --build "${UP_ARGS[@]}" "${SERVICES[@]}"

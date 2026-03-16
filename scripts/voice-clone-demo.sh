@@ -28,7 +28,9 @@ Environment:
   TLS_CERT_HOST_PATH    Host path to the TLS certificate for ghttp
   TLS_KEY_HOST_PATH     Host path to the TLS private key for ghttp
   DICTATOR_GRPC_AUTH_TOKEN Dictator auth token shared with the backend bridge
-  DICTATOR_IMAGE        Override the Dictator image, e.g. ghcr.io/tyemirov/dictator-gpu:1.2.3
+  DICTATOR_IMAGE        Override the Dictator image, e.g. ghcr.io/tyemirov/dictator:1.2.3
+  VOICE_CLONE_BRIDGE_IMAGE Override the bridge image (default: ghcr.io/tyemirov/dictator:latest)
+  VOICE_CLONE_DEMO_SKIP_BRIDGE_PULL=1 Skip pulling the bridge image before compose up
 
 If the TLS paths are not passed explicitly, the wrapper falls back to the repo-root .env file.
 
@@ -143,7 +145,7 @@ COMPOSE_ARGS=(--profile voice-clone-demo)
 SERVICES=(voice-clone-web voice-clone-bridge)
 if [[ "$WITH_DICTATOR" -eq 1 ]]; then
   COMPOSE_ARGS=(--profile ghcr-gpu "${COMPOSE_ARGS[@]}")
-  SERVICES=(dictator-ghcr "${SERVICES[@]}")
+  SERVICES=(dictator-image "${SERVICES[@]}")
 fi
 
 cd "${REPO_ROOT}"
@@ -158,7 +160,15 @@ if [[ "$WITH_DICTATOR" -eq 0 ]]; then
   export HF_TOKEN="${HF_TOKEN:-voice-clone-demo-placeholder-hf-token}"
 fi
 
-docker compose "${COMPOSE_ARGS[@]}" pull "${SERVICES[@]}"
+PULL_SERVICES=(voice-clone-web)
+if [[ "${VOICE_CLONE_DEMO_SKIP_BRIDGE_PULL:-0}" != "1" ]]; then
+  PULL_SERVICES+=(voice-clone-bridge)
+fi
+if [[ "$WITH_DICTATOR" -eq 1 ]]; then
+  PULL_SERVICES+=(dictator-image)
+fi
+
+docker compose "${COMPOSE_ARGS[@]}" pull "${PULL_SERVICES[@]}"
 docker compose "${COMPOSE_ARGS[@]}" up "${UP_ARGS[@]}" "${SERVICES[@]}"
 
 printf 'Voice clone demo runs on https://%s:%s/\n' "$PUBLIC_HOST" "$VOICE_CLONE_WEB_PORT"

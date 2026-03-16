@@ -73,6 +73,7 @@ def execute_synthesis_request(
     artifact_store: LocalArtifactStore,
     execution_runtime,
     prepared: PreparedSynthesisRequest,
+    progress_callback=None,
 ) -> SynthesisExecutionOutcome:
     from dictator.audio.ffmpeg_ops import concat_normalise
     from dictator.synthesis.service import cleanup_synthesis_result
@@ -80,7 +81,10 @@ def execute_synthesis_request(
     synthesis_service = execution_runtime.get_synthesis_service()
     result = None
     try:
-        result = synthesis_service.synthesise_text(prepared.synthesis_request)
+        result = synthesis_service.synthesise_text(
+            prepared.synthesis_request,
+            progress_callback=progress_callback,
+        )
         if hasattr(execution_runtime, "mark_synthesis_ready"):
             execution_runtime.mark_synthesis_ready()
         audio_reservation = artifact_store.reserve_artifact(
