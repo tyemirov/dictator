@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## [v1.6.0] - 2026-03-15
+
+### Features ✨
+- Added voice clone demo jobs with asynchronous job submission, progress tracking, and audio retrieval.
+- Introduced a new voice clone web demo API supporting voice synthesis job management.
+- Implemented a GPU-only container image with model prefetch and improved runtime toolchain.
+
+### Improvements ⚙️
+- Updated documentation to clarify NVIDIA GPU requirement and simplify GPU image usage.
+- Improved demo voice clone web app for better job state handling and progress reporting.
+- Enhanced container images with pre-baked Qwen3 voice cloning model and FlashAttention integration.
+
+### Bug Fixes 🐛
+- Fixed text cleanup in synthesis and corrected capped progress totals for job progress.
+- Addressed audio artifact download issue in voice clone demo job flow.
+
+### Testing 🧪
+- Added extensive tests for client job helpers and voice clone web example.
+- Increased runtime and service logic test coverage for synthesis and transport layers.
+
+### Docs 📚
+- Revised README and client integration docs to remove CPU fallback and emphasize GPU support.
+- Updated demo usage instructions, environment setup, and deployment with Docker Compose.
+
 ## [v1.5.0] - 2026-03-15
 
 ### Features ✨
