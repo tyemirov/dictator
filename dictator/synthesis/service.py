@@ -8,7 +8,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import threading
-from typing import Mapping, Protocol, Sequence
+from typing import Callable, Mapping, Protocol, Sequence
 
 from dictator.runtime import DependencyError, ValidationError
 
@@ -26,7 +26,7 @@ from .models import (
     SynthesisRequest,
     SynthesisResult,
 )
-from .text import clean, split_into_sentences
+from .text import clean, join_synthesis_units, split_into_sentences
 
 QWEN3_LANGUAGE_NAMES = {
     "ar": "Arabic",
@@ -41,6 +41,8 @@ QWEN3_LANGUAGE_NAMES = {
     "ru": "Russian",
     "zh": "Chinese",
 }
+INTER_CHUNK_SILENCE_SECONDS = 0.18
+ProgressCallback = Callable[[int, int], None]
 
 
 class SynthesisSession(Protocol):
@@ -105,7 +107,7 @@ class Qwen3SynthesisSession:
         buffer: list[str] = []
         for unit in units:
             candidate_units = [*buffer, unit]
-            candidate_text = " ".join(candidate_units)
+            candidate_text = join_synthesis_units(candidate_units)
             candidate_tokens = self._estimate_text_tokens(candidate_text)
             if buffer and candidate_tokens > self._text_token_budget:
                 chunks.append(SynthesisChunk.from_units(buffer))
@@ -307,9 +309,12 @@ class SpeechSynthesisService:
         session: SynthesisSession,
         chunks: Sequence[SynthesisChunk],
         cap_seconds: float | None,
+        progress_callback: ProgressCallback | None = None,
     ) -> SynthesisResult:
         if not chunks:
             raise ValueError("No text chunks provided")
+        if progress_callback is not None:
+            progress_callback(0, len(chunks))
 
         temp_dir = Path(tempfile.mkdtemp(prefix="dictator_tts_"))
         wav_paths: list[Path] = []
@@ -325,11 +330,13 @@ class SpeechSynthesisService:
 
             chunk = pending_chunks.pop(0)
             wav_path = temp_dir / f"{chunk_index:04d}.wav"
-            generated_chunk = session.synthesise_chunk(chunk.text)
+            generated_chunk = session.synthesise_chunk(_render_synthesis_text(chunk))
             duration_seconds = generated_chunk.duration_seconds
-            previous_duration = duration_seconds
+            leading_silence_seconds = INTER_CHUNK_SILENCE_SECONDS if wav_paths else 0.0
+            total_duration_seconds = leading_silence_seconds + duration_seconds
+            previous_duration = total_duration_seconds
 
-            if cap_seconds is not None and elapsed + duration_seconds > cap_seconds:
+            if cap_seconds is not None and elapsed + total_duration_seconds > cap_seconds:
                 refined_chunks = tuple(session.refine_chunk(chunk))
                 if len(refined_chunks) > 1:
                     logging.info(
@@ -341,29 +348,37 @@ class SpeechSynthesisService:
                     continue
                 logging.warning(
                     "Chunk %.1fs longer than remaining cap (%.1fs) - skipped",
-                    duration_seconds,
+                    total_duration_seconds,
                     cap_seconds - elapsed,
                 )
                 break
 
+            chunk_samples = _prepend_silence(
+                generated_chunk.samples,
+                generated_chunk.sample_rate,
+                silence_seconds=leading_silence_seconds,
+            )
             import soundfile as sf
 
-            sf.write(wav_path, generated_chunk.samples, generated_chunk.sample_rate)
+            sf.write(wav_path, chunk_samples, generated_chunk.sample_rate)
             wav_paths.append(wav_path)
             segments.append(
                 SpeechSegment(
                     text=chunk.text,
-                    start_seconds=elapsed,
-                    end_seconds=elapsed + duration_seconds,
+                    start_seconds=elapsed + leading_silence_seconds,
+                    end_seconds=elapsed + total_duration_seconds,
                 )
             )
-            elapsed += duration_seconds
+            elapsed += total_duration_seconds
             logging.info(
-                "chunk %03d  %.1f s  (cumulative %.1f s)",
+                "chunk %03d  %.1f s speech + %.1f s pause  (cumulative %.1f s)",
                 chunk_index,
                 duration_seconds,
+                leading_silence_seconds,
                 elapsed,
             )
+            if progress_callback is not None:
+                progress_callback(len(wav_paths), len(chunks))
             chunk_index += 1
 
         if cap_seconds is not None and not wav_paths:
@@ -376,7 +391,12 @@ class SpeechSynthesisService:
             segments=tuple(segments),
         )
 
-    def synthesise_text(self, request: SynthesisRequest) -> SynthesisResult:
+    def synthesise_text(
+        self,
+        request: SynthesisRequest,
+        *,
+        progress_callback: ProgressCallback | None = None,
+    ) -> SynthesisResult:
         cleaned_text = clean(request.text)
         normalized_request = SynthesisRequest(
             engine=request.engine,
@@ -389,7 +409,29 @@ class SpeechSynthesisService:
         )
         session = self._resolve_backend(normalized_request.engine).open_session(normalized_request)
         chunks = tuple(session.build_chunks(cleaned_text))
-        return self._synthesise_chunks(session=session, chunks=chunks, cap_seconds=request.cap_seconds)
+        return self._synthesise_chunks(
+            session=session,
+            chunks=chunks,
+            cap_seconds=request.cap_seconds,
+            progress_callback=progress_callback,
+        )
+
+
+def _render_synthesis_text(chunk: SynthesisChunk) -> str:
+    return join_synthesis_units(chunk.units)
+
+
+def _prepend_silence(samples, sample_rate: int, *, silence_seconds: float):
+    if silence_seconds <= 0.0:
+        return samples
+
+    import numpy as np
+
+    sample_array = np.asarray(samples)
+    silence_frame_count = max(1, int(round(sample_rate * silence_seconds)))
+    silence_shape = (silence_frame_count, *sample_array.shape[1:])
+    silence = np.zeros(silence_shape, dtype=sample_array.dtype)
+    return np.concatenate((silence, sample_array), axis=0)
 
 
 def cleanup_synthesis_result(result: SynthesisResult) -> None:

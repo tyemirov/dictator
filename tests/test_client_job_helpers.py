@@ -13,6 +13,7 @@ from dictator.client import (
     ReferenceSampleClient,
     ReferenceSampleResult,
     RemoteJobFailedError,
+    SynthesisClient,
     SubtitleClient,
 )
 from dictator.speech.v1 import subtitle_pb2, transcription_pb2, voice_pb2
@@ -32,6 +33,110 @@ class _FakeRpcError(grpc.RpcError):
 
 
 class ClientJobHelpersTests(unittest.TestCase):
+    def test_synthesis_job_helpers_submit_get_and_wait(self):
+        stub = types.SimpleNamespace(
+            SubmitSynthesizeSpeechJob=MagicMock(
+                return_value=types.SimpleNamespace(
+                    job_id="syn-1",
+                    state=voice_pb2.SYNTHESIS_JOB_STATE_QUEUED,
+                )
+            ),
+            GetSynthesizeSpeechJob=MagicMock(
+                return_value=types.SimpleNamespace(
+                    job_id="syn-1",
+                    state=voice_pb2.SYNTHESIS_JOB_STATE_SUCCEEDED,
+                    error_code="",
+                    error_message="",
+                    audio_artifact=types.SimpleNamespace(artifact_id="audio-1"),
+                    audio_duration_seconds=4.2,
+                    timeline_artifact_id="timeline-1",
+                    chunk_count=3,
+                    estimated_total_chunks=3,
+                    completed_chunks=2,
+                    created_at_unix_seconds=1.0,
+                    started_at_unix_seconds=2.0,
+                    finished_at_unix_seconds=3.0,
+                )
+            ),
+        )
+        waited_job = types.SimpleNamespace(job_id="syn-1", state="SYNTHESIS_JOB_STATE_SUCCEEDED")
+        with (
+            patch("dictator.client.voice.voice_pb2_grpc.VoiceServiceStub", return_value=stub),
+            patch("dictator.client.voice.wait_for_job", return_value=waited_job) as wait_for_job,
+        ):
+            client = SynthesisClient(object(), metadata=[("authorization", "Bearer secret")])
+            submitted = client.submit_synthesize_job(
+                speaker_artifact_id="speaker-1",
+                text_artifact_id="text-1",
+                language_code="en",
+                max_duration_seconds=5.0,
+                include_timeline=True,
+                speaker_transcript_text="sample transcript",
+            )
+            submitted_with_text = client.submit_synthesize_job(
+                speaker_artifact_id="speaker-2",
+                text="hello world",
+            )
+            fetched = client.get_synthesis_job("syn-1")
+            waited = client.wait_for_synthesis_job("syn-1", timeout_seconds=9.0, poll_interval_seconds=0.25)
+
+        request = stub.SubmitSynthesizeSpeechJob.call_args_list[0].args[0]
+        self.assertEqual(request.speaker_artifact_id, "speaker-1")
+        self.assertEqual(request.text_artifact_id, "text-1")
+        self.assertEqual(request.language_code, "en")
+        self.assertEqual(request.max_duration_seconds, 5.0)
+        self.assertTrue(request.include_timeline)
+        self.assertEqual(request.speaker_transcript_text, "sample transcript")
+        self.assertEqual(stub.SubmitSynthesizeSpeechJob.call_args.kwargs["metadata"], (("authorization", "Bearer secret"),))
+        self.assertEqual(submitted.job_id, "syn-1")
+        self.assertEqual(submitted.state, "SYNTHESIS_JOB_STATE_QUEUED")
+        direct_text_request = stub.SubmitSynthesizeSpeechJob.call_args_list[1].args[0]
+        self.assertEqual(direct_text_request.speaker_artifact_id, "speaker-2")
+        self.assertEqual(direct_text_request.text, "hello world")
+        self.assertEqual(submitted_with_text.job_id, "syn-1")
+        self.assertEqual(fetched.result.audio_artifact_id, "audio-1")
+        self.assertEqual(fetched.result.audio_duration_seconds, 4.2)
+        self.assertEqual(fetched.result.timeline_artifact_id, "timeline-1")
+        self.assertEqual(fetched.result.chunk_count, 3)
+        self.assertEqual(waited, waited_job)
+        wait_for_job.assert_called_once()
+
+    def test_synthesis_convenience_helper_waits_and_requires_result(self):
+        with patch("dictator.client.voice.voice_pb2_grpc.VoiceServiceStub", return_value=object()):
+            client = SynthesisClient(object())
+
+        with (
+            patch.object(client, "submit_synthesize_job", return_value=types.SimpleNamespace(job_id="syn-2")) as submit_job,
+            patch.object(
+                client,
+                "wait_for_synthesis_job",
+                return_value=types.SimpleNamespace(
+                    result=types.SimpleNamespace(
+                        audio_artifact_id="audio-2",
+                        audio_duration_seconds=3.5,
+                        timeline_artifact_id="timeline-2",
+                        chunk_count=2,
+                    )
+                ),
+            ) as wait_job,
+        ):
+            result = client.synthesize(
+                speaker_artifact_id="speaker-2",
+                text="hello world",
+                timeout_seconds=8.0,
+                poll_interval_seconds=0.5,
+            )
+        self.assertEqual(result.audio_artifact_id, "audio-2")
+        submit_job.assert_called_once()
+        wait_job.assert_called_once_with("syn-2", timeout_seconds=8.0, poll_interval_seconds=0.5)
+
+        with (
+            patch.object(client, "submit_synthesize_job", return_value=types.SimpleNamespace(job_id="syn-3")),
+            patch.object(client, "wait_for_synthesis_job", return_value=types.SimpleNamespace(result=None)),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "without a result payload"):
+                client.synthesize(speaker_artifact_id="speaker-3", text="hello again")
+
     def test_dictation_job_helpers_submit_wait_and_failure(self):
         stub = types.SimpleNamespace(
             SubmitTranscribeJob=MagicMock(

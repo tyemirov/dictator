@@ -176,7 +176,7 @@ class FakeSynthesisService:
             segments=(SpeechSegment("hello", 0.0, 0.4),),
         )
 
-    def synthesise_text(self, request):
+    def synthesise_text(self, request, *, progress_callback=None):
         self.calls.append(request)
         tmpdir = Path(tempfile.mkdtemp())
         wav_path = tmpdir / "0000.wav"

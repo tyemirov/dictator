@@ -10,12 +10,22 @@ The Python helper surface currently exported from `dictator.client` is:
 - `DiarizationClient`
 - `SubtitleClient`
 - `AlignmentClient`
+- `SynthesisClient`
 - `ReferenceSampleClient`
 - `RemoteJobFailedError`
 
 Result and job dataclasses are also exported for those clients.
 
-There is currently no first-class Python convenience client for speech synthesis jobs. For synthesis, use the generated gRPC stubs directly or add a wrapper in the same style as the clients above.
+The protobuf definitions and generated gRPC stubs are the authoritative contract.
+
+The maintained Python clients are the intended ergonomic layer for Python integrations because they handle:
+
+- artifact upload-first request shaping
+- async submit/get/wait polling
+- stable error surfacing
+- compatibility fallback where that is part of the client contract
+
+For non-Python integrations, generated stubs are the right baseline. Recreate the same thin wrapper pattern in that language rather than embedding job polling and upload orchestration ad hoc throughout application code.
 
 ## Service configuration and auth
 
@@ -41,6 +51,8 @@ from dictator.client import DictationClient
 channel = grpc.insecure_channel("127.0.0.1:50051")
 client = DictationClient(channel, metadata=(("x-dictator-token", token),))
 ```
+
+For direct artifact upload/download or unsupported custom flows, use the generated stubs alongside the maintained clients.
 
 ## Transport model
 
@@ -118,7 +130,7 @@ The following convenience methods first try the async contract and fall back to 
 
 This fallback exists for compatibility with older or partially configured servers. New integrations should treat the async path as primary.
 
-`ReferenceSampleClient.extract_file(...)` and `extract_bytes(...)` use the async job path directly and do not provide a sync fallback.
+`SynthesisClient.synthesize(...)` and `ReferenceSampleClient.extract_file(...)` / `extract_bytes(...)` use the async job path directly and do not provide a sync fallback.
 
 ## Endpoint-specific contracts
 
@@ -241,6 +253,85 @@ Result:
 - `srt_artifact_id`
 - `srt_text`
 - `cues`
+
+### Speech synthesis
+
+Client:
+
+- `SynthesisClient`
+
+Blocking methods:
+
+- `synthesize(...)`
+
+Async methods:
+
+- `submit_synthesize_job(...)`
+- `get_synthesis_job(...)`
+- `wait_for_synthesis_job(...)`
+
+Important arguments:
+
+- `speaker_artifact_id`
+- `text`
+- `text_artifact_id`
+- `language_code`
+- `max_duration_seconds`
+- `include_timeline`
+- `synthesis_engine`
+- `speaker_transcript_text`
+
+Rules:
+
+- `speaker_artifact_id` is required
+- set exactly one of `text` or `text_artifact_id`
+- `speaker_transcript_text` should be provided when known for higher quality voice conditioning
+
+Result:
+
+- `audio_artifact_id`
+- `audio_duration_seconds`
+- optional `timeline_artifact_id`
+- `chunk_count`
+
+Minimal Python example:
+
+```python
+import grpc
+
+from dictator.client import SynthesisClient
+from dictator.speech.v1 import artifacts_pb2, artifacts_pb2_grpc
+
+
+def iter_upload(filename: str, media_type: str, payload: bytes):
+    yield artifacts_pb2.UploadArtifactChunk(
+        metadata=artifacts_pb2.UploadArtifactMetadata(
+            filename=filename,
+            media_type=media_type,
+        )
+    )
+    yield artifacts_pb2.UploadArtifactChunk(content=payload)
+
+
+token = "your-token"
+metadata = (("x-dictator-token", token),)
+
+channel = grpc.insecure_channel("127.0.0.1:50051")
+artifact_stub = artifacts_pb2_grpc.ArtifactServiceStub(channel)
+upload = artifact_stub.UploadArtifact(
+    iter_upload("speaker.wav", "audio/wav", open("speaker.wav", "rb").read()),
+    metadata=metadata,
+)
+
+client = SynthesisClient(channel, metadata=metadata)
+result = client.synthesize(
+    speaker_artifact_id=upload.artifact.artifact_id,
+    text="Hello from Dictator.",
+    language_code="en",
+    speaker_transcript_text="The transcript of the reference sample.",
+)
+print(result.audio_artifact_id)
+```
 
 ### Alignment
 

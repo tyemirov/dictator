@@ -78,6 +78,39 @@ class FakeVoiceStub:
         )
 
 
+class FakeSynthesisClient:
+    def __init__(self, _channel, metadata=()) -> None:
+        self.metadata = list(metadata)
+        self.synthesize_calls = []
+        self.submit_calls = []
+        self.get_calls = []
+
+    def synthesize(self, **kwargs):
+        self.synthesize_calls.append(kwargs)
+        return types.SimpleNamespace(audio_artifact_id="audio-artifact")
+
+    def submit_synthesize_job(self, **kwargs):
+        self.submit_calls.append(kwargs)
+        return types.SimpleNamespace(
+            job_id="deadbeef",
+            state="SYNTHESIS_JOB_STATE_QUEUED",
+            estimated_total_chunks=0,
+            completed_chunks=0,
+        )
+
+    def get_synthesis_job(self, job_id):
+        self.get_calls.append(job_id)
+        return types.SimpleNamespace(
+            job_id=job_id,
+            state="SYNTHESIS_JOB_STATE_SUCCEEDED",
+            error_code="",
+            error_message="",
+            estimated_total_chunks=4,
+            completed_chunks=4,
+            result=types.SimpleNamespace(audio_artifact_id="audio-artifact"),
+        )
+
+
 class FakeChannel:
     def __init__(self) -> None:
         self.closed = False
@@ -121,6 +154,8 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
         self.assertNotIn("Auth Token", html)
         self.assertIn("Record your voice sample", html)
         self.assertIn('class="sample-script"', html)
+        self.assertIn("generatedAudio.load();", html)
+        self.assertIn("clearGeneratedPlayback();", html)
 
     def test_parse_grpc_target_accepts_host_port_only(self):
         self.assertEqual(app.parse_grpc_target("localhost:50051"), "localhost:50051")
@@ -199,16 +234,16 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
     def test_synthesize_selected_reading_calls_service_flow(self):
         fake_channel = FakeChannel()
         fake_artifacts = FakeArtifactStub(fake_channel)
-        fake_voice = FakeVoiceStub(fake_channel)
+        fake_synthesis_client = FakeSynthesisClient(fake_channel)
 
         with mock.patch(
             "demo.voice_clone_web.app.artifacts_pb2_grpc.ArtifactServiceStub",
             return_value=fake_artifacts,
         ) as artifact_stub_ctor:
             with mock.patch(
-                "demo.voice_clone_web.app.voice_pb2_grpc.VoiceServiceStub",
-                return_value=fake_voice,
-            ) as voice_stub_ctor:
+                "demo.voice_clone_web.app.SynthesisClient",
+                return_value=fake_synthesis_client,
+            ) as synthesis_client_ctor:
                 with mock.patch(
                     "demo.voice_clone_web.app.normalise_recorded_audio",
                     return_value=(b"wav-bytes", "voice-sample.wav", "audio/wav"),
@@ -224,7 +259,10 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
                     )
 
         artifact_stub_ctor.assert_called_once_with(fake_channel)
-        voice_stub_ctor.assert_called_once_with(fake_channel)
+        synthesis_client_ctor.assert_called_once_with(
+            fake_channel,
+            metadata=[("authorization", "Bearer secret")],
+        )
         normalise.assert_called_once_with(
             b"sample-bytes",
             "voice.webm",
@@ -234,13 +272,11 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
         self.assertEqual(upload_chunks[0].metadata.filename, "voice-sample.wav")
         self.assertEqual(upload_chunks[0].metadata.media_type, "audio/wav")
         self.assertEqual(upload_metadata, [("authorization", "Bearer secret")])
-        self.assertEqual(fake_voice.extract_calls, [])
-        synth_request, synth_metadata = fake_voice.synthesize_calls[0]
-        self.assertEqual(synth_request.speaker_artifact_id, "source-artifact")
-        self.assertEqual(synth_request.synthesis_engine, voice_pb2.SYNTHESIS_ENGINE_QWEN3)
-        self.assertEqual(synth_request.speaker_transcript_text, app.VOICE_SAMPLE_TEXT)
-        self.assertIn("Alice was beginning to get very tired", synth_request.text)
-        self.assertEqual(synth_metadata, [("authorization", "Bearer secret")])
+        synth_kwargs = fake_synthesis_client.synthesize_calls[0]
+        self.assertEqual(synth_kwargs["speaker_artifact_id"], "source-artifact")
+        self.assertEqual(synth_kwargs["synthesis_engine"], voice_pb2.SYNTHESIS_ENGINE_QWEN3)
+        self.assertEqual(synth_kwargs["speaker_transcript_text"], app.VOICE_SAMPLE_TEXT)
+        self.assertIn("Alice was beginning to get very tired", synth_kwargs["text"])
         self.assertEqual(result.content, b"hello world")
         self.assertEqual(result.filename, "alice-in-your-voice.wav")
         self.assertTrue(fake_channel.closed)
@@ -248,15 +284,15 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
     def test_synthesize_selected_reading_uses_qwen3_sample_transcript(self):
         fake_channel = FakeChannel()
         fake_artifacts = FakeArtifactStub(fake_channel)
-        fake_voice = FakeVoiceStub(fake_channel)
+        fake_synthesis_client = FakeSynthesisClient(fake_channel)
 
         with mock.patch(
             "demo.voice_clone_web.app.artifacts_pb2_grpc.ArtifactServiceStub",
             return_value=fake_artifacts,
         ):
             with mock.patch(
-                "demo.voice_clone_web.app.voice_pb2_grpc.VoiceServiceStub",
-                return_value=fake_voice,
+                "demo.voice_clone_web.app.SynthesisClient",
+                return_value=fake_synthesis_client,
             ):
                 with mock.patch(
                     "demo.voice_clone_web.app.normalise_recorded_audio",
@@ -271,9 +307,9 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
                     )
 
         normalise.assert_called_once_with(b"sample-bytes", "voice.webm", "audio/webm")
-        synth_request, _ = fake_voice.synthesize_calls[0]
-        self.assertEqual(synth_request.synthesis_engine, voice_pb2.SYNTHESIS_ENGINE_QWEN3)
-        self.assertEqual(synth_request.speaker_transcript_text, app.VOICE_SAMPLE_TEXT)
+        synth_kwargs = fake_synthesis_client.synthesize_calls[0]
+        self.assertEqual(synth_kwargs["synthesis_engine"], voice_pb2.SYNTHESIS_ENGINE_QWEN3)
+        self.assertEqual(synth_kwargs["speaker_transcript_text"], app.VOICE_SAMPLE_TEXT)
 
     def test_synthesize_selected_reading_requires_audio(self):
         with self.assertRaisesRegex(app.ExampleRequestError, "voice sample"):
@@ -284,6 +320,164 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
                 audio_filename="voice.webm",
                 audio_media_type="audio/webm",
             )
+
+    def test_submit_and_get_selected_reading_job_expose_progress(self):
+        fake_channel = FakeChannel()
+        fake_artifacts = FakeArtifactStub(fake_channel)
+        fake_synthesis_client = FakeSynthesisClient(fake_channel)
+
+        with mock.patch(
+            "demo.voice_clone_web.app.artifacts_pb2_grpc.ArtifactServiceStub",
+            return_value=fake_artifacts,
+        ), mock.patch(
+            "demo.voice_clone_web.app.SynthesisClient",
+            return_value=fake_synthesis_client,
+        ), mock.patch(
+            "demo.voice_clone_web.app.normalise_recorded_audio",
+            return_value=(b"wav-bytes", "voice-sample.wav", "audio/wav"),
+        ):
+            submitted = app.submit_selected_reading_job(
+                dictator_url="dictator-grpc:50051",
+                auth_token="secret",
+                audio_payload=b"sample-bytes",
+                audio_filename="voice.webm",
+                audio_media_type="audio/webm",
+                render_preset_id="woods",
+            )
+            status = app.get_selected_reading_job(
+                dictator_url="dictator-grpc:50051",
+                auth_token="secret",
+                job_id="deadbeef",
+            )
+
+        self.assertEqual(submitted.job_id, "deadbeef")
+        self.assertEqual(submitted.state, "SYNTHESIS_JOB_STATE_QUEUED")
+        submit_kwargs = fake_synthesis_client.submit_calls[0]
+        self.assertEqual(submit_kwargs["speaker_artifact_id"], "source-artifact")
+        self.assertEqual(submit_kwargs["synthesis_engine"], voice_pb2.SYNTHESIS_ENGINE_QWEN3)
+        self.assertEqual(submit_kwargs["speaker_transcript_text"], app.VOICE_SAMPLE_TEXT)
+        self.assertIn("Whose woods these are I think I know.", submit_kwargs["text"])
+        self.assertEqual(status.job_id, "deadbeef")
+        self.assertEqual(status.estimated_total_chunks, 4)
+        self.assertEqual(status.completed_chunks, 4)
+        self.assertEqual(status.audio_artifact_id, "audio-artifact")
+        self.assertEqual(status.progress_percent(), 1.0)
+
+    def test_voice_clone_job_progress_percent_stops_short_before_success(self):
+        job = app.VoiceCloneJob(
+            job_id="deadbeef",
+            state="SYNTHESIS_JOB_STATE_RUNNING",
+            estimated_total_chunks=4,
+            completed_chunks=4,
+        )
+        self.assertAlmostEqual(job.progress_percent(), 0.9)
+
+    def test_voice_clone_job_progress_percent_shows_running_estimate(self):
+        unknown_total_job = app.VoiceCloneJob(
+            job_id="deadbeef",
+            state="SYNTHESIS_JOB_STATE_RUNNING",
+            estimated_total_chunks=0,
+            completed_chunks=0,
+        )
+        self.assertAlmostEqual(unknown_total_job.progress_percent(), 0.1)
+
+        single_chunk_job = app.VoiceCloneJob(
+            job_id="deadbeef",
+            state="SYNTHESIS_JOB_STATE_RUNNING",
+            estimated_total_chunks=1,
+            completed_chunks=0,
+        )
+        self.assertAlmostEqual(single_chunk_job.progress_percent(), 0.475)
+
+        failed_job = app.VoiceCloneJob(
+            job_id="deadbeef",
+            state="SYNTHESIS_JOB_STATE_FAILED",
+            estimated_total_chunks=4,
+            completed_chunks=2,
+        )
+        self.assertAlmostEqual(failed_job.progress_percent(), 0.0)
+
+    def test_submit_selected_reading_job_requires_audio(self):
+        with self.assertRaisesRegex(app.ExampleRequestError, "voice sample"):
+            app.submit_selected_reading_job(
+                dictator_url="dictator-grpc:50051",
+                auth_token="secret",
+                audio_payload=b"",
+                audio_filename="voice.webm",
+                audio_media_type="audio/webm",
+            )
+
+    def test_download_selected_reading_job_audio_requires_ready_result(self):
+        fake_channel = FakeChannel()
+        fake_artifacts = FakeArtifactStub(fake_channel)
+        fake_synthesis_client = FakeSynthesisClient(fake_channel)
+        fake_synthesis_client.get_synthesis_job = lambda job_id: types.SimpleNamespace(
+            job_id=job_id,
+            state="SYNTHESIS_JOB_STATE_RUNNING",
+            error_code="",
+            error_message="",
+            estimated_total_chunks=4,
+            completed_chunks=3,
+            result=None,
+        )
+
+        with mock.patch(
+            "demo.voice_clone_web.app.artifacts_pb2_grpc.ArtifactServiceStub",
+            return_value=fake_artifacts,
+        ), mock.patch(
+            "demo.voice_clone_web.app.SynthesisClient",
+            return_value=fake_synthesis_client,
+        ):
+            with self.assertRaisesRegex(app.ExampleRequestError, "not ready yet"):
+                app.download_selected_reading_job_audio(
+                    dictator_url="dictator-grpc:50051",
+                    auth_token="secret",
+                    job_id="deadbeef",
+                )
+
+    def test_download_selected_reading_job_audio_maps_failure_and_success(self):
+        failed_client = FakeSynthesisClient(FakeChannel())
+        failed_client.get_synthesis_job = lambda job_id: types.SimpleNamespace(
+            job_id=job_id,
+            state="SYNTHESIS_JOB_STATE_FAILED",
+            error_code="dictator.jobs.failed",
+            error_message="boom",
+            estimated_total_chunks=4,
+            completed_chunks=2,
+            result=None,
+        )
+        with mock.patch(
+            "demo.voice_clone_web.app.artifacts_pb2_grpc.ArtifactServiceStub",
+            return_value=FakeArtifactStub(None),
+        ), mock.patch(
+            "demo.voice_clone_web.app.SynthesisClient",
+            return_value=failed_client,
+        ):
+            with self.assertRaisesRegex(app.ExampleRequestError, "boom"):
+                app.download_selected_reading_job_audio(
+                    dictator_url="dictator-grpc:50051",
+                    auth_token="secret",
+                    job_id="deadbeef",
+                )
+
+        success_channel = FakeChannel()
+        success_artifacts = FakeArtifactStub(success_channel)
+        success_client = FakeSynthesisClient(success_channel)
+        with mock.patch(
+            "demo.voice_clone_web.app.artifacts_pb2_grpc.ArtifactServiceStub",
+            return_value=success_artifacts,
+        ), mock.patch(
+            "demo.voice_clone_web.app.SynthesisClient",
+            return_value=success_client,
+        ):
+            result = app.download_selected_reading_job_audio(
+                dictator_url="dictator-grpc:50051",
+                auth_token="secret",
+                job_id="deadbeef",
+                render_preset_id="alice",
+            )
+        self.assertEqual(result.filename, "alice-in-your-voice.wav")
+        self.assertEqual(result.content, b"hello world")
 
     def test_decode_request_payload_validates_json_shape(self):
         self.assertEqual(app.decode_request_payload(b'{"ok": true}'), {"ok": True})
@@ -501,6 +695,147 @@ class VoiceCloneWebExampleTests(unittest.TestCase):
             response = connection.getresponse()
             response.read()
         self.assertEqual(response.status, 404)
+
+    def test_handler_supports_async_clone_job_routes(self):
+        submitted_jobs = []
+        looked_up_jobs = []
+        downloaded_jobs = []
+
+        def fake_submitter(**kwargs):
+            submitted_jobs.append(kwargs)
+            return app.VoiceCloneJob(
+                job_id="deadbeef",
+                state="SYNTHESIS_JOB_STATE_QUEUED",
+                estimated_total_chunks=0,
+                completed_chunks=0,
+            )
+
+        def fake_getter(**kwargs):
+            looked_up_jobs.append(kwargs)
+            return app.VoiceCloneJob(
+                job_id=kwargs["job_id"],
+                state="SYNTHESIS_JOB_STATE_RUNNING",
+                estimated_total_chunks=4,
+                completed_chunks=2,
+            )
+
+        def fake_downloader(**kwargs):
+            downloaded_jobs.append(kwargs)
+            return app.VoiceCloneResult(
+                filename="alice-in-your-voice.wav",
+                media_type="audio/wav",
+                content=b"RIFF",
+            )
+
+        with running_server(
+            app.build_handler(
+                index_html="<html>ok</html>",
+                job_submitter=fake_submitter,
+                job_getter=fake_getter,
+                job_audio_downloader=fake_downloader,
+                default_dictator_url="dictator-grpc:50051",
+                default_auth_token="bridge-secret",
+            )
+        ) as port:
+            connection = http.client.HTTPConnection("127.0.0.1", port)
+            connection.request(
+                "POST",
+                "/api/clone-jobs",
+                body=json.dumps(
+                    {
+                        "renderPreset": "alice",
+                        "audioBase64": base64.b64encode(b"sample").decode("ascii"),
+                        "audioFilename": "voice.webm",
+                        "audioMediaType": "audio/webm",
+                    }
+                ).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+            )
+            submit_response = connection.getresponse()
+            submit_payload = json.loads(submit_response.read().decode("utf-8"))
+            self.assertEqual(submit_response.status, 202)
+            self.assertEqual(submit_payload["jobId"], "deadbeef")
+
+            connection.request("GET", "/api/clone-jobs/deadbeef")
+            status_response = connection.getresponse()
+            status_payload = json.loads(status_response.read().decode("utf-8"))
+            self.assertEqual(status_response.status, 200)
+            self.assertEqual(status_payload["completedChunks"], 2)
+            self.assertEqual(status_payload["estimatedTotalChunks"], 4)
+            self.assertAlmostEqual(status_payload["progressPercent"], 0.56875)
+
+            connection.request("GET", "/api/clone-jobs/deadbeef/audio?renderPreset=alice")
+            audio_response = connection.getresponse()
+            self.assertEqual(audio_response.status, 200)
+            self.assertEqual(audio_response.read(), b"RIFF")
+            self.assertIn('filename="alice-in-your-voice.wav"', audio_response.getheader("Content-Disposition"))
+            connection.close()
+
+        self.assertEqual(submitted_jobs[0]["dictator_url"], "dictator-grpc:50051")
+        self.assertEqual(looked_up_jobs[0]["job_id"], "deadbeef")
+        self.assertEqual(downloaded_jobs[0]["render_preset_id"], "alice")
+
+    def test_handler_maps_async_job_lookup_errors(self):
+        with running_server(
+            app.build_handler(
+                job_getter=lambda **_: (_ for _ in ()).throw(app.ExampleRequestError("bad job lookup")),
+                default_dictator_url="dictator-grpc:50051",
+                default_auth_token="bridge-secret",
+            )
+        ) as port:
+            connection = http.client.HTTPConnection("127.0.0.1", port)
+            connection.request("GET", "/api/clone-jobs/deadbeef")
+            response = connection.getresponse()
+            payload = json.loads(response.read().decode("utf-8"))
+            connection.close()
+        self.assertEqual(response.status, 400)
+        self.assertEqual(payload["error"], "bad job lookup")
+
+        with running_server(
+            app.build_handler(
+                job_getter=lambda **_: (_ for _ in ()).throw(FakeRpcError()),
+                default_dictator_url="dictator-grpc:50051",
+                default_auth_token="bridge-secret",
+            )
+        ) as port:
+            connection = http.client.HTTPConnection("127.0.0.1", port)
+            connection.request("GET", "/api/clone-jobs/deadbeef")
+            response = connection.getresponse()
+            payload = json.loads(response.read().decode("utf-8"))
+            connection.close()
+        self.assertEqual(response.status, 502)
+        self.assertIn("UNAUTHENTICATED", payload["error"])
+
+    def test_handler_maps_async_job_audio_errors(self):
+        with running_server(
+            app.build_handler(
+                job_audio_downloader=lambda **_: (_ for _ in ()).throw(app.ExampleRequestError("not ready")),
+                default_dictator_url="dictator-grpc:50051",
+                default_auth_token="bridge-secret",
+            )
+        ) as port:
+            connection = http.client.HTTPConnection("127.0.0.1", port)
+            connection.request("GET", "/api/clone-jobs/deadbeef/audio")
+            response = connection.getresponse()
+            payload = json.loads(response.read().decode("utf-8"))
+            connection.close()
+        self.assertEqual(response.status, 409)
+        self.assertEqual(payload["error"], "not ready")
+
+        with running_server(
+            app.build_handler(
+                job_audio_downloader=lambda **_: (_ for _ in ()).throw(FakeRpcError()),
+                default_dictator_url="dictator-grpc:50051",
+                default_auth_token="bridge-secret",
+            )
+        ) as port:
+            connection = http.client.HTTPConnection("127.0.0.1", port)
+            connection.request("GET", "/api/clone-jobs/deadbeef/audio")
+            response = connection.getresponse()
+            payload = json.loads(response.read().decode("utf-8"))
+            connection.close()
+        self.assertEqual(response.status, 502)
+        self.assertIn("UNAUTHENTICATED", payload["error"])
 
     def test_build_parser_and_main_delegate_to_serve(self):
         parser = app.build_parser()

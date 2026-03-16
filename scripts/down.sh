@@ -6,14 +6,14 @@ usage() {
   cat <<'EOF'
 Usage: scripts/down.sh [docker compose rm args...]
 
-Stops and removes the GHCR-backed GPU service started by scripts/up.sh.
+Stops and removes the local Dictator service started by scripts/up.sh.
 EOF
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-COMPOSE_ARGS=(--profile ghcr-gpu)
-SERVICES=(dictator-ghcr)
+COMPOSE_ARGS=()
+SERVICES=(dictator)
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage

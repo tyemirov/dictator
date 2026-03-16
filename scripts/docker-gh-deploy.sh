@@ -14,7 +14,7 @@ tag and uses that tag automatically.
 Examples:
   ./scripts/docker-gh-deploy.sh v1.2.3
   ./scripts/docker-gh-deploy.sh --dry-run
-  ./scripts/docker-gh-deploy.sh --image-name ghcr.io/acme/dictator-gpu v1.2.3
+  ./scripts/docker-gh-deploy.sh --image-name ghcr.io/acme/dictator v1.2.3
 
 Options:
   --dry-run        Validate inputs and print the Docker tags without building
@@ -30,7 +30,7 @@ Options:
 Environment:
   GHCR_USERNAME    GitHub username for docker login
   GHCR_TOKEN       GitHub token / PAT for docker login
-  DICTATOR_IMAGE   Full GHCR image repo override, e.g. ghcr.io/acme/dictator-gpu
+  DICTATOR_IMAGE   Full GHCR image repo override, e.g. ghcr.io/acme/dictator
   BUILDX_BUILDER   Buildx builder name override
 EOF
 }
@@ -72,7 +72,7 @@ derive_image_name() {
   esac
 
   path="${path%.git}"
-  printf 'ghcr.io/%s-gpu\n' "$(to_lower "$path")"
+  printf 'ghcr.io/%s\n' "$(to_lower "$path")"
 }
 
 build_image_tags() {

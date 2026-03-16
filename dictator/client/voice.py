@@ -15,6 +15,28 @@ from ._uploads import DEFAULT_CHUNK_BYTES, DEFAULT_MEDIA_TYPE, upload_audio_arti
 
 
 @dataclass(frozen=True)
+class SynthesisResult:
+    audio_artifact_id: str
+    audio_duration_seconds: float
+    timeline_artifact_id: str = ""
+    chunk_count: int = 0
+
+
+@dataclass(frozen=True)
+class SynthesisJob:
+    job_id: str
+    state: str
+    error_code: str = ""
+    error_message: str = ""
+    result: SynthesisResult | None = None
+    created_at_unix_seconds: float = 0.0
+    started_at_unix_seconds: float = 0.0
+    finished_at_unix_seconds: float = 0.0
+    estimated_total_chunks: int = 0
+    completed_chunks: int = 0
+
+
+@dataclass(frozen=True)
 class ReferenceSampleResult:
     sample_artifact_id: str
     trim_start_seconds: float
@@ -35,6 +57,123 @@ class ReferenceSampleJob:
     created_at_unix_seconds: float = 0.0
     started_at_unix_seconds: float = 0.0
     finished_at_unix_seconds: float = 0.0
+
+
+class SynthesisClient:
+    """Synthesize speech through Dictator voice jobs."""
+
+    def __init__(
+        self,
+        channel: grpc.Channel,
+        metadata: Sequence[tuple[str, str]] = (),
+    ) -> None:
+        self._voice_stub = voice_pb2_grpc.VoiceServiceStub(channel)
+        self._metadata = tuple(metadata)
+
+    def synthesize(
+        self,
+        *,
+        speaker_artifact_id: str,
+        text: str = "",
+        text_artifact_id: str = "",
+        language_code: str = "",
+        max_duration_seconds: float = 0.0,
+        include_timeline: bool = False,
+        synthesis_engine: int = voice_pb2.SYNTHESIS_ENGINE_QWEN3,
+        speaker_transcript_text: str = "",
+        timeout_seconds: float | None = None,
+        poll_interval_seconds: float = 1.0,
+    ) -> SynthesisResult:
+        submitted = self.submit_synthesize_job(
+            speaker_artifact_id=speaker_artifact_id,
+            text=text,
+            text_artifact_id=text_artifact_id,
+            language_code=language_code,
+            max_duration_seconds=max_duration_seconds,
+            include_timeline=include_timeline,
+            synthesis_engine=synthesis_engine,
+            speaker_transcript_text=speaker_transcript_text,
+        )
+        finished = self.wait_for_synthesis_job(
+            submitted.job_id,
+            timeout_seconds=timeout_seconds,
+            poll_interval_seconds=poll_interval_seconds,
+        )
+        if finished.result is None:
+            raise RuntimeError("synthesis job succeeded without a result payload")
+        return finished.result
+
+    def submit_synthesize_job(
+        self,
+        *,
+        speaker_artifact_id: str,
+        text: str = "",
+        text_artifact_id: str = "",
+        language_code: str = "",
+        max_duration_seconds: float = 0.0,
+        include_timeline: bool = False,
+        synthesis_engine: int = voice_pb2.SYNTHESIS_ENGINE_QWEN3,
+        speaker_transcript_text: str = "",
+    ) -> SynthesisJob:
+        request = voice_pb2.SynthesizeSpeechRequest(
+            speaker_artifact_id=speaker_artifact_id,
+            language_code=language_code,
+            max_duration_seconds=max_duration_seconds,
+            include_timeline=include_timeline,
+            synthesis_engine=synthesis_engine,
+            speaker_transcript_text=speaker_transcript_text,
+        )
+        if text_artifact_id:
+            request.text_artifact_id = text_artifact_id
+        else:
+            request.text = text
+        response = self._voice_stub.SubmitSynthesizeSpeechJob(
+            request,
+            metadata=self._metadata,
+        )
+        return SynthesisJob(
+            job_id=response.job_id,
+            state=voice_pb2.SynthesisJobState.Name(response.state),
+        )
+
+    def get_synthesis_job(self, job_id: str) -> SynthesisJob:
+        response = self._voice_stub.GetSynthesizeSpeechJob(
+            voice_pb2.GetSynthesizeSpeechJobRequest(job_id=job_id),
+            metadata=self._metadata,
+        )
+        result = None
+        if response.state == voice_pb2.SYNTHESIS_JOB_STATE_SUCCEEDED:
+            result = SynthesisResult(
+                audio_artifact_id=response.audio_artifact.artifact_id,
+                audio_duration_seconds=response.audio_duration_seconds,
+                timeline_artifact_id=response.timeline_artifact_id,
+                chunk_count=response.chunk_count,
+            )
+        return SynthesisJob(
+            job_id=response.job_id,
+            state=voice_pb2.SynthesisJobState.Name(response.state),
+            error_code=response.error_code,
+            error_message=response.error_message,
+            result=result,
+            created_at_unix_seconds=response.created_at_unix_seconds,
+            started_at_unix_seconds=response.started_at_unix_seconds,
+            finished_at_unix_seconds=response.finished_at_unix_seconds,
+            estimated_total_chunks=response.estimated_total_chunks,
+            completed_chunks=response.completed_chunks,
+        )
+
+    def wait_for_synthesis_job(
+        self,
+        job_id: str,
+        *,
+        timeout_seconds: float | None = None,
+        poll_interval_seconds: float = 1.0,
+    ) -> SynthesisJob:
+        return wait_for_job(
+            lambda: self.get_synthesis_job(job_id),
+            timeout_seconds=timeout_seconds,
+            poll_interval_seconds=poll_interval_seconds,
+        )
 
 
 class ReferenceSampleClient:

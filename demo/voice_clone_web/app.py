@@ -10,13 +10,16 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 from typing import Callable
+from urllib.parse import parse_qs, urlsplit
 
 import grpc
 
 from dictator.audio.ffmpeg_ops import audio_to_wav
-from dictator.speech.v1 import artifacts_pb2, artifacts_pb2_grpc, voice_pb2, voice_pb2_grpc
+from dictator.client.voice import SynthesisClient
+from dictator.speech.v1 import artifacts_pb2, artifacts_pb2_grpc, voice_pb2
 
 INDEX_HTML_PATH = Path(__file__).with_name("index.html")
 DEFAULT_HOST = "127.0.0.1"
@@ -87,6 +90,45 @@ class VoiceCloneResult:
     filename: str
     media_type: str
     content: bytes
+
+
+@dataclass(frozen=True)
+class VoiceCloneJob:
+    job_id: str
+    state: str
+    error_code: str = ""
+    error_message: str = ""
+    estimated_total_chunks: int = 0
+    completed_chunks: int = 0
+    audio_artifact_id: str = ""
+
+    def progress_percent(self) -> float:
+        if self.state == "SYNTHESIS_JOB_STATE_SUCCEEDED":
+            return 1.0
+        if self.state == "SYNTHESIS_JOB_STATE_QUEUED":
+            return 0.0
+        total_chunks = max(self.estimated_total_chunks, 0)
+        if self.state != "SYNTHESIS_JOB_STATE_RUNNING":
+            return 0.0
+        if total_chunks <= 0:
+            return 0.1
+        completed_chunks = max(0, min(self.completed_chunks, total_chunks))
+        if completed_chunks >= total_chunks:
+            return 0.9
+        estimated_progress = 0.1 + (((completed_chunks + 0.5) / total_chunks) * 0.75)
+        return min(0.85, max(0.1, estimated_progress))
+
+    def to_json_dict(self) -> dict[str, object]:
+        return {
+            "jobId": self.job_id,
+            "state": self.state,
+            "errorCode": self.error_code,
+            "errorMessage": self.error_message,
+            "estimatedTotalChunks": self.estimated_total_chunks,
+            "completedChunks": self.completed_chunks,
+            "progressPercent": self.progress_percent(),
+            "audioReady": bool(self.audio_artifact_id),
+        }
 
 
 @dataclass(frozen=True)
@@ -241,7 +283,7 @@ def synthesize_selected_reading(
     channel = channel_factory(target)
     try:
         artifact_stub = artifacts_pb2_grpc.ArtifactServiceStub(channel)
-        voice_stub = voice_pb2_grpc.VoiceServiceStub(channel)
+        synthesis_client = SynthesisClient(channel, metadata=metadata)
         source_artifact_id = upload_artifact(
             artifact_stub,
             filename=speaker_filename,
@@ -256,13 +298,120 @@ def synthesize_selected_reading(
             "synthesis_engine": voice_pb2.SYNTHESIS_ENGINE_QWEN3,
             "speaker_transcript_text": VOICE_SAMPLE_TEXT,
         }
-        synthesis_response = voice_stub.SynthesizeSpeech(
-            voice_pb2.SynthesizeSpeechRequest(**synthesis_request_kwargs),
-            metadata=metadata,
-        )
+        synthesis_result = synthesis_client.synthesize(**synthesis_request_kwargs)
         result = download_artifact(
             artifact_stub,
-            artifact_id=synthesis_response.audio_artifact.artifact_id,
+            artifact_id=synthesis_result.audio_artifact_id,
+            metadata=metadata,
+        )
+        return VoiceCloneResult(
+            filename=render_preset.filename,
+            media_type=result.media_type,
+            content=result.content,
+        )
+    finally:
+        channel.close()
+
+
+def submit_selected_reading_job(
+    *,
+    dictator_url: str,
+    auth_token: str,
+    audio_payload: bytes,
+    audio_filename: str,
+    audio_media_type: str,
+    render_preset_id: str = DEFAULT_RENDER_PRESET_ID,
+    language_code: str = DEFAULT_LANGUAGE_CODE,
+    channel_factory: Callable[[str], grpc.Channel] = create_channel,
+) -> VoiceCloneJob:
+    if not audio_payload:
+        raise ExampleRequestError("A recorded voice sample is required.")
+    render_preset = resolve_render_preset(render_preset_id)
+    target = parse_grpc_target(dictator_url)
+    metadata = build_auth_metadata(auth_token)
+    speaker_payload, speaker_filename, speaker_media_type = normalise_recorded_audio(
+        audio_payload,
+        audio_filename,
+        audio_media_type,
+    )
+    channel = channel_factory(target)
+    try:
+        artifact_stub = artifacts_pb2_grpc.ArtifactServiceStub(channel)
+        synthesis_client = SynthesisClient(channel, metadata=metadata)
+        source_artifact_id = upload_artifact(
+            artifact_stub,
+            filename=speaker_filename,
+            media_type=speaker_media_type,
+            payload=speaker_payload,
+            metadata=metadata,
+        )
+        submitted = synthesis_client.submit_synthesize_job(
+            speaker_artifact_id=source_artifact_id,
+            text=render_preset.text,
+            language_code=language_code,
+            synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_QWEN3,
+            speaker_transcript_text=VOICE_SAMPLE_TEXT,
+        )
+        return VoiceCloneJob(
+            job_id=submitted.job_id,
+            state=submitted.state,
+            estimated_total_chunks=submitted.estimated_total_chunks,
+            completed_chunks=submitted.completed_chunks,
+        )
+    finally:
+        channel.close()
+
+
+def get_selected_reading_job(
+    *,
+    dictator_url: str,
+    auth_token: str,
+    job_id: str,
+    channel_factory: Callable[[str], grpc.Channel] = create_channel,
+) -> VoiceCloneJob:
+    target = parse_grpc_target(dictator_url)
+    metadata = build_auth_metadata(auth_token)
+    channel = channel_factory(target)
+    try:
+        synthesis_client = SynthesisClient(channel, metadata=metadata)
+        job = synthesis_client.get_synthesis_job(job_id)
+        return VoiceCloneJob(
+            job_id=job.job_id,
+            state=job.state,
+            error_code=job.error_code,
+            error_message=job.error_message,
+            estimated_total_chunks=job.estimated_total_chunks,
+            completed_chunks=job.completed_chunks,
+            audio_artifact_id=job.result.audio_artifact_id if job.result is not None else "",
+        )
+    finally:
+        channel.close()
+
+
+def download_selected_reading_job_audio(
+    *,
+    dictator_url: str,
+    auth_token: str,
+    job_id: str,
+    render_preset_id: str = DEFAULT_RENDER_PRESET_ID,
+    channel_factory: Callable[[str], grpc.Channel] = create_channel,
+) -> VoiceCloneResult:
+    render_preset = resolve_render_preset(render_preset_id)
+    target = parse_grpc_target(dictator_url)
+    metadata = build_auth_metadata(auth_token)
+    channel = channel_factory(target)
+    try:
+        artifact_stub = artifacts_pb2_grpc.ArtifactServiceStub(channel)
+        synthesis_client = SynthesisClient(channel, metadata=metadata)
+        job = synthesis_client.get_synthesis_job(job_id)
+        if job.state == "SYNTHESIS_JOB_STATE_FAILED":
+            detail = job.error_message or job.error_code or "voice generation failed"
+            raise ExampleRequestError(detail)
+        if job.result is None or not job.result.audio_artifact_id:
+            raise ExampleRequestError("Voice generation is not ready yet.")
+        result = download_artifact(
+            artifact_stub,
+            artifact_id=job.result.audio_artifact_id,
             metadata=metadata,
         )
         return VoiceCloneResult(
@@ -333,6 +482,9 @@ def build_handler(
     *,
     index_html: str | None = None,
     synthesizer: Callable[..., VoiceCloneResult] = synthesize_selected_reading,
+    job_submitter: Callable[..., VoiceCloneJob] = submit_selected_reading_job,
+    job_getter: Callable[..., VoiceCloneJob] = get_selected_reading_job,
+    job_audio_downloader: Callable[..., VoiceCloneResult] = download_selected_reading_job_audio,
     default_dictator_url: str | None = None,
     default_auth_token: str | None = None,
 ):
@@ -345,7 +497,7 @@ def build_handler(
     ).strip() or None
 
     class VoiceCloneDemoHandler(BaseHTTPRequestHandler):
-        def _send_json(self, status: HTTPStatus, payload: dict[str, str]) -> None:
+        def _send_json(self, status: HTTPStatus, payload: dict[str, object]) -> None:
             body = json.dumps(payload).encode("utf-8")
             self.send_response(status)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -362,18 +514,71 @@ def build_handler(
             self.wfile.write(body)
 
         def do_GET(self) -> None:  # noqa: N802
-            if self.path != "/":
-                self.send_error(HTTPStatus.NOT_FOUND)
+            parsed_path = urlsplit(self.path)
+            if parsed_path.path == "/":
+                body = html.encode("utf-8")
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
                 return
-            body = html.encode("utf-8")
-            self.send_response(HTTPStatus.OK)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+
+            job_match = re.fullmatch(r"/api/clone-jobs/([0-9a-fA-F]+)", parsed_path.path)
+            if job_match is not None:
+                try:
+                    dictator_url = resolve_bridge_target(configured_default_dictator_url)
+                    auth_token = resolve_bridge_auth_token(configured_auth_token)
+                    job = job_getter(
+                        dictator_url=dictator_url,
+                        auth_token=auth_token,
+                        job_id=job_match.group(1),
+                    )
+                except ExampleRequestError as exc:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+                    return
+                except grpc.RpcError as exc:
+                    self._send_json(
+                        HTTPStatus.BAD_GATEWAY,
+                        {"error": f"Dictator request failed with {exc.code().name}: {exc.details()}"},
+                    )
+                    return
+                self._send_json(HTTPStatus.OK, job.to_json_dict())
+                return
+
+            audio_match = re.fullmatch(r"/api/clone-jobs/([0-9a-fA-F]+)/audio", parsed_path.path)
+            if audio_match is not None:
+                query = parse_qs(parsed_path.query, keep_blank_values=False)
+                try:
+                    dictator_url = resolve_bridge_target(configured_default_dictator_url)
+                    auth_token = resolve_bridge_auth_token(configured_auth_token)
+                    result = job_audio_downloader(
+                        dictator_url=dictator_url,
+                        auth_token=auth_token,
+                        job_id=audio_match.group(1),
+                        render_preset_id=query.get("renderPreset", [DEFAULT_RENDER_PRESET_ID])[0],
+                    )
+                except ExampleRequestError as exc:
+                    self._send_json(HTTPStatus.CONFLICT, {"error": str(exc)})
+                    return
+                except grpc.RpcError as exc:
+                    self._send_json(
+                        HTTPStatus.BAD_GATEWAY,
+                        {"error": f"Dictator request failed with {exc.code().name}: {exc.details()}"},
+                    )
+                    return
+                self._send_bytes(
+                    HTTPStatus.OK,
+                    body=result.content,
+                    media_type=result.media_type,
+                    filename=result.filename,
+                )
+                return
+
+            self.send_error(HTTPStatus.NOT_FOUND)
 
         def do_POST(self) -> None:  # noqa: N802
-            if self.path != "/api/clone":
+            if self.path not in {"/api/clone", "/api/clone-jobs"}:
                 self.send_error(HTTPStatus.NOT_FOUND)
                 return
             if self.headers.get("Content-Type", "").split(";", 1)[0].strip() != "application/json":
@@ -385,16 +590,20 @@ def build_handler(
                 payload = decode_request_payload(request_payload)
                 dictator_url = resolve_bridge_target(configured_default_dictator_url)
                 auth_token = resolve_bridge_auth_token(configured_auth_token)
-                result = synthesizer(
-                    dictator_url=dictator_url,
-                    auth_token=auth_token,
-                    audio_payload=decode_audio_base64(str(payload.get("audioBase64", ""))),
-                    audio_filename=str(payload.get("audioFilename", "voice-sample.webm")),
-                    audio_media_type=str(payload.get("audioMediaType", "audio/webm")),
-                    render_preset_id=str(payload.get("renderPreset", DEFAULT_RENDER_PRESET_ID)),
-                    language_code=str(payload.get("languageCode", DEFAULT_LANGUAGE_CODE))
+                request_kwargs = {
+                    "dictator_url": dictator_url,
+                    "auth_token": auth_token,
+                    "audio_payload": decode_audio_base64(str(payload.get("audioBase64", ""))),
+                    "audio_filename": str(payload.get("audioFilename", "voice-sample.webm")),
+                    "audio_media_type": str(payload.get("audioMediaType", "audio/webm")),
+                    "render_preset_id": str(payload.get("renderPreset", DEFAULT_RENDER_PRESET_ID)),
+                    "language_code": str(payload.get("languageCode", DEFAULT_LANGUAGE_CODE))
                     or DEFAULT_LANGUAGE_CODE,
-                )
+                }
+                if self.path == "/api/clone":
+                    result = synthesizer(**request_kwargs)
+                else:
+                    job = job_submitter(**request_kwargs)
             except ExampleRequestError as exc:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
                 return
@@ -406,12 +615,15 @@ def build_handler(
                     },
                 )
                 return
-            self._send_bytes(
-                HTTPStatus.OK,
-                body=result.content,
-                media_type=result.media_type,
-                filename=result.filename,
-            )
+            if self.path == "/api/clone":
+                self._send_bytes(
+                    HTTPStatus.OK,
+                    body=result.content,
+                    media_type=result.media_type,
+                    filename=result.filename,
+                )
+                return
+            self._send_json(HTTPStatus.ACCEPTED, job.to_json_dict())
 
         def log_message(self, format: str, *args) -> None:  # noqa: A003
             return

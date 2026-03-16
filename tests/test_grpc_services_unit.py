@@ -150,7 +150,7 @@ class FakeSynthesisService:
         self.calls.append(kwargs)
         return self.result
 
-    def synthesise_text(self, request):
+    def synthesise_text(self, request, *, progress_callback=None):
         self.calls.append(request)
         return self.result
 

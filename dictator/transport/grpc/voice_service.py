@@ -68,6 +68,8 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
             created_at_unix_seconds=record.created_at_unix_seconds,
             started_at_unix_seconds=record.started_at_unix_seconds or 0.0,
             finished_at_unix_seconds=record.finished_at_unix_seconds or 0.0,
+            estimated_total_chunks=record.estimated_total_chunks or 0,
+            completed_chunks=record.completed_chunks or 0,
         )
         if record.audio_artifact_id:
             response.audio_artifact.CopyFrom(

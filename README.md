@@ -58,13 +58,13 @@ python main.py \
        --length 3m
 ```
 
-### CPU-only?
+### GPU requirement
 
-Both scripts fall back to `"cpu"` if CUDA is missing. `main.py` on CPU will be **slow** – consider shorter texts.
+An NVIDIA GPU is required for supported Dictator operation. CPU deployment is not supported.
 
 ## Service Container
 
-The repo now includes a containerized gRPC service runtime with the required system packages:
+The repo includes a GPU-only containerized gRPC service runtime with the required system packages:
 
 * Python 3.11.8
 * FFmpeg
@@ -72,12 +72,6 @@ The repo now includes a containerized gRPC service runtime with the required sys
 * `espeak-ng`
 * build tooling for Python wheels
 * Python packages from `requirements.txt`
-### Build
-
-```bash
-docker build -t dictator:local .
-```
-
 ### Build GPU Image
 
 ```bash
@@ -113,7 +107,7 @@ The publish script:
 * verifies the checked-out tag resolves to a commit contained in `origin/master`
 * runs `make ci` before publishing
 * reuses a persistent local Buildx cache in `.buildx-cache-gpu`
-* derives the default GHCR image as `ghcr.io/<owner>/<repo>-gpu`
+* derives the default GHCR image as `ghcr.io/<owner>/<repo>`
 
 For a stable release tag like `v1.2.3`, it publishes:
 
@@ -142,20 +136,10 @@ docker compose up --build
 
 The application itself does not read env files. It only reads process environment. `docker-compose.yml` uses Docker Compose interpolation, so `DICTATOR_GRPC_AUTH_TOKEN` can come from `.env` or your shell environment. Keep `HF_TOKEN=${HF_TOKEN}` in `.env` so the key exists there, but the actual Hugging Face token still comes from your shell environment. Compose fails fast if that exported `HF_TOKEN` is missing.
 
-### Run with Compose on CUDA
-
 This requires a host GPU plus the NVIDIA Container Toolkit so Docker can pass the device through.
 
 ```bash
-docker compose --profile gpu-local up --build dictator-gpu
-```
-
-### Run the Published GPU Image from GHCR
-
-If you want local orchestration to always pull the released container instead of building from the checkout, use:
-
-```bash
-docker compose --profile ghcr-gpu up dictator-ghcr
+docker compose up --build dictator
 ```
 
 Or with the convenience wrappers:
@@ -165,17 +149,25 @@ Or with the convenience wrappers:
 ./scripts/down.sh
 ```
 
-The GHCR GPU service profile uses `pull_policy: always` and defaults to:
+### Run the Published Dictator Image from GHCR
+
+If you want to smoke-test the published GPU image instead of building from the checkout, use:
+
+```bash
+docker compose --profile ghcr-gpu up dictator-image
+```
+
+The published Dictator image currently lives at:
 
 ```text
-ghcr.io/tyemirov/dictator-gpu:latest
+ghcr.io/tyemirov/dictator:latest
 ```
 
 To pin a specific release tag instead of `latest`, override `DICTATOR_IMAGE`:
 
 ```bash
-DICTATOR_IMAGE=ghcr.io/tyemirov/dictator-gpu:1.2.3 \
-docker compose --profile ghcr-gpu up dictator-ghcr
+DICTATOR_IMAGE=ghcr.io/tyemirov/dictator:1.2.3 \
+docker compose --profile ghcr-gpu up dictator-image
 ```
 
 The container starts the gRPC server with:
@@ -212,15 +204,15 @@ The compose setup mounts persistent caches for Hugging Face, Whisper, and Torch 
 
 ### Notes
 
-* The provided image is CPU-oriented. It includes the service prerequisites and will start the server, but heavy transcription/alignment/TTS workloads will be slow without GPU acceleration.
-* The container installs CPU `torch` / `torchaudio` wheels explicitly so it does not pull CUDA runtimes into a CPU deployment.
+* GPU is required. Supported deployment assumes an NVIDIA GPU and the NVIDIA Container Toolkit.
 * `HF_TOKEN` is required in the container environment and should be exported in your shell before starting Dictator.
 * Both `Dockerfile` and `Dockerfile.gpu` use multi-stage builds so compilers and other build-only packages stay out of the final runtime image.
-* `Dockerfile.gpu` installs the CUDA 12.8 Torch wheel set and is intended to run with the `gpu-local` profile in `docker-compose.yml`.
+* `Dockerfile.gpu` installs the CUDA 12.8 Torch wheel set and is the supported runtime image.
 * `Dockerfile.gpu` now prefetches the default Qwen voice-cloning model, `Qwen/Qwen3-TTS-12Hz-1.7B-Base`, into `/opt/models` during the image build, so the Qwen3 engine does not need to download weights on first container startup.
 * That `1.7B` default is the quality-first choice for voice cloning, not the smallest one. Expect a larger GPU image and a slower bake/prefetch step than with the lighter `0.6B` model.
 * `Dockerfile.gpu` also installs the official `flash-attn` wheel for Torch 2.8 / CUDA 12 and the `sox` binary so the baked Qwen3 runtime has its intended acceleration and toolchain available at startup.
-* The GPU container still uses Python 3.11.8. The host provides the actual NVIDIA device through Docker; without that runtime integration, the image will build but CUDA execution will not be available.
+* The published container package is `ghcr.io/tyemirov/dictator`.
+* The GPU container still uses Python 3.11.8. The host provides the actual NVIDIA device through Docker; without that runtime integration, Dictator will not function correctly.
 
 ## Browser Voice Clone Demo
 
@@ -262,7 +254,7 @@ Or use the wrapper:
 
 The wrapper is the easier path for the demo-only stack. It still supplies a harmless placeholder `HF_TOKEN` when you are only starting `voice-clone-web` + `voice-clone-bridge`, but the bridge now requires a real `DICTATOR_GRPC_AUTH_TOKEN` because it authenticates to Dictator on the browser's behalf.
 It also falls back to the repo-root `.env` for `TLS_CERT_HOST_PATH` and `TLS_KEY_HOST_PATH`, so once those are set there you can run `./scripts/voice-clone-demo.sh` directly.
-The bridge always connects to the internal Docker alias `dictator-grpc:50051`. The Dictator service profiles expose that shared alias, so the demo talks to one stable hostname whether you run `dictator`, `dictator-gpu`, or `dictator-ghcr`.
+The bridge always connects to the internal Docker alias `dictator-grpc:50051`. The Dictator service profiles expose that shared alias, so the demo talks to one stable hostname whether you run `dictator` or `dictator-image`.
 That means the demo-only wrapper expects a Dictator container to already be running in the same Compose project and network. If you want the wrapper to start Dictator too, use `--with-dictator`.
 
 Stop it with:
@@ -278,7 +270,7 @@ If Dictator is also running through the GHCR GPU stack on the same machine, you 
 ```bash
 TLS_CERT_HOST_PATH=/path/to/computercat-cert.pem \
 TLS_KEY_HOST_PATH=/path/to/computercat-key.pem \
-docker compose --profile ghcr-gpu --profile voice-clone-demo up -d dictator-ghcr voice-clone-web voice-clone-bridge
+docker compose --profile ghcr-gpu --profile voice-clone-demo up -d dictator-image voice-clone-web voice-clone-bridge
 ```
 
 With the wrapper:

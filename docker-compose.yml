@@ -34,20 +34,6 @@ services:
   dictator:
     build:
       context: .
-      dockerfile: Dockerfile
-    image: dictator:local
-    restart: unless-stopped
-    environment: *dictator-environment
-    ports:
-      - "50051:50051"
-    volumes: *dictator-volumes
-    networks: *dictator-networks
-    command: *dictator-command
-
-  dictator-gpu:
-    profiles: ["gpu-local"]
-    build:
-      context: .
       dockerfile: Dockerfile.gpu
       args:
         TORCH_VERSION: "2.8.0"
@@ -57,20 +43,20 @@ services:
     restart: unless-stopped
     environment: *gpu-environment
     ports:
-      - "50051:50051"
+      - "${DICTATOR_BIND_HOST:-0.0.0.0}:${DICTATOR_HOST_PORT:-50051}:50051"
     volumes: *dictator-volumes
     networks: *dictator-networks
     command: *dictator-command
     <<: *gpu-runtime
 
-  dictator-ghcr:
+  dictator-image:
     profiles: ["ghcr-gpu"]
-    image: ${DICTATOR_IMAGE:-ghcr.io/tyemirov/dictator-gpu:latest}
+    image: ${DICTATOR_IMAGE:-ghcr.io/tyemirov/dictator:latest}
     pull_policy: always
     restart: unless-stopped
     environment: *gpu-environment
     ports:
-      - "50051:50051"
+      - "${DICTATOR_BIND_HOST:-0.0.0.0}:${DICTATOR_HOST_PORT:-50051}:50051"
     volumes: *dictator-volumes
     networks: *dictator-networks
     command: *dictator-command
@@ -78,7 +64,7 @@ services:
 
   voice-clone-bridge:
     profiles: ["voice-clone-demo"]
-    image: ${DICTATOR_IMAGE:-ghcr.io/tyemirov/dictator-gpu:latest}
+    image: ${VOICE_CLONE_BRIDGE_IMAGE:-ghcr.io/tyemirov/dictator:latest}
     pull_policy: always
     restart: unless-stopped
     environment:
