@@ -55,29 +55,83 @@ AUTH_TOKEN_ENV = "DICTATOR_GRPC_AUTH_TOKEN"
 DEFAULT_CONFIG_PATH = Path("config.yml")
 
 _ENV_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
-_FIELD_NAMES = {
-    "host",
-    "port",
-    "max_workers",
-    "max_message_bytes",
-    "max_inflight",
-    "synthesis_job_workers",
-    "max_pending_synthesis_jobs",
-    "alignment_job_workers",
-    "max_pending_alignment_jobs",
-    "transcription_job_workers",
-    "max_pending_transcription_jobs",
-    "diarization_job_workers",
-    "max_pending_diarization_jobs",
-    "subtitle_job_workers",
-    "max_pending_subtitle_jobs",
-    "reference_extraction_job_workers",
-    "max_pending_reference_extraction_jobs",
-    "job_wait_timeout_seconds",
-    "job_poll_interval_seconds",
-    "download_chunk_bytes",
-    "artifact_root",
-    "auth_token",
+_CONFIG_SCHEMA = {
+    "server": {
+        "listen": {
+            "host": None,
+            "port": None,
+        },
+        "grpc": {
+            "max_message_bytes": None,
+            "auth_token": None,
+        },
+    },
+    "execution": {
+        "concurrency": {
+            "workers": None,
+            "inflight": None,
+        },
+        "jobs": {
+            "wait_timeout_seconds": None,
+            "poll_interval_seconds": None,
+            "synthesis": {
+                "workers": None,
+                "max_pending": None,
+            },
+            "alignment": {
+                "workers": None,
+                "max_pending": None,
+            },
+            "transcription": {
+                "workers": None,
+                "max_pending": None,
+            },
+            "diarization": {
+                "workers": None,
+                "max_pending": None,
+            },
+            "subtitle": {
+                "workers": None,
+                "max_pending": None,
+            },
+            "reference_extraction": {
+                "workers": None,
+                "max_pending": None,
+            },
+        },
+    },
+    "downloads": {
+        "chunk_bytes": None,
+    },
+    "storage": {
+        "artifacts": {
+            "root": None,
+        },
+    },
+}
+_FIELD_PATHS = {
+    ("server", "listen", "host"): "host",
+    ("server", "listen", "port"): "port",
+    ("server", "grpc", "max_message_bytes"): "max_message_bytes",
+    ("server", "grpc", "auth_token"): "auth_token",
+    ("execution", "concurrency", "workers"): "max_workers",
+    ("execution", "concurrency", "inflight"): "max_inflight",
+    ("execution", "jobs", "wait_timeout_seconds"): "job_wait_timeout_seconds",
+    ("execution", "jobs", "poll_interval_seconds"): "job_poll_interval_seconds",
+    ("execution", "jobs", "synthesis", "workers"): "synthesis_job_workers",
+    ("execution", "jobs", "synthesis", "max_pending"): "max_pending_synthesis_jobs",
+    ("execution", "jobs", "alignment", "workers"): "alignment_job_workers",
+    ("execution", "jobs", "alignment", "max_pending"): "max_pending_alignment_jobs",
+    ("execution", "jobs", "transcription", "workers"): "transcription_job_workers",
+    ("execution", "jobs", "transcription", "max_pending"): "max_pending_transcription_jobs",
+    ("execution", "jobs", "diarization", "workers"): "diarization_job_workers",
+    ("execution", "jobs", "diarization", "max_pending"): "max_pending_diarization_jobs",
+    ("execution", "jobs", "subtitle", "workers"): "subtitle_job_workers",
+    ("execution", "jobs", "subtitle", "max_pending"): "max_pending_subtitle_jobs",
+    ("execution", "jobs", "reference_extraction", "workers"): "reference_extraction_job_workers",
+    ("execution", "jobs", "reference_extraction", "max_pending"): "max_pending_reference_extraction_jobs",
+    ("downloads", "chunk_bytes"): "download_chunk_bytes",
+    ("storage", "artifacts", "root"): "artifact_root",
 }
 
 
@@ -129,6 +183,39 @@ def _resolve_env_placeholders(value: object, env: Mapping[str, str]) -> object:
     return _ENV_VAR_PATTERN.sub(replace, value)
 
 
+def _path_label(path: tuple[str, ...]) -> str:
+    return ".".join(path)
+
+
+def _validate_config_mapping(
+    mapping: dict[str, object],
+    *,
+    schema: dict[str, object],
+    path: tuple[str, ...] = (),
+) -> None:
+    for key, value in mapping.items():
+        if key not in schema:
+            raise ValueError(f"unknown config key {_path_label(path + (key,))}")
+        child_schema = schema[key]
+        child_path = path + (key,)
+        if child_schema is None:
+            if isinstance(value, dict):
+                raise ValueError(f"config key {_path_label(child_path)} must be a scalar")
+            continue
+        if not isinstance(value, dict):
+            raise ValueError(f"config key {_path_label(child_path)} must be a mapping")
+        _validate_config_mapping(value, schema=child_schema, path=child_path)
+
+
+def _lookup_mapping_value(mapping: dict[str, object], path: tuple[str, ...]) -> tuple[object, bool]:
+    current: object = mapping
+    for key in path:
+        if not isinstance(current, dict) or key not in current:
+            return None, False
+        current = current[key]
+    return current, True
+
+
 def _load_config_mapping(config_file: Path | None, env: Mapping[str, str]) -> dict[str, object]:
     if config_file is None or not config_file.exists():
         return {}
@@ -160,12 +247,17 @@ def _load_config_mapping(config_file: Path | None, env: Mapping[str, str]) -> di
             continue
         current[key] = _resolve_env_placeholders(_parse_scalar(raw_value), env)
 
-    grpc_section = root.get("grpc")
-    if isinstance(grpc_section, dict):
-        mapping = grpc_section
-    else:
-        mapping = root
-    return {key: value for key, value in mapping.items() if key in _FIELD_NAMES}
+    if not root:
+        return {}
+
+    _validate_config_mapping(root, schema=_CONFIG_SCHEMA)
+
+    flattened: dict[str, object] = {}
+    for path, field_name in _FIELD_PATHS.items():
+        value, found = _lookup_mapping_value(root, path)
+        if found:
+            flattened[field_name] = value
+    return flattened
 
 
 @dataclass(frozen=True)

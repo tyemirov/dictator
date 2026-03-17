@@ -40,17 +40,26 @@ class ServerConfigTests(unittest.TestCase):
             config_file.write_text(
                 "\n".join(
                     [
-                        "grpc:",
-                        "  host: 127.0.0.1",
-                        "  port: 55001",
-                        "  max_workers: 8",
-                        "  max_message_bytes: 1234",
-                        "  max_inflight: 6",
-                        "  synthesis_job_workers: 2",
-                        "  max_pending_synthesis_jobs: 16",
-                        "  download_chunk_bytes: 2048",
-                        "  artifact_root: ~/dictator-artifacts",
-                        "  auth_token: ${DICTATOR_GRPC_AUTH_TOKEN}",
+                        "server:",
+                        "  listen:",
+                        "    host: 127.0.0.1",
+                        "    port: 55001",
+                        "  grpc:",
+                        "    max_message_bytes: 1234",
+                        "    auth_token: ${DICTATOR_GRPC_AUTH_TOKEN}",
+                        "execution:",
+                        "  concurrency:",
+                        "    workers: 8",
+                        "    inflight: 6",
+                        "  jobs:",
+                        "    synthesis:",
+                        "      workers: 2",
+                        "      max_pending: 16",
+                        "downloads:",
+                        "  chunk_bytes: 2048",
+                        "storage:",
+                        "  artifacts:",
+                        "    root: ~/dictator-artifacts",
                     ]
                 ),
                 encoding="utf-8",
@@ -92,8 +101,9 @@ class ServerConfigTests(unittest.TestCase):
             config_file.write_text(
                 "\n".join(
                     [
-                        "grpc:",
-                        "  auth_token: ${DICTATOR_GRPC_AUTH_TOKEN}",
+                        "server:",
+                        "  grpc:",
+                        "    auth_token: ${DICTATOR_GRPC_AUTH_TOKEN}",
                     ]
                 ),
                 encoding="utf-8",
@@ -112,8 +122,9 @@ class ServerConfigTests(unittest.TestCase):
             config_file.write_text(
                 "\n".join(
                     [
-                        "grpc:",
-                        "  auth_token: ${DICTATOR_GRPC_AUTH_TOKEN}",
+                        "server:",
+                        "  grpc:",
+                        "    auth_token: ${DICTATOR_GRPC_AUTH_TOKEN}",
                     ]
                 ),
                 encoding="utf-8",

@@ -14,9 +14,11 @@ class ServeCliTests(unittest.TestCase):
             config_file.write_text(
                 "\n".join(
                     [
-                        "grpc:",
-                        "  host: 127.0.0.1",
-                        "  auth_token: ${DICTATOR_GRPC_AUTH_TOKEN}",
+                        "server:",
+                        "  listen:",
+                        "    host: 127.0.0.1",
+                        "  grpc:",
+                        "    auth_token: ${DICTATOR_GRPC_AUTH_TOKEN}",
                     ]
                 ),
                 encoding="utf-8",

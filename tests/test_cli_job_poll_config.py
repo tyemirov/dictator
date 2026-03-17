@@ -18,11 +18,14 @@ class CliJobPollConfigTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             config_file = Path(tmpdir) / "config.yml"
             config_file.write_text(
-                "grpc:\n"
-                "  host: 127.0.0.1\n"
-                "  port: 5000\n"
-                "  job_wait_timeout_seconds: 12.5\n"
-                "  job_poll_interval_seconds: 0.25\n",
+                "server:\n"
+                "  listen:\n"
+                "    host: 127.0.0.1\n"
+                "    port: 5000\n"
+                "execution:\n"
+                "  jobs:\n"
+                "    wait_timeout_seconds: 12.5\n"
+                "    poll_interval_seconds: 0.25\n",
                 encoding="utf-8",
             )
             config = ServerConfig.from_sources(config_file=config_file, env={})

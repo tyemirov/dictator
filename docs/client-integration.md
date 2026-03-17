@@ -470,8 +470,8 @@ The following CLIs now use the client layer:
 
 Their wait behavior is driven by `config.yml`:
 
-- `grpc.job_wait_timeout_seconds`
-- `grpc.job_poll_interval_seconds`
+- `execution.jobs.wait_timeout_seconds`
+- `execution.jobs.poll_interval_seconds`
 
 This keeps timeout and poll policy in service configuration rather than as per-invocation CLI flags.
 
