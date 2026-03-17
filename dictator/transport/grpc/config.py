@@ -58,54 +58,54 @@ _ENV_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _CONFIG_SCHEMA = {
     "server": {
         "listen": {
-            "host": None,
-            "port": None,
+            "host": str,
+            "port": int,
         },
         "grpc": {
-            "max_message_bytes": None,
-            "auth_token": None,
+            "max_message_bytes": int,
+            "auth_token": str,
         },
     },
     "execution": {
         "concurrency": {
-            "workers": None,
-            "inflight": None,
+            "workers": int,
+            "inflight": int,
         },
         "jobs": {
-            "wait_timeout_seconds": None,
-            "poll_interval_seconds": None,
+            "wait_timeout_seconds": (int, float),
+            "poll_interval_seconds": (int, float),
             "synthesis": {
-                "workers": None,
-                "max_pending": None,
+                "workers": int,
+                "max_pending": int,
             },
             "alignment": {
-                "workers": None,
-                "max_pending": None,
+                "workers": int,
+                "max_pending": int,
             },
             "transcription": {
-                "workers": None,
-                "max_pending": None,
+                "workers": int,
+                "max_pending": int,
             },
             "diarization": {
-                "workers": None,
-                "max_pending": None,
+                "workers": int,
+                "max_pending": int,
             },
             "subtitle": {
-                "workers": None,
-                "max_pending": None,
+                "workers": int,
+                "max_pending": int,
             },
             "reference_extraction": {
-                "workers": None,
-                "max_pending": None,
+                "workers": int,
+                "max_pending": int,
             },
         },
     },
     "downloads": {
-        "chunk_bytes": None,
+        "chunk_bytes": int,
     },
     "storage": {
         "artifacts": {
-            "root": None,
+            "root": str,
         },
     },
 }
@@ -170,17 +170,41 @@ def _parse_scalar(value: str) -> object:
         return stripped
 
 
-def _resolve_env_placeholders(value: object, env: Mapping[str, str]) -> object:
+def _resolve_env_placeholders(
+    value: object,
+    env: Mapping[str, str],
+    *,
+    context: str | None = None,
+) -> object:
     if not isinstance(value, str):
         return value
 
     def replace(match: re.Match[str]) -> str:
         env_name = match.group(1)
         if env_name not in env or env[env_name] == "":
-            raise ValueError(f"missing required env var {env_name}")
+            msg = f"missing required env var {env_name}"
+            if context:
+                msg = f"{msg} at {context}"
+            raise ValueError(msg)
         return env[env_name]
 
     return _ENV_VAR_PATTERN.sub(replace, value)
+
+
+def _strip_inline_comment(raw_value: str) -> str:
+    """Strip trailing '#' comments from a value string, respecting quotes."""
+    if not raw_value:
+        return ""
+    quote_char: str | None = None
+    for i, char in enumerate(raw_value):
+        if char in {"'", '"'}:
+            if quote_char is None:
+                quote_char = char
+            elif quote_char == char:
+                quote_char = None
+        elif char == "#" and quote_char is None:
+            return raw_value[:i].rstrip()
+    return raw_value.rstrip()
 
 
 def _path_label(path: tuple[str, ...]) -> str:
@@ -198,13 +222,42 @@ def _validate_config_mapping(
             raise ValueError(f"unknown config key {_path_label(path + (key,))}")
         child_schema = schema[key]
         child_path = path + (key,)
-        if child_schema is None:
-            if isinstance(value, dict):
-                raise ValueError(f"config key {_path_label(child_path)} must be a scalar")
+        if isinstance(child_schema, dict):
+            if not isinstance(value, dict):
+                raise ValueError(f"config key {_path_label(child_path)} must be a mapping")
+            _validate_config_mapping(value, schema=child_schema, path=child_path)
             continue
-        if not isinstance(value, dict):
-            raise ValueError(f"config key {_path_label(child_path)} must be a mapping")
-        _validate_config_mapping(value, schema=child_schema, path=child_path)
+        if isinstance(value, dict):
+            raise ValueError(f"config key {_path_label(child_path)} must be a scalar")
+        if child_schema is not None:
+            if not isinstance(value, child_schema):
+                expected = (
+                    child_schema.__name__
+                    if isinstance(child_schema, type)
+                    else " or ".join(t.__name__ for t in child_schema)
+                )
+                raise ValueError(
+                    f"config key {_path_label(child_path)} must be {expected}, "
+                    f"got {type(value).__name__}"
+                )
+            # Stricter check for bool vs int/float
+            if (
+                not isinstance(child_schema, tuple)
+                and child_schema in (int, float)
+                and isinstance(value, bool)
+            ):
+                raise ValueError(
+                    f"config key {_path_label(child_path)} must be {child_schema.__name__}, "
+                    f"got bool"
+                )
+            if (
+                isinstance(child_schema, tuple)
+                and (int in child_schema or float in child_schema)
+                and bool not in child_schema
+                and isinstance(value, bool)
+            ):
+                expected = " or ".join(t.__name__ for t in child_schema)
+                raise ValueError(f"config key {_path_label(child_path)} must be {expected}, got bool")
 
 
 def _lookup_mapping_value(mapping: dict[str, object], path: tuple[str, ...]) -> tuple[object, bool]:
@@ -245,7 +298,12 @@ def _load_config_mapping(config_file: Path | None, env: Mapping[str, str]) -> di
             current[key] = child
             stack.append((indent, child))
             continue
-        current[key] = _resolve_env_placeholders(_parse_scalar(raw_value), env)
+        value = _parse_scalar(_strip_inline_comment(raw_value))
+        current[key] = _resolve_env_placeholders(
+            value,
+            env,
+            context=f"{config_file}:{line_number}",
+        )
 
     if not root:
         return {}
