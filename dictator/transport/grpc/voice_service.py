@@ -170,7 +170,7 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
             )
 
     def GetExtractReferenceSampleJob(self, request, context):
-        with self._request_scope(context):
+        with self._request_scope(context, is_inquiry=True):
             if self.service_context.reference_extraction_job_manager is None:
                 raise ValidationError(
                     "dictator.grpc.voice.reference_jobs_unavailable",
@@ -222,7 +222,7 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
             )
 
     def GetSynthesizeSpeechJob(self, request, context):
-        with self._request_scope(context):
+        with self._request_scope(context, is_inquiry=True):
             if self.service_context.synthesis_job_manager is None:
                 raise ValidationError(
                     "dictator.grpc.voice.jobs_unavailable",

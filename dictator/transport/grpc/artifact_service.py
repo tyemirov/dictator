@@ -53,7 +53,7 @@ class ArtifactServiceServicer(BaseServicer, artifacts_pb2_grpc.ArtifactServiceSe
                     self.service_context.artifact_store.discard_reservation(reservation)
 
     def DownloadArtifact(self, request, context):
-        with self._request_scope(context):
+        with self._request_scope(context, is_inquiry=True):
             chunk_size = request.chunk_size or self.service_context.download_chunk_bytes
             if chunk_size <= 0:
                 raise ValidationError(

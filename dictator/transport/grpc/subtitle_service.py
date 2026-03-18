@@ -172,7 +172,7 @@ class SubtitleServiceServicer(BaseServicer, subtitle_pb2_grpc.SubtitleServiceSer
             )
 
     def GetRenderSubtitlesJob(self, request, context):
-        with self._request_scope(context):
+        with self._request_scope(context, is_inquiry=True):
             if self.service_context.subtitle_job_manager is None:
                 raise ValidationError(
                     "dictator.grpc.subtitles.jobs_unavailable",

@@ -536,8 +536,6 @@ class _LocalJsonJobStore(Generic[RecordT]):
                 if attempt == 2:
                     raise
                 time.sleep(0.01)
-        # Should not be reachable due to raise in loop
-        raise FileNotFoundError(path)
 
     def _iter_records(self) -> tuple[RecordT, ...]:
         return tuple(self._read_record_with_retry(path) for path in self.root_dir.glob("*.json"))
