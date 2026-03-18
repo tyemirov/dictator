@@ -122,7 +122,7 @@ class AlignmentServiceServicer(BaseServicer, alignment_pb2_grpc.AlignmentService
             )
 
     def GetAlignTranscriptJob(self, request, context):
-        with self._request_scope(context):
+        with self._request_scope(context, is_inquiry=True):
             if self.service_context.alignment_job_manager is None:
                 raise ValidationError(
                     "dictator.grpc.alignment.jobs_unavailable",

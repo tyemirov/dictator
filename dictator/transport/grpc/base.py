@@ -78,6 +78,7 @@ class BaseServicer:
         self,
         context: grpc.ServicerContext,
         bytes_received: int = 0,
+        is_inquiry: bool = False,
     ) -> Iterator[None]:
         started_at = time.monotonic()
         success = False
@@ -85,7 +86,13 @@ class BaseServicer:
         if bytes_received:
             self.service_context.metrics.record_bytes(bytes_received)
         try:
-            with self.service_context.limiter.acquire():
+            if is_inquiry:
+                # Inquiries bypass the inflight limiter
+                limiter_cm = contextmanager(lambda: (yield))()
+            else:
+                limiter_cm = self.service_context.limiter.acquire()
+
+            with limiter_cm:
                 try:
                     self._ensure_request_active(context)
                     self._require_auth(context)
