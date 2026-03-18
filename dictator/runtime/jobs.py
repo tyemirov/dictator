@@ -525,16 +525,26 @@ class _LocalJsonJobStore(Generic[RecordT]):
         temp_path.write_text(json.dumps(record.to_json_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
         temp_path.replace(path)
 
+    def _read_record_with_retry(self, path: Path) -> RecordT:
+        # On some filesystems/OSs, read_text might race with replace(), leading to transient
+        # FileNotFoundError or JSONDecodeError if we catch it mid-swap.
+        for attempt in range(3):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                return self._record_from_json(payload)
+            except (FileNotFoundError, json.JSONDecodeError):
+                if attempt == 2:
+                    raise
+                time.sleep(0.01)
+        # Should not be reachable due to raise in loop
+        raise FileNotFoundError(path)
+
     def _iter_records(self) -> tuple[RecordT, ...]:
-        return tuple(
-            self._record_from_json(json.loads(path.read_text(encoding="utf-8")))
-            for path in self.root_dir.glob("*.json")
-        )
+        return tuple(self._read_record_with_retry(path) for path in self.root_dir.glob("*.json"))
 
     def get(self, job_id: str) -> RecordT:
         path = self._job_path(job_id)
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        return self._record_from_json(payload)
+        return self._read_record_with_retry(path)
 
     def update(self, job_id: str, **updates: object) -> RecordT:
         with self._lock:
