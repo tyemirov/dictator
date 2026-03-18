@@ -87,17 +87,23 @@ def execute_synthesis_request(
         )
         if hasattr(execution_runtime, "mark_synthesis_ready"):
             execution_runtime.mark_synthesis_ready()
+
         audio_reservation = artifact_store.reserve_artifact(
             f"{Path(prepared.speaker_record.filename).stem}_synth.wav",
             media_type="audio/wav",
             fallback_suffix=".wav",
         )
-        concat_normalise(
-            result.wav_paths,
-            audio_reservation.path,
-            prepared.synthesis_request.cap_seconds,
-        )
-        audio_record = artifact_store.finalize_artifact(audio_reservation)
+        try:
+            concat_normalise(
+                result.wav_paths,
+                audio_reservation.path,
+                prepared.synthesis_request.cap_seconds,
+            )
+            audio_record = artifact_store.finalize_artifact(audio_reservation)
+        except Exception:
+            artifact_store.discard_reservation(audio_reservation)
+            raise
+
         timeline_segments = tuple(segment.to_timeline_dict() for segment in result.segments)
         timeline_artifact_id: str | None = None
         if prepared.include_timeline:

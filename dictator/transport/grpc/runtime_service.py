@@ -9,7 +9,7 @@ from .base import BaseServicer
 
 class RuntimeServiceServicer(BaseServicer, runtime_pb2_grpc.RuntimeServiceServicer):
     def GetMetrics(self, request, context):
-        with self._request_scope(context):
+        with self._request_scope(context, is_inquiry=True):
             snapshot = self.service_context.metrics.snapshot()
             return runtime_pb2.GetMetricsResponse(
                 requests_total=snapshot.requests_total,
