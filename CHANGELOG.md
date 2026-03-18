@@ -1,5 +1,30 @@
 # CHANGELOG
 
+## [v1.7.0] - 2026-03-17
+
+### Features ✨
+- Adopt semantic Dictator config DSL with improved structure and strict validation
+- Enhance config DSL parser with inline comment stripping
+- Support inquiries bypassing inflight limiter for gRPC services
+
+### Improvements ⚙️
+- Optimize concurrency handling for powerful servers with increased default max workers and inflight limits
+- Improve runtime resilience with retries on transient job file read errors
+- Add safe artifact cleanup on synthesis failures
+- Expand gRPC config DSL and validate unknown keys
+- Restructure and rename `config.yml` keys for clarity and consistency
+
+### Bug Fixes 🐛
+- Ensure job data reading retries on race conditions to reduce read errors
+- Fix gRPC services to correctly mark inquiry requests and avoid inflight limiter blocking
+
+### Testing 🧪
+- Achieve 100% coverage for resilience and concurrency-related changes
+- Add extra coverage tests for gRPC config DSL and runtime resilience
+
+### Docs 📚
+- _No changes._
+
 ## [v1.6.0] - 2026-03-15
 
 ### Features ✨
