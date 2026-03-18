@@ -86,11 +86,15 @@ def running_default_entrypoint() -> contextlib.AbstractContextManager[int]:
         config_path.write_text(
             "\n".join(
                 (
-                    "grpc:",
-                    "  host: 127.0.0.1",
-                    f"  port: {port}",
-                    f"  artifact_root: {artifact_root}",
-                    f"  auth_token: {AUTH_TOKEN}",
+                    "server:",
+                    "  listen:",
+                    "    host: 127.0.0.1",
+                    f"    port: {port}",
+                    "  grpc:",
+                    f"    auth_token: {AUTH_TOKEN}",
+                    "storage:",
+                    "  artifacts:",
+                    f"    root: {artifact_root}",
                 )
             )
             + "\n",

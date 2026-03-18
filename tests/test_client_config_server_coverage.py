@@ -131,19 +131,26 @@ class ClientConfigServerCoverageTests(unittest.TestCase):
             root = Path(tmpdir)
             config_file = root / "config.yml"
             config_file.write_text(
-                "grpc:\n"
-                "  host: 127.0.0.1\n"
-                "  port: 5000\n"
+                "server:\n"
+                "  listen:\n"
+                "    host: 127.0.0.1\n"
+                "    port: 5000\n"
                 "\n"
                 "# comment\n"
                 "other:\n"
                 "  ignored: true\n",
                 encoding="utf-8",
             )
-            self.assertEqual(
-                grpc_config._load_config_mapping(config_file, {}),
-                {"host": "127.0.0.1", "port": 5000},
+            with self.assertRaisesRegex(ValueError, "unknown config key other"):
+                grpc_config._load_config_mapping(config_file, {})
+            config_file.write_text(
+                "server:\n"
+                "  listen:\n"
+                "    host: 127.0.0.1\n"
+                "    port: 5000\n",
+                encoding="utf-8",
             )
+            self.assertEqual(grpc_config._load_config_mapping(config_file, {}), {"host": "127.0.0.1", "port": 5000})
             config_file.write_text(" bad: yes\n", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "invalid indentation"):
                 grpc_config._load_config_mapping(config_file, {})
@@ -171,7 +178,7 @@ class ClientConfigServerCoverageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             config_file = root / "config.yml"
-            config_file.write_text("grpc:\n  host: 127.0.0.1\n", encoding="utf-8")
+            config_file.write_text("server:\n  listen:\n    host: 127.0.0.1\n", encoding="utf-8")
             with (
                 patch("sys.argv", ["serve.py", "--config", str(config_file)]),
                 patch("serve.serve"),

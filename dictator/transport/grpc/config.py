@@ -10,9 +10,9 @@ from typing import Mapping
 
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 50051
-DEFAULT_MAX_WORKERS = 4
+DEFAULT_MAX_WORKERS = 16
 DEFAULT_MAX_MESSAGE_BYTES = 64 * 1024 * 1024
-DEFAULT_MAX_INFLIGHT = 4
+DEFAULT_MAX_INFLIGHT = 64
 DEFAULT_SYNTHESIS_JOB_WORKERS = 1
 DEFAULT_MAX_PENDING_SYNTHESIS_JOBS = 32
 DEFAULT_ALIGNMENT_JOB_WORKERS = 1
@@ -55,29 +55,83 @@ AUTH_TOKEN_ENV = "DICTATOR_GRPC_AUTH_TOKEN"
 DEFAULT_CONFIG_PATH = Path("config.yml")
 
 _ENV_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
-_FIELD_NAMES = {
-    "host",
-    "port",
-    "max_workers",
-    "max_message_bytes",
-    "max_inflight",
-    "synthesis_job_workers",
-    "max_pending_synthesis_jobs",
-    "alignment_job_workers",
-    "max_pending_alignment_jobs",
-    "transcription_job_workers",
-    "max_pending_transcription_jobs",
-    "diarization_job_workers",
-    "max_pending_diarization_jobs",
-    "subtitle_job_workers",
-    "max_pending_subtitle_jobs",
-    "reference_extraction_job_workers",
-    "max_pending_reference_extraction_jobs",
-    "job_wait_timeout_seconds",
-    "job_poll_interval_seconds",
-    "download_chunk_bytes",
-    "artifact_root",
-    "auth_token",
+_CONFIG_SCHEMA = {
+    "server": {
+        "listen": {
+            "host": str,
+            "port": int,
+        },
+        "grpc": {
+            "max_message_bytes": int,
+            "auth_token": str,
+        },
+    },
+    "execution": {
+        "concurrency": {
+            "workers": int,
+            "inflight": int,
+        },
+        "jobs": {
+            "wait_timeout_seconds": (int, float),
+            "poll_interval_seconds": (int, float),
+            "synthesis": {
+                "workers": int,
+                "max_pending": int,
+            },
+            "alignment": {
+                "workers": int,
+                "max_pending": int,
+            },
+            "transcription": {
+                "workers": int,
+                "max_pending": int,
+            },
+            "diarization": {
+                "workers": int,
+                "max_pending": int,
+            },
+            "subtitle": {
+                "workers": int,
+                "max_pending": int,
+            },
+            "reference_extraction": {
+                "workers": int,
+                "max_pending": int,
+            },
+        },
+    },
+    "downloads": {
+        "chunk_bytes": int,
+    },
+    "storage": {
+        "artifacts": {
+            "root": str,
+        },
+    },
+}
+_FIELD_PATHS = {
+    ("server", "listen", "host"): "host",
+    ("server", "listen", "port"): "port",
+    ("server", "grpc", "max_message_bytes"): "max_message_bytes",
+    ("server", "grpc", "auth_token"): "auth_token",
+    ("execution", "concurrency", "workers"): "max_workers",
+    ("execution", "concurrency", "inflight"): "max_inflight",
+    ("execution", "jobs", "wait_timeout_seconds"): "job_wait_timeout_seconds",
+    ("execution", "jobs", "poll_interval_seconds"): "job_poll_interval_seconds",
+    ("execution", "jobs", "synthesis", "workers"): "synthesis_job_workers",
+    ("execution", "jobs", "synthesis", "max_pending"): "max_pending_synthesis_jobs",
+    ("execution", "jobs", "alignment", "workers"): "alignment_job_workers",
+    ("execution", "jobs", "alignment", "max_pending"): "max_pending_alignment_jobs",
+    ("execution", "jobs", "transcription", "workers"): "transcription_job_workers",
+    ("execution", "jobs", "transcription", "max_pending"): "max_pending_transcription_jobs",
+    ("execution", "jobs", "diarization", "workers"): "diarization_job_workers",
+    ("execution", "jobs", "diarization", "max_pending"): "max_pending_diarization_jobs",
+    ("execution", "jobs", "subtitle", "workers"): "subtitle_job_workers",
+    ("execution", "jobs", "subtitle", "max_pending"): "max_pending_subtitle_jobs",
+    ("execution", "jobs", "reference_extraction", "workers"): "reference_extraction_job_workers",
+    ("execution", "jobs", "reference_extraction", "max_pending"): "max_pending_reference_extraction_jobs",
+    ("downloads", "chunk_bytes"): "download_chunk_bytes",
+    ("storage", "artifacts", "root"): "artifact_root",
 }
 
 
@@ -116,17 +170,103 @@ def _parse_scalar(value: str) -> object:
         return stripped
 
 
-def _resolve_env_placeholders(value: object, env: Mapping[str, str]) -> object:
+def _resolve_env_placeholders(
+    value: object,
+    env: Mapping[str, str],
+    *,
+    context: str | None = None,
+) -> object:
     if not isinstance(value, str):
         return value
 
     def replace(match: re.Match[str]) -> str:
         env_name = match.group(1)
         if env_name not in env or env[env_name] == "":
-            raise ValueError(f"missing required env var {env_name}")
+            msg = f"missing required env var {env_name}"
+            if context:
+                msg = f"{msg} at {context}"
+            raise ValueError(msg)
         return env[env_name]
 
     return _ENV_VAR_PATTERN.sub(replace, value)
+
+
+def _strip_inline_comment(raw_value: str) -> str:
+    """Strip trailing '#' comments from a value string, respecting quotes."""
+    if not raw_value:
+        return ""
+    quote_char: str | None = None
+    for i, char in enumerate(raw_value):
+        if char in {"'", '"'}:
+            if quote_char is None:
+                quote_char = char
+            elif quote_char == char:
+                quote_char = None
+        elif char == "#" and quote_char is None:
+            return raw_value[:i].rstrip()
+    return raw_value.rstrip()
+
+
+def _path_label(path: tuple[str, ...]) -> str:
+    return ".".join(path)
+
+
+def _validate_config_mapping(
+    mapping: dict[str, object],
+    *,
+    schema: dict[str, object],
+    path: tuple[str, ...] = (),
+) -> None:
+    for key, value in mapping.items():
+        if key not in schema:
+            raise ValueError(f"unknown config key {_path_label(path + (key,))}")
+        child_schema = schema[key]
+        child_path = path + (key,)
+        if isinstance(child_schema, dict):
+            if not isinstance(value, dict):
+                raise ValueError(f"config key {_path_label(child_path)} must be a mapping")
+            _validate_config_mapping(value, schema=child_schema, path=child_path)
+            continue
+        if isinstance(value, dict):
+            raise ValueError(f"config key {_path_label(child_path)} must be a scalar")
+        if child_schema is not None:
+            if not isinstance(value, child_schema):
+                expected = (
+                    child_schema.__name__
+                    if isinstance(child_schema, type)
+                    else " or ".join(t.__name__ for t in child_schema)
+                )
+                raise ValueError(
+                    f"config key {_path_label(child_path)} must be {expected}, "
+                    f"got {type(value).__name__}"
+                )
+            # Stricter check for bool vs int/float
+            if (
+                not isinstance(child_schema, tuple)
+                and child_schema in (int, float)
+                and isinstance(value, bool)
+            ):
+                raise ValueError(
+                    f"config key {_path_label(child_path)} must be {child_schema.__name__}, "
+                    f"got bool"
+                )
+            if (
+                isinstance(child_schema, tuple)
+                and (int in child_schema or float in child_schema)
+                and bool not in child_schema
+                and isinstance(value, bool)
+            ):
+                expected = " or ".join(t.__name__ for t in child_schema)
+                raise ValueError(f"config key {_path_label(child_path)} must be {expected}, got bool")
+
+
+def _lookup_mapping_value(mapping: dict[str, object], path: tuple[str, ...]) -> tuple[object, bool]:
+    current: object = mapping
+    for key in path:
+        if not isinstance(current, dict) or key not in current:
+            return None, False
+        current = current[key]
+    return current, True
 
 
 def _load_config_mapping(config_file: Path | None, env: Mapping[str, str]) -> dict[str, object]:
@@ -158,14 +298,24 @@ def _load_config_mapping(config_file: Path | None, env: Mapping[str, str]) -> di
             current[key] = child
             stack.append((indent, child))
             continue
-        current[key] = _resolve_env_placeholders(_parse_scalar(raw_value), env)
+        value = _parse_scalar(_strip_inline_comment(raw_value))
+        current[key] = _resolve_env_placeholders(
+            value,
+            env,
+            context=f"{config_file}:{line_number}",
+        )
 
-    grpc_section = root.get("grpc")
-    if isinstance(grpc_section, dict):
-        mapping = grpc_section
-    else:
-        mapping = root
-    return {key: value for key, value in mapping.items() if key in _FIELD_NAMES}
+    if not root:
+        return {}
+
+    _validate_config_mapping(root, schema=_CONFIG_SCHEMA)
+
+    flattened: dict[str, object] = {}
+    for path, field_name in _FIELD_PATHS.items():
+        value, found = _lookup_mapping_value(root, path)
+        if found:
+            flattened[field_name] = value
+    return flattened
 
 
 @dataclass(frozen=True)

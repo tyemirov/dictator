@@ -35,11 +35,40 @@ class GrpcConfigServerCoverageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             config_file = root / "config.yml"
-            config_file.write_text("host: 127.0.0.1\nport: 50052\nunknown: keep\n", encoding="utf-8")
+            config_file.write_text("grpc:\n  host: 127.0.0.1\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "unknown config key grpc"):
+                _load_config_mapping(config_file, {})
+
+            config_file.write_text(
+                "server:\n"
+                "  listen:\n"
+                "    host: 127.0.0.1\n"
+                "    port: 50052\n",
+                encoding="utf-8",
+            )
             self.assertEqual(_load_config_mapping(config_file, {}), {"host": "127.0.0.1", "port": 50052})
 
+            config_file.write_text("", encoding="utf-8")
+            self.assertEqual(_load_config_mapping(config_file, {}), {})
+
+            mapping_error = root / "mapping-error.yml"
+            mapping_error.write_text("server: 127.0.0.1\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "server must be a mapping"):
+                _load_config_mapping(mapping_error, {})
+
+            scalar_error = root / "scalar-error.yml"
+            scalar_error.write_text(
+                "server:\n"
+                "  listen:\n"
+                "    host:\n"
+                "      nested: true\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "server.listen.host must be a scalar"):
+                _load_config_mapping(scalar_error, {})
+
             invalid_indent = root / "bad-indent.yml"
-            invalid_indent.write_text("grpc:\n   host: 127.0.0.1\n", encoding="utf-8")
+            invalid_indent.write_text("server:\n   listen:\n    host: 127.0.0.1\n", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "invalid indentation"):
                 _load_config_mapping(invalid_indent, {})
 

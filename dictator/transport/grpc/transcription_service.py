@@ -212,7 +212,7 @@ class TranscriptionServiceServicer(BaseServicer, transcription_pb2_grpc.Transcri
             )
 
     def GetTranscribeJob(self, request, context):
-        with self._request_scope(context):
+        with self._request_scope(context, is_inquiry=True):
             if self.service_context.transcription_job_manager is None:
                 raise ValidationError(
                     "dictator.grpc.transcription.jobs_unavailable",
@@ -243,7 +243,7 @@ class TranscriptionServiceServicer(BaseServicer, transcription_pb2_grpc.Transcri
             )
 
     def GetDiarizeAudioJob(self, request, context):
-        with self._request_scope(context):
+        with self._request_scope(context, is_inquiry=True):
             if self.service_context.diarization_job_manager is None:
                 raise ValidationError(
                     "dictator.grpc.diarization.jobs_unavailable",
