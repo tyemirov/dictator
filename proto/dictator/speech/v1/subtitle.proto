@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package dictator.speech.v1;
 
+option go_package = "github.com/temirov/mediaops/internal/mediajobs/proto/dictatorspeechv1;dictatorspeechv1";
+
 service SubtitleService {
   rpc RenderSubtitles(RenderSubtitlesRequest) returns (RenderSubtitlesResponse);
   rpc SubmitRenderSubtitlesJob(RenderSubtitlesRequest)
