@@ -24,14 +24,14 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1f\x64ictator/speech/v1/common.proto\x12\x12\x64ictator.speech.v1\"l\n\x0b\x41rtifactRef\x12\x13\n\x0b\x61rtifact_id\x18\x01 \x01(\t\x12\x10\n\x08\x66ilename\x18\x02 \x01(\t\x12\x12\n\nmedia_type\x18\x03 \x01(\t\x12\x12\n\nsize_bytes\x18\x04 \x01(\x03\x12\x0e\n\x06sha256\x18\x05 \x01(\t\"J\n\x0bWordSegment\x12\x0f\n\x07\x63ontent\x18\x01 \x01(\t\x12\x15\n\rstart_seconds\x18\x02 \x01(\x01\x12\x13\n\x0b\x65nd_seconds\x18\x03 \x01(\x01\"N\n\x0fTimelineSegment\x12\x0f\n\x07\x63ontent\x18\x01 \x01(\t\x12\x15\n\rstart_seconds\x18\x02 \x01(\x01\x12\x13\n\x0b\x65nd_seconds\x18\x03 \x01(\x01\x42XZVgithub.com/temirov/mediaops/internal/mediajobs/proto/dictatorspeechv1;dictatorspeechv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1f\x64ictator/speech/v1/common.proto\x12\x12\x64ictator.speech.v1\"l\n\x0b\x41rtifactRef\x12\x13\n\x0b\x61rtifact_id\x18\x01 \x01(\t\x12\x10\n\x08\x66ilename\x18\x02 \x01(\t\x12\x12\n\nmedia_type\x18\x03 \x01(\t\x12\x12\n\nsize_bytes\x18\x04 \x01(\x03\x12\x0e\n\x06sha256\x18\x05 \x01(\t\"J\n\x0bWordSegment\x12\x0f\n\x07\x63ontent\x18\x01 \x01(\t\x12\x15\n\rstart_seconds\x18\x02 \x01(\x01\x12\x13\n\x0b\x65nd_seconds\x18\x03 \x01(\x01\"N\n\x0fTimelineSegment\x12\x0f\n\x07\x63ontent\x18\x01 \x01(\t\x12\x15\n\rstart_seconds\x18\x02 \x01(\x01\x12\x13\n\x0b\x65nd_seconds\x18\x03 \x01(\x01\x42GZEgithub.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'dictator.speech.v1.common_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
-  _globals['DESCRIPTOR']._serialized_options = b'ZVgithub.com/temirov/mediaops/internal/mediajobs/proto/dictatorspeechv1;dictatorspeechv1'
+  _globals['DESCRIPTOR']._serialized_options = b'ZEgithub.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1'
   _globals['_ARTIFACTREF']._serialized_start=55
   _globals['_ARTIFACTREF']._serialized_end=163
   _globals['_WORDSEGMENT']._serialized_start=165

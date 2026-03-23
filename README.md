@@ -200,6 +200,19 @@ print(result.srt_artifact_id)
 
 Use the blocking convenience methods by default. For explicit submit/get/wait job flows and endpoint-specific contract details, use [docs/client-integration.md](docs/client-integration.md).
 
+### Go contract module
+
+Dictator owns the authoritative `dictator.speech.v1` protobuf contract and
+publishes generated Go bindings in
+`github.com/tyemirov/dictator/sdk/go/dictatorspeechv1`.
+
+To regenerate the checked-in Python and Go gRPC artifacts from the proto
+sources, run:
+
+```bash
+make proto
+```
+
 The compose setup mounts persistent caches for Hugging Face, Whisper, and Torch models, plus `.dictator-artifacts` for generated service artifacts.
 
 ### Notes

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package dictator.speech.v1;
 
-option go_package = "github.com/temirov/mediaops/internal/mediajobs/proto/dictatorspeechv1;dictatorspeechv1";
+option go_package = "github.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1";
 
 import "dictator/speech/v1/common.proto";
 import "google/protobuf/struct.proto";
