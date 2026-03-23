@@ -18,6 +18,12 @@ Result and job dataclasses are also exported for those clients.
 
 The protobuf definitions and generated gRPC stubs are the authoritative contract.
 
+For Go consumers, the generated bindings live in the Dictator-owned module
+`github.com/tyemirov/dictator/sdk/go/dictatorspeechv1`.
+Because Dictator is a private repository, downstream Go applications should
+either vendor that module or configure `GOPRIVATE` and repository access before
+resolving it directly.
+
 The maintained Python clients are the intended ergonomic layer for Python integrations because they handle:
 
 - artifact upload-first request shaping
