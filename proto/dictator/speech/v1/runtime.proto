@@ -2,8 +2,11 @@ syntax = "proto3";
 
 package dictator.speech.v1;
 
+option go_package = "github.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1";
+
 service RuntimeService {
   rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);
+  rpc GetReadiness(GetReadinessRequest) returns (GetReadinessResponse);
 }
 
 message GetMetricsRequest {}
@@ -17,4 +20,20 @@ message GetMetricsResponse {
   double uptime_seconds = 6;
   double average_latency_seconds = 7;
   double max_latency_seconds = 8;
+}
+
+message GetReadinessRequest {}
+
+message GetReadinessResponse {
+  bool ready = 1;
+  bool warmup_started = 2;
+  bool warmup_in_progress = 3;
+  repeated ReadinessComponent components = 4;
+  string last_error = 5;
+}
+
+message ReadinessComponent {
+  string name = 1;
+  bool ready = 2;
+  string detail = 3;
 }
