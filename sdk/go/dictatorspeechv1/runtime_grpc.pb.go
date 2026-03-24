@@ -19,8 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	RuntimeService_GetMetrics_FullMethodName   = "/dictator.speech.v1.RuntimeService/GetMetrics"
-	RuntimeService_GetReadiness_FullMethodName = "/dictator.speech.v1.RuntimeService/GetReadiness"
+	RuntimeService_GetMetrics_FullMethodName = "/dictator.speech.v1.RuntimeService/GetMetrics"
 )
 
 // RuntimeServiceClient is the client API for RuntimeService service.
@@ -28,7 +27,6 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type RuntimeServiceClient interface {
 	GetMetrics(ctx context.Context, in *GetMetricsRequest, opts ...grpc.CallOption) (*GetMetricsResponse, error)
-	GetReadiness(ctx context.Context, in *GetReadinessRequest, opts ...grpc.CallOption) (*GetReadinessResponse, error)
 }
 
 type runtimeServiceClient struct {
@@ -49,22 +47,11 @@ func (c *runtimeServiceClient) GetMetrics(ctx context.Context, in *GetMetricsReq
 	return out, nil
 }
 
-func (c *runtimeServiceClient) GetReadiness(ctx context.Context, in *GetReadinessRequest, opts ...grpc.CallOption) (*GetReadinessResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetReadinessResponse)
-	err := c.cc.Invoke(ctx, RuntimeService_GetReadiness_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // RuntimeServiceServer is the server API for RuntimeService service.
 // All implementations must embed UnimplementedRuntimeServiceServer
 // for forward compatibility.
 type RuntimeServiceServer interface {
 	GetMetrics(context.Context, *GetMetricsRequest) (*GetMetricsResponse, error)
-	GetReadiness(context.Context, *GetReadinessRequest) (*GetReadinessResponse, error)
 	mustEmbedUnimplementedRuntimeServiceServer()
 }
 
@@ -77,9 +64,6 @@ type UnimplementedRuntimeServiceServer struct{}
 
 func (UnimplementedRuntimeServiceServer) GetMetrics(context.Context, *GetMetricsRequest) (*GetMetricsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetMetrics not implemented")
-}
-func (UnimplementedRuntimeServiceServer) GetReadiness(context.Context, *GetReadinessRequest) (*GetReadinessResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetReadiness not implemented")
 }
 func (UnimplementedRuntimeServiceServer) mustEmbedUnimplementedRuntimeServiceServer() {}
 func (UnimplementedRuntimeServiceServer) testEmbeddedByValue()                        {}
@@ -120,24 +104,6 @@ func _RuntimeService_GetMetrics_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
-func _RuntimeService_GetReadiness_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetReadinessRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RuntimeServiceServer).GetReadiness(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: RuntimeService_GetReadiness_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RuntimeServiceServer).GetReadiness(ctx, req.(*GetReadinessRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // RuntimeService_ServiceDesc is the grpc.ServiceDesc for RuntimeService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -148,10 +114,6 @@ var RuntimeService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetMetrics",
 			Handler:    _RuntimeService_GetMetrics_Handler,
-		},
-		{
-			MethodName: "GetReadiness",
-			Handler:    _RuntimeService_GetReadiness_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

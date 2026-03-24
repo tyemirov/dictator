@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n dictator/speech/v1/runtime.proto\x12\x12\x64ictator.speech.v1\"\x13\n\x11GetMetricsRequest\"\xe1\x01\n\x12GetMetricsResponse\x12\x16\n\x0erequests_total\x18\x01 \x01(\x03\x12\x1a\n\x12requests_succeeded\x18\x02 \x01(\x03\x12\x17\n\x0frequests_failed\x18\x03 \x01(\x03\x12\x10\n\x08inflight\x18\x04 \x01(\x03\x12\x16\n\x0e\x62ytes_received\x18\x05 \x01(\x03\x12\x16\n\x0euptime_seconds\x18\x06 \x01(\x01\x12\x1f\n\x17\x61verage_latency_seconds\x18\x07 \x01(\x01\x12\x1b\n\x13max_latency_seconds\x18\x08 \x01(\x01\"\x15\n\x13GetReadinessRequest\"\xa9\x01\n\x14GetReadinessResponse\x12\r\n\x05ready\x18\x01 \x01(\x08\x12\x16\n\x0ewarmup_started\x18\x02 \x01(\x08\x12\x1a\n\x12warmup_in_progress\x18\x03 \x01(\x08\x12:\n\ncomponents\x18\x04 \x03(\x0b\x32&.dictator.speech.v1.ReadinessComponent\x12\x12\n\nlast_error\x18\x05 \x01(\t\"A\n\x12ReadinessComponent\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\r\n\x05ready\x18\x02 \x01(\x08\x12\x0e\n\x06\x64\x65tail\x18\x03 \x01(\t2\xd0\x01\n\x0eRuntimeService\x12[\n\nGetMetrics\x12%.dictator.speech.v1.GetMetricsRequest\x1a&.dictator.speech.v1.GetMetricsResponse\x12\x61\n\x0cGetReadiness\x12\'.dictator.speech.v1.GetReadinessRequest\x1a(.dictator.speech.v1.GetReadinessResponseBGZEgithub.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n dictator/speech/v1/runtime.proto\x12\x12\x64ictator.speech.v1\"\x13\n\x11GetMetricsRequest\"\xe1\x01\n\x12GetMetricsResponse\x12\x16\n\x0erequests_total\x18\x01 \x01(\x03\x12\x1a\n\x12requests_succeeded\x18\x02 \x01(\x03\x12\x17\n\x0frequests_failed\x18\x03 \x01(\x03\x12\x10\n\x08inflight\x18\x04 \x01(\x03\x12\x16\n\x0e\x62ytes_received\x18\x05 \x01(\x03\x12\x16\n\x0euptime_seconds\x18\x06 \x01(\x01\x12\x1f\n\x17\x61verage_latency_seconds\x18\x07 \x01(\x01\x12\x1b\n\x13max_latency_seconds\x18\x08 \x01(\x01\x32m\n\x0eRuntimeService\x12[\n\nGetMetrics\x12%.dictator.speech.v1.GetMetricsRequest\x1a&.dictator.speech.v1.GetMetricsResponseBGZEgithub.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -36,12 +36,6 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_GETMETRICSREQUEST']._serialized_end=75
   _globals['_GETMETRICSRESPONSE']._serialized_start=78
   _globals['_GETMETRICSRESPONSE']._serialized_end=303
-  _globals['_GETREADINESSREQUEST']._serialized_start=305
-  _globals['_GETREADINESSREQUEST']._serialized_end=326
-  _globals['_GETREADINESSRESPONSE']._serialized_start=329
-  _globals['_GETREADINESSRESPONSE']._serialized_end=498
-  _globals['_READINESSCOMPONENT']._serialized_start=500
-  _globals['_READINESSCOMPONENT']._serialized_end=565
-  _globals['_RUNTIMESERVICE']._serialized_start=568
-  _globals['_RUNTIMESERVICE']._serialized_end=776
+  _globals['_RUNTIMESERVICE']._serialized_start=305
+  _globals['_RUNTIMESERVICE']._serialized_end=414
 # @@protoc_insertion_point(module_scope)
