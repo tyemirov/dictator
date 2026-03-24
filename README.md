@@ -213,6 +213,12 @@ sources, run:
 make proto
 ```
 
+`make proto` bootstraps a lightweight local Python codegen environment under
+`tools/proto-python`, downloads a pinned `protoc` toolchain under
+`tools/protoc`, and auto-installs the pinned Go protobuf generators when
+needed. The main test and coverage targets still use `.venv/bin/python`
+automatically when a project venv is present.
+
 The compose setup mounts persistent caches for Hugging Face, Whisper, and Torch models, plus `.dictator-artifacts` for generated service artifacts.
 
 ### Notes

@@ -157,178 +157,6 @@ func (x *GetMetricsResponse) GetMaxLatencySeconds() float64 {
 	return 0
 }
 
-type GetReadinessRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetReadinessRequest) Reset() {
-	*x = GetReadinessRequest{}
-	mi := &file_dictator_speech_v1_runtime_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetReadinessRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetReadinessRequest) ProtoMessage() {}
-
-func (x *GetReadinessRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dictator_speech_v1_runtime_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetReadinessRequest.ProtoReflect.Descriptor instead.
-func (*GetReadinessRequest) Descriptor() ([]byte, []int) {
-	return file_dictator_speech_v1_runtime_proto_rawDescGZIP(), []int{2}
-}
-
-type GetReadinessResponse struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	Ready            bool                   `protobuf:"varint,1,opt,name=ready,proto3" json:"ready,omitempty"`
-	WarmupStarted    bool                   `protobuf:"varint,2,opt,name=warmup_started,json=warmupStarted,proto3" json:"warmup_started,omitempty"`
-	WarmupInProgress bool                   `protobuf:"varint,3,opt,name=warmup_in_progress,json=warmupInProgress,proto3" json:"warmup_in_progress,omitempty"`
-	Components       []*ReadinessComponent  `protobuf:"bytes,4,rep,name=components,proto3" json:"components,omitempty"`
-	LastError        string                 `protobuf:"bytes,5,opt,name=last_error,json=lastError,proto3" json:"last_error,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
-}
-
-func (x *GetReadinessResponse) Reset() {
-	*x = GetReadinessResponse{}
-	mi := &file_dictator_speech_v1_runtime_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetReadinessResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetReadinessResponse) ProtoMessage() {}
-
-func (x *GetReadinessResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dictator_speech_v1_runtime_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetReadinessResponse.ProtoReflect.Descriptor instead.
-func (*GetReadinessResponse) Descriptor() ([]byte, []int) {
-	return file_dictator_speech_v1_runtime_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *GetReadinessResponse) GetReady() bool {
-	if x != nil {
-		return x.Ready
-	}
-	return false
-}
-
-func (x *GetReadinessResponse) GetWarmupStarted() bool {
-	if x != nil {
-		return x.WarmupStarted
-	}
-	return false
-}
-
-func (x *GetReadinessResponse) GetWarmupInProgress() bool {
-	if x != nil {
-		return x.WarmupInProgress
-	}
-	return false
-}
-
-func (x *GetReadinessResponse) GetComponents() []*ReadinessComponent {
-	if x != nil {
-		return x.Components
-	}
-	return nil
-}
-
-func (x *GetReadinessResponse) GetLastError() string {
-	if x != nil {
-		return x.LastError
-	}
-	return ""
-}
-
-type ReadinessComponent struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Ready         bool                   `protobuf:"varint,2,opt,name=ready,proto3" json:"ready,omitempty"`
-	Detail        string                 `protobuf:"bytes,3,opt,name=detail,proto3" json:"detail,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ReadinessComponent) Reset() {
-	*x = ReadinessComponent{}
-	mi := &file_dictator_speech_v1_runtime_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ReadinessComponent) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ReadinessComponent) ProtoMessage() {}
-
-func (x *ReadinessComponent) ProtoReflect() protoreflect.Message {
-	mi := &file_dictator_speech_v1_runtime_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ReadinessComponent.ProtoReflect.Descriptor instead.
-func (*ReadinessComponent) Descriptor() ([]byte, []int) {
-	return file_dictator_speech_v1_runtime_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *ReadinessComponent) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *ReadinessComponent) GetReady() bool {
-	if x != nil {
-		return x.Ready
-	}
-	return false
-}
-
-func (x *ReadinessComponent) GetDetail() string {
-	if x != nil {
-		return x.Detail
-	}
-	return ""
-}
-
 var File_dictator_speech_v1_runtime_proto protoreflect.FileDescriptor
 
 const file_dictator_speech_v1_runtime_proto_rawDesc = "" +
@@ -343,25 +171,10 @@ const file_dictator_speech_v1_runtime_proto_rawDesc = "" +
 	"\x0ebytes_received\x18\x05 \x01(\x03R\rbytesReceived\x12%\n" +
 	"\x0euptime_seconds\x18\x06 \x01(\x01R\ruptimeSeconds\x126\n" +
 	"\x17average_latency_seconds\x18\a \x01(\x01R\x15averageLatencySeconds\x12.\n" +
-	"\x13max_latency_seconds\x18\b \x01(\x01R\x11maxLatencySeconds\"\x15\n" +
-	"\x13GetReadinessRequest\"\xe8\x01\n" +
-	"\x14GetReadinessResponse\x12\x14\n" +
-	"\x05ready\x18\x01 \x01(\bR\x05ready\x12%\n" +
-	"\x0ewarmup_started\x18\x02 \x01(\bR\rwarmupStarted\x12,\n" +
-	"\x12warmup_in_progress\x18\x03 \x01(\bR\x10warmupInProgress\x12F\n" +
-	"\n" +
-	"components\x18\x04 \x03(\v2&.dictator.speech.v1.ReadinessComponentR\n" +
-	"components\x12\x1d\n" +
-	"\n" +
-	"last_error\x18\x05 \x01(\tR\tlastError\"V\n" +
-	"\x12ReadinessComponent\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
-	"\x05ready\x18\x02 \x01(\bR\x05ready\x12\x16\n" +
-	"\x06detail\x18\x03 \x01(\tR\x06detail2\xd0\x01\n" +
+	"\x13max_latency_seconds\x18\b \x01(\x01R\x11maxLatencySeconds2m\n" +
 	"\x0eRuntimeService\x12[\n" +
 	"\n" +
-	"GetMetrics\x12%.dictator.speech.v1.GetMetricsRequest\x1a&.dictator.speech.v1.GetMetricsResponse\x12a\n" +
-	"\fGetReadiness\x12'.dictator.speech.v1.GetReadinessRequest\x1a(.dictator.speech.v1.GetReadinessResponseBGZEgithub.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1b\x06proto3"
+	"GetMetrics\x12%.dictator.speech.v1.GetMetricsRequest\x1a&.dictator.speech.v1.GetMetricsResponseBGZEgithub.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1b\x06proto3"
 
 var (
 	file_dictator_speech_v1_runtime_proto_rawDescOnce sync.Once
@@ -375,25 +188,19 @@ func file_dictator_speech_v1_runtime_proto_rawDescGZIP() []byte {
 	return file_dictator_speech_v1_runtime_proto_rawDescData
 }
 
-var file_dictator_speech_v1_runtime_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_dictator_speech_v1_runtime_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_dictator_speech_v1_runtime_proto_goTypes = []any{
-	(*GetMetricsRequest)(nil),    // 0: dictator.speech.v1.GetMetricsRequest
-	(*GetMetricsResponse)(nil),   // 1: dictator.speech.v1.GetMetricsResponse
-	(*GetReadinessRequest)(nil),  // 2: dictator.speech.v1.GetReadinessRequest
-	(*GetReadinessResponse)(nil), // 3: dictator.speech.v1.GetReadinessResponse
-	(*ReadinessComponent)(nil),   // 4: dictator.speech.v1.ReadinessComponent
+	(*GetMetricsRequest)(nil),  // 0: dictator.speech.v1.GetMetricsRequest
+	(*GetMetricsResponse)(nil), // 1: dictator.speech.v1.GetMetricsResponse
 }
 var file_dictator_speech_v1_runtime_proto_depIdxs = []int32{
-	4, // 0: dictator.speech.v1.GetReadinessResponse.components:type_name -> dictator.speech.v1.ReadinessComponent
-	0, // 1: dictator.speech.v1.RuntimeService.GetMetrics:input_type -> dictator.speech.v1.GetMetricsRequest
-	2, // 2: dictator.speech.v1.RuntimeService.GetReadiness:input_type -> dictator.speech.v1.GetReadinessRequest
-	1, // 3: dictator.speech.v1.RuntimeService.GetMetrics:output_type -> dictator.speech.v1.GetMetricsResponse
-	3, // 4: dictator.speech.v1.RuntimeService.GetReadiness:output_type -> dictator.speech.v1.GetReadinessResponse
-	3, // [3:5] is the sub-list for method output_type
-	1, // [1:3] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	0, // 0: dictator.speech.v1.RuntimeService.GetMetrics:input_type -> dictator.speech.v1.GetMetricsRequest
+	1, // 1: dictator.speech.v1.RuntimeService.GetMetrics:output_type -> dictator.speech.v1.GetMetricsResponse
+	1, // [1:2] is the sub-list for method output_type
+	0, // [0:1] is the sub-list for method input_type
+	0, // [0:0] is the sub-list for extension type_name
+	0, // [0:0] is the sub-list for extension extendee
+	0, // [0:0] is the sub-list for field type_name
 }
 
 func init() { file_dictator_speech_v1_runtime_proto_init() }
@@ -407,7 +214,7 @@ func file_dictator_speech_v1_runtime_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dictator_speech_v1_runtime_proto_rawDesc), len(file_dictator_speech_v1_runtime_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
