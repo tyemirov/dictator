@@ -3,20 +3,38 @@
 ## [Unreleased]
 
 ### Features ✨
-- Publish generated Go gRPC bindings for the authoritative `dictator.speech.v1` contract in `sdk/go/dictatorspeechv1`.
+- _No changes._
 
 ### Improvements ⚙️
-- Move protobuf `go_package` ownership from a MediaOps-internal path to the Dictator-owned Go contract module.
-- Extend `make proto` and CI to regenerate and verify both Python and Go gRPC artifacts from the checked-in proto sources.
+- _No changes._
 
 ### Bug Fixes 🐛
 - _No changes._
 
 ### Testing 🧪
+- _No changes._
+
+### Docs 📚
+- _No changes._
+
+## [v1.8.0] - 2026-03-23
+
+### Features ✨
+- Publish generated Go gRPC bindings for the authoritative `dictator.speech.v1` contract in `sdk/go/dictatorspeechv1`.
+
+### Improvements ⚙️
+- Move protobuf `go_package` ownership from a MediaOps-internal path to the Dictator-owned Go contract module.
+- Extend `make proto` and CI to regenerate and verify both Python and Go gRPC artifacts from the checked-in proto sources.
+- Pin `protoc` for deterministic Go stub generation across local and CI environments.
+
+### Bug Fixes 🐛
+- Remove the short-lived custom `GetReadiness` startup RPC before release and repair the post-merge proto generation / CI bootstrap regressions.
+
+### Testing 🧪
 - Add owner-side proto generation checks for the checked-in Python and Go contract artifacts.
 
 ### Docs 📚
-- Document the Dictator-owned Go contract module and private-consumer vendoring guidance in the README and client integration guide.
+- Document the Dictator-owned Go contract module, vendoring guidance, and pinned codegen bootstrap behavior in the README and client integration guide.
 
 ## [v1.7.0] - 2026-03-17
 
