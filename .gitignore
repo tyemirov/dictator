@@ -19,3 +19,4 @@ tools/
 bin/
 .buildx-cache-gpu/
 .buildx-cache-gpu-new/
+.claude/
