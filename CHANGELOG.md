@@ -17,6 +17,28 @@
 ### Docs 📚
 - _No changes._
 
+## [v1.9.0] - 2026-04-29
+
+### Features ✨
+- Added support for job cancellation across all relevant job types.
+- Introduced job cancellation methods in client APIs for alignment, diarization, dictation, subtitles, synthesis, and reference sample jobs.
+- Enhanced gRPC service definitions and SDKs to support job cancellation operations.
+
+### Improvements ⚙️
+- Improved job management with better tracking and cleanup of job futures in the local job manager.
+- Updated Makefile to improve proto generation sync check logic.
+- Cleaned up demo voice clone web audio recording lifecycle and UI handling.
+
+### Bug Fixes 🐛
+- Fixed audio recording playback issues in the demo web client related to audio URL management and media stream cleanup.
+
+### Testing 🧪
+- Added new tests for asynchronous job cancellation and client job helper coverage.
+- Enhanced runtime storage coverage tests for job cancellation and updates.
+
+### Docs 📚
+- Updated client integration documentation to reflect job cancellation support.
+
 ## [v1.8.0] - 2026-03-23
 
 ### Features ✨
