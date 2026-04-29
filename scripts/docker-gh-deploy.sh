@@ -8,13 +8,13 @@ Usage: scripts/docker-gh-deploy.sh [options] [git-tag]
 
 Builds the GPU Docker image locally and pushes it to GHCR.
 
-If no git tag is provided, the script requires HEAD to be checked out at an exact
-tag and uses that tag automatically.
+If no git tag is provided, the script requires master HEAD to carry the latest
+SemVer release tag and uses that tag automatically.
 
 Examples:
-  ./scripts/docker-gh-deploy.sh v1.2.3
+  make publish
   ./scripts/docker-gh-deploy.sh --dry-run
-  ./scripts/docker-gh-deploy.sh --image-name ghcr.io/acme/dictator v1.2.3
+  ./scripts/docker-gh-deploy.sh --image-name ghcr.io/acme/dictator
 
 Options:
   --dry-run        Validate inputs and print the Docker tags without building
@@ -114,24 +114,80 @@ ensure_clean_tree() {
   fi
 }
 
-verify_tag_checkout() {
-  local git_tag="$1"
-  local tag_commit head_commit
+fetch_release_refs() {
+  git fetch --tags origin master:refs/remotes/origin/master
+}
 
-  git rev-parse -q --verify "refs/tags/${git_tag}^{commit}" >/dev/null 2>&1 \
-    || die "Git tag '${git_tag}' does not exist locally."
+ensure_master_branch() {
+  local current_branch
 
-  tag_commit="$(git rev-list -n 1 "$git_tag")"
+  current_branch="$(git branch --show-current)"
+  [[ "$current_branch" == "master" ]] \
+    || die "Publishing requires branch 'master'; current branch is '${current_branch:-detached HEAD}'."
+
+  log "Validated current branch is master."
+}
+
+ensure_no_open_prs() {
+  local open_pr_count
+
+  require_cmd gh
+  open_pr_count="$(gh pr list --state open --json number --jq 'length')"
+  [[ "$open_pr_count" == "0" ]] \
+    || die "Cannot publish while ${open_pr_count} PR(s) are open."
+
+  log "Validated no PRs are open."
+}
+
+latest_semver_tag() {
+  local tag
+  local semver_regex='^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'
+
+  while IFS= read -r tag; do
+    if [[ "$tag" =~ $semver_regex ]]; then
+      printf '%s\n' "$tag"
+      return 0
+    fi
+  done < <(git tag --list --sort=-v:refname)
+
+  return 1
+}
+
+verify_release_state() {
+  local requested_tag="$1"
+  local latest_tag tag_commit head_commit head_tags
+
+  ensure_master_branch
+  fetch_release_refs
+  ensure_no_open_prs
+
+  latest_tag="$(latest_semver_tag)" \
+    || die "No SemVer release tags found. Create a tag like v1.2.3 before publishing."
+
+  if [[ -z "$requested_tag" ]]; then
+    GIT_TAG="$latest_tag"
+  elif [[ "$requested_tag" != "$latest_tag" ]]; then
+    die "Requested tag '${requested_tag}' is not the latest SemVer release tag '${latest_tag}'."
+  fi
+
+  git rev-parse -q --verify "refs/tags/${GIT_TAG}^{commit}" >/dev/null 2>&1 \
+    || die "Git tag '${GIT_TAG}' does not exist locally."
+
+  head_tags="$(git tag --points-at HEAD)"
+  if ! grep -Fxq "$GIT_TAG" <<<"$head_tags"; then
+    die "HEAD does not carry latest release tag '${GIT_TAG}'. Move master to the release commit before publishing."
+  fi
+
+  tag_commit="$(git rev-list -n 1 "$GIT_TAG")"
   head_commit="$(git rev-parse HEAD)"
 
   [[ "$tag_commit" == "$head_commit" ]] \
-    || die "HEAD (${head_commit}) does not match tag '${git_tag}' (${tag_commit}). Check out the tagged commit before publishing."
+    || die "HEAD (${head_commit}) does not match tag '${GIT_TAG}' (${tag_commit}). Move master to the tagged commit before publishing."
 
-  git fetch --no-tags origin master:refs/remotes/origin/master
   git merge-base --is-ancestor "$tag_commit" origin/master \
-    || die "Tag '${git_tag}' resolves to ${tag_commit}, which is not contained in origin/master."
+    || die "Tag '${GIT_TAG}' resolves to ${tag_commit}, which is not contained in origin/master."
 
-  log "Validated tag '${git_tag}' at commit ${tag_commit} on origin/master."
+  log "Validated latest release tag '${GIT_TAG}' at commit ${tag_commit} on origin/master."
 }
 
 docker_login_ghcr() {
@@ -260,11 +316,6 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-if [[ -z "$GIT_TAG" ]]; then
-  GIT_TAG="$(git describe --tags --exact-match 2>/dev/null || true)"
-  [[ -n "$GIT_TAG" ]] || die "No git tag provided and HEAD is not checked out at an exact tag."
-fi
-
 require_cmd git
 
 if [[ "$SKIP_TESTS" -eq 0 ]]; then
@@ -277,7 +328,7 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
 fi
 
 ensure_clean_tree
-verify_tag_checkout "$GIT_TAG"
+verify_release_state "$GIT_TAG"
 
 if [[ -z "$IMAGE_NAME" ]]; then
   IMAGE_NAME="$(derive_image_name)"

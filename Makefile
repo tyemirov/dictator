@@ -12,9 +12,8 @@ PROTO_PYTHON_READY := $(PROTO_PYTHON_VENV)/.ready
 PROTO_GRPCIO_VERSION ?= 1.78.0
 PROTO_GRPCIO_TOOLS_VERSION ?= 1.78.0
 PROTO_PROTOBUF_VERSION ?= 6.33.6
-TAG ?=
 
-.PHONY: test coverage ci publish-gpu-image test-docker-image proto proto-python proto-go proto-check proto-python-tools
+.PHONY: test coverage ci publish publish-gpu-image test-docker-image proto proto-python proto-go proto-check proto-python-tools
 
 test:
 	$(PYTHON) -m unittest discover -s tests -p 'test_*.py'
@@ -61,5 +60,7 @@ proto-check:
 		exit 1; \
 	fi
 
-publish-gpu-image:
-	./scripts/docker-gh-deploy.sh $(TAG)
+publish:
+	./scripts/docker-gh-deploy.sh
+
+publish-gpu-image: publish

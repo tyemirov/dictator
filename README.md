@@ -87,24 +87,23 @@ Pushing a semver Git tag like `1.2.3` or `v1.2.3` now triggers a GitHub Actions 
 
 The actual GPU image build and push now happens locally so Buildx layer cache can be reused across releases.
 
-To publish the GPU image for a checked-out tag:
+To publish the GPU image for the latest release tag:
 
 ```bash
 git fetch --tags origin
-git checkout v1.2.3
-./scripts/docker-gh-deploy.sh v1.2.3
-```
-
-Or through `make`:
-
-```bash
-make publish-gpu-image TAG=v1.2.3
+git checkout master
+git pull --ff-only origin master
+make publish
 ```
 
 The publish script:
 
 * requires a clean working tree
-* verifies the checked-out tag resolves to a commit contained in `origin/master`
+* verifies the current branch is `master`
+* verifies there are no open PRs
+* verifies `HEAD` carries the latest SemVer release tag
+* verifies the latest release tag resolves to a commit contained in `origin/master`
+* autodetects the release tag and uses it for image publishing
 * runs `make ci` before publishing
 * reuses a persistent local Buildx cache in `.buildx-cache-gpu`
 * derives the default GHCR image as `ghcr.io/<owner>/<repo>`
