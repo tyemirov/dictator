@@ -9,6 +9,9 @@ endif
 PROTO_PYTHON_VENV ?= tools/proto-python
 PROTO_PYTHON := $(PROTO_PYTHON_VENV)/bin/python
 PROTO_PYTHON_READY := $(PROTO_PYTHON_VENV)/.ready
+PROTO_GRPCIO_VERSION ?= 1.78.0
+PROTO_GRPCIO_TOOLS_VERSION ?= 1.78.0
+PROTO_PROTOBUF_VERSION ?= 6.33.6
 TAG ?=
 
 .PHONY: test coverage ci publish-gpu-image test-docker-image proto proto-python proto-go proto-check proto-python-tools
@@ -31,7 +34,7 @@ proto-python: proto-python-tools
 
 proto-python-tools: $(PROTO_PYTHON_READY)
 
-$(PROTO_PYTHON_READY):
+$(PROTO_PYTHON_READY): Makefile
 	@bootstrap_python="$$(command -v python3.11 || command -v python3)"; \
 	if [ -z "$$bootstrap_python" ]; then \
 		echo "Error: python3.11 or python3 is required to bootstrap protobuf tools." >&2; \
@@ -40,7 +43,7 @@ $(PROTO_PYTHON_READY):
 	rm -rf "$(PROTO_PYTHON_VENV)"; \
 	"$$bootstrap_python" -m venv "$(PROTO_PYTHON_VENV)"; \
 	"$(PROTO_PYTHON)" -m pip install --upgrade pip >/dev/null; \
-	"$(PROTO_PYTHON)" -m pip install grpcio-tools protobuf >/dev/null; \
+	"$(PROTO_PYTHON)" -m pip install "grpcio==$(PROTO_GRPCIO_VERSION)" "grpcio-tools==$(PROTO_GRPCIO_TOOLS_VERSION)" "protobuf==$(PROTO_PROTOBUF_VERSION)" >/dev/null; \
 	touch "$(PROTO_PYTHON_READY)"
 
 proto-go:
