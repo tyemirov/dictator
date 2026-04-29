@@ -49,11 +49,12 @@ proto-go:
 proto: proto-python-tools proto-python proto-go
 
 proto-check:
-	@$(MAKE) proto
-	@generated_status="$$(git status --porcelain -- dictator/speech/v1 sdk/go/dictatorspeechv1)"; \
-	if [ -n "$$generated_status" ]; then \
+	@before_status="$$(git status --porcelain -- dictator/speech/v1 sdk/go/dictatorspeechv1)"; \
+	$(MAKE) proto; \
+	after_status="$$(git status --porcelain -- dictator/speech/v1 sdk/go/dictatorspeechv1)"; \
+	if [ "$$before_status" != "$$after_status" ]; then \
 		echo "Error: generated gRPC stubs are out of sync. Run 'make proto' and commit the changes." >&2; \
-		echo "$$generated_status"; \
+		echo "$$after_status"; \
 		exit 1; \
 	fi
 

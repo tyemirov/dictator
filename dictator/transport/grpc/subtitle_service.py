@@ -71,6 +71,7 @@ class SubtitleServiceServicer(BaseServicer, subtitle_pb2_grpc.SubtitleServiceSer
             SubtitleJobState.RUNNING: subtitle_pb2.SUBTITLE_JOB_STATE_RUNNING,
             SubtitleJobState.SUCCEEDED: subtitle_pb2.SUBTITLE_JOB_STATE_SUCCEEDED,
             SubtitleJobState.FAILED: subtitle_pb2.SUBTITLE_JOB_STATE_FAILED,
+            SubtitleJobState.CANCELED: subtitle_pb2.SUBTITLE_JOB_STATE_CANCELED,
         }
         return mapping[state]
 
@@ -186,4 +187,23 @@ class SubtitleServiceServicer(BaseServicer, subtitle_pb2_grpc.SubtitleServiceSer
             job_id = validate_subtitle_job_id(request.job_id)
             return self._subtitle_job_response(
                 self.service_context.subtitle_job_manager.get(job_id)
+            )
+
+    def CancelRenderSubtitlesJob(self, request, context):
+        with self._request_scope(context, is_inquiry=True):
+            if self.service_context.subtitle_job_manager is None:
+                raise ValidationError(
+                    "dictator.grpc.subtitles.jobs_unavailable",
+                    "subtitle job manager is not configured",
+                )
+            if not request.job_id.strip():
+                raise ValidationError(
+                    "dictator.grpc.subtitles.job_id_required",
+                    "job_id is required",
+                )
+            job_id = validate_subtitle_job_id(request.job_id)
+            record = self.service_context.subtitle_job_manager.cancel(job_id)
+            return subtitle_pb2.CancelRenderSubtitlesJobResponse(
+                job_id=record.job_id,
+                state=self._subtitle_job_state_value(record.state),
             )

@@ -22,9 +22,11 @@ const (
 	TranscriptionService_Transcribe_FullMethodName            = "/dictator.speech.v1.TranscriptionService/Transcribe"
 	TranscriptionService_SubmitTranscribeJob_FullMethodName   = "/dictator.speech.v1.TranscriptionService/SubmitTranscribeJob"
 	TranscriptionService_GetTranscribeJob_FullMethodName      = "/dictator.speech.v1.TranscriptionService/GetTranscribeJob"
+	TranscriptionService_CancelTranscribeJob_FullMethodName   = "/dictator.speech.v1.TranscriptionService/CancelTranscribeJob"
 	TranscriptionService_DiarizeAudio_FullMethodName          = "/dictator.speech.v1.TranscriptionService/DiarizeAudio"
 	TranscriptionService_SubmitDiarizeAudioJob_FullMethodName = "/dictator.speech.v1.TranscriptionService/SubmitDiarizeAudioJob"
 	TranscriptionService_GetDiarizeAudioJob_FullMethodName    = "/dictator.speech.v1.TranscriptionService/GetDiarizeAudioJob"
+	TranscriptionService_CancelDiarizeAudioJob_FullMethodName = "/dictator.speech.v1.TranscriptionService/CancelDiarizeAudioJob"
 )
 
 // TranscriptionServiceClient is the client API for TranscriptionService service.
@@ -34,9 +36,11 @@ type TranscriptionServiceClient interface {
 	Transcribe(ctx context.Context, in *TranscribeRequest, opts ...grpc.CallOption) (*TranscribeResponse, error)
 	SubmitTranscribeJob(ctx context.Context, in *TranscribeRequest, opts ...grpc.CallOption) (*SubmitTranscribeJobResponse, error)
 	GetTranscribeJob(ctx context.Context, in *GetTranscribeJobRequest, opts ...grpc.CallOption) (*GetTranscribeJobResponse, error)
+	CancelTranscribeJob(ctx context.Context, in *CancelTranscribeJobRequest, opts ...grpc.CallOption) (*CancelTranscribeJobResponse, error)
 	DiarizeAudio(ctx context.Context, in *DiarizeAudioRequest, opts ...grpc.CallOption) (*DiarizeAudioResponse, error)
 	SubmitDiarizeAudioJob(ctx context.Context, in *DiarizeAudioRequest, opts ...grpc.CallOption) (*SubmitDiarizeAudioJobResponse, error)
 	GetDiarizeAudioJob(ctx context.Context, in *GetDiarizeAudioJobRequest, opts ...grpc.CallOption) (*GetDiarizeAudioJobResponse, error)
+	CancelDiarizeAudioJob(ctx context.Context, in *CancelDiarizeAudioJobRequest, opts ...grpc.CallOption) (*CancelDiarizeAudioJobResponse, error)
 }
 
 type transcriptionServiceClient struct {
@@ -77,6 +81,16 @@ func (c *transcriptionServiceClient) GetTranscribeJob(ctx context.Context, in *G
 	return out, nil
 }
 
+func (c *transcriptionServiceClient) CancelTranscribeJob(ctx context.Context, in *CancelTranscribeJobRequest, opts ...grpc.CallOption) (*CancelTranscribeJobResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CancelTranscribeJobResponse)
+	err := c.cc.Invoke(ctx, TranscriptionService_CancelTranscribeJob_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *transcriptionServiceClient) DiarizeAudio(ctx context.Context, in *DiarizeAudioRequest, opts ...grpc.CallOption) (*DiarizeAudioResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DiarizeAudioResponse)
@@ -107,6 +121,16 @@ func (c *transcriptionServiceClient) GetDiarizeAudioJob(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *transcriptionServiceClient) CancelDiarizeAudioJob(ctx context.Context, in *CancelDiarizeAudioJobRequest, opts ...grpc.CallOption) (*CancelDiarizeAudioJobResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CancelDiarizeAudioJobResponse)
+	err := c.cc.Invoke(ctx, TranscriptionService_CancelDiarizeAudioJob_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TranscriptionServiceServer is the server API for TranscriptionService service.
 // All implementations must embed UnimplementedTranscriptionServiceServer
 // for forward compatibility.
@@ -114,9 +138,11 @@ type TranscriptionServiceServer interface {
 	Transcribe(context.Context, *TranscribeRequest) (*TranscribeResponse, error)
 	SubmitTranscribeJob(context.Context, *TranscribeRequest) (*SubmitTranscribeJobResponse, error)
 	GetTranscribeJob(context.Context, *GetTranscribeJobRequest) (*GetTranscribeJobResponse, error)
+	CancelTranscribeJob(context.Context, *CancelTranscribeJobRequest) (*CancelTranscribeJobResponse, error)
 	DiarizeAudio(context.Context, *DiarizeAudioRequest) (*DiarizeAudioResponse, error)
 	SubmitDiarizeAudioJob(context.Context, *DiarizeAudioRequest) (*SubmitDiarizeAudioJobResponse, error)
 	GetDiarizeAudioJob(context.Context, *GetDiarizeAudioJobRequest) (*GetDiarizeAudioJobResponse, error)
+	CancelDiarizeAudioJob(context.Context, *CancelDiarizeAudioJobRequest) (*CancelDiarizeAudioJobResponse, error)
 	mustEmbedUnimplementedTranscriptionServiceServer()
 }
 
@@ -136,6 +162,9 @@ func (UnimplementedTranscriptionServiceServer) SubmitTranscribeJob(context.Conte
 func (UnimplementedTranscriptionServiceServer) GetTranscribeJob(context.Context, *GetTranscribeJobRequest) (*GetTranscribeJobResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTranscribeJob not implemented")
 }
+func (UnimplementedTranscriptionServiceServer) CancelTranscribeJob(context.Context, *CancelTranscribeJobRequest) (*CancelTranscribeJobResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CancelTranscribeJob not implemented")
+}
 func (UnimplementedTranscriptionServiceServer) DiarizeAudio(context.Context, *DiarizeAudioRequest) (*DiarizeAudioResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DiarizeAudio not implemented")
 }
@@ -144,6 +173,9 @@ func (UnimplementedTranscriptionServiceServer) SubmitDiarizeAudioJob(context.Con
 }
 func (UnimplementedTranscriptionServiceServer) GetDiarizeAudioJob(context.Context, *GetDiarizeAudioJobRequest) (*GetDiarizeAudioJobResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDiarizeAudioJob not implemented")
+}
+func (UnimplementedTranscriptionServiceServer) CancelDiarizeAudioJob(context.Context, *CancelDiarizeAudioJobRequest) (*CancelDiarizeAudioJobResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CancelDiarizeAudioJob not implemented")
 }
 func (UnimplementedTranscriptionServiceServer) mustEmbedUnimplementedTranscriptionServiceServer() {}
 func (UnimplementedTranscriptionServiceServer) testEmbeddedByValue()                              {}
@@ -220,6 +252,24 @@ func _TranscriptionService_GetTranscribeJob_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TranscriptionService_CancelTranscribeJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelTranscribeJobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TranscriptionServiceServer).CancelTranscribeJob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TranscriptionService_CancelTranscribeJob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TranscriptionServiceServer).CancelTranscribeJob(ctx, req.(*CancelTranscribeJobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _TranscriptionService_DiarizeAudio_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DiarizeAudioRequest)
 	if err := dec(in); err != nil {
@@ -274,6 +324,24 @@ func _TranscriptionService_GetDiarizeAudioJob_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TranscriptionService_CancelDiarizeAudioJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelDiarizeAudioJobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TranscriptionServiceServer).CancelDiarizeAudioJob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TranscriptionService_CancelDiarizeAudioJob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TranscriptionServiceServer).CancelDiarizeAudioJob(ctx, req.(*CancelDiarizeAudioJobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TranscriptionService_ServiceDesc is the grpc.ServiceDesc for TranscriptionService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -294,6 +362,10 @@ var TranscriptionService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _TranscriptionService_GetTranscribeJob_Handler,
 		},
 		{
+			MethodName: "CancelTranscribeJob",
+			Handler:    _TranscriptionService_CancelTranscribeJob_Handler,
+		},
+		{
 			MethodName: "DiarizeAudio",
 			Handler:    _TranscriptionService_DiarizeAudio_Handler,
 		},
@@ -304,6 +376,10 @@ var TranscriptionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetDiarizeAudioJob",
 			Handler:    _TranscriptionService_GetDiarizeAudioJob_Handler,
+		},
+		{
+			MethodName: "CancelDiarizeAudioJob",
+			Handler:    _TranscriptionService_CancelDiarizeAudioJob_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

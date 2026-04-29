@@ -706,25 +706,21 @@ And miles to go before I sleep.`
             }
           });
           recorder.addEventListener("stop", () => {
+            mediaStream.getTracks().forEach((track) => track.stop());
+            mediaStream = null;
+            recorder = null;
             recordedBlob = new Blob(chunks, { type: recordedMimeType });
-            if (recordedAudioUrl) {
-              URL.revokeObjectURL(recordedAudioUrl);
-            }
             recordedAudioUrl = URL.createObjectURL(recordedBlob);
             recordedAudio.src = recordedAudioUrl;
             recordedAudio.load();
             clearGeneratedPlayback();
             generateButton.disabled = false;
-            if (mediaStream) {
-              mediaStream.getTracks().forEach((track) => track.stop());
-            }
-            recorder = null;
-            mediaStream = null;
             setRecordingUi(false);
             setStatus("Recording captured. Generate the selected reading when ready.", "ok");
           });
           recordedBlob = null;
           generateButton.disabled = true;
+          recordedAudio.removeAttribute("src");
           recorder.start();
           setRecordingUi(true);
           setStatus("Recording. Read the full sample in your natural voice for the strongest clone.");

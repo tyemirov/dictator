@@ -75,6 +75,7 @@ class TranscriptionServiceServicer(BaseServicer, transcription_pb2_grpc.Transcri
             TranscriptionJobState.RUNNING: transcription_pb2.TRANSCRIPTION_JOB_STATE_RUNNING,
             TranscriptionJobState.SUCCEEDED: transcription_pb2.TRANSCRIPTION_JOB_STATE_SUCCEEDED,
             TranscriptionJobState.FAILED: transcription_pb2.TRANSCRIPTION_JOB_STATE_FAILED,
+            TranscriptionJobState.CANCELED: transcription_pb2.TRANSCRIPTION_JOB_STATE_CANCELED,
         }
         return mapping[state]
 
@@ -84,6 +85,7 @@ class TranscriptionServiceServicer(BaseServicer, transcription_pb2_grpc.Transcri
             DiarizationJobState.RUNNING: transcription_pb2.DIARIZATION_JOB_STATE_RUNNING,
             DiarizationJobState.SUCCEEDED: transcription_pb2.DIARIZATION_JOB_STATE_SUCCEEDED,
             DiarizationJobState.FAILED: transcription_pb2.DIARIZATION_JOB_STATE_FAILED,
+            DiarizationJobState.CANCELED: transcription_pb2.DIARIZATION_JOB_STATE_CANCELED,
         }
         return mapping[state]
 
@@ -228,6 +230,25 @@ class TranscriptionServiceServicer(BaseServicer, transcription_pb2_grpc.Transcri
                 self.service_context.transcription_job_manager.get(job_id)
             )
 
+    def CancelTranscribeJob(self, request, context):
+        with self._request_scope(context, is_inquiry=True):
+            if self.service_context.transcription_job_manager is None:
+                raise ValidationError(
+                    "dictator.grpc.transcription.jobs_unavailable",
+                    "transcription job manager is not configured",
+                )
+            if not request.job_id.strip():
+                raise ValidationError(
+                    "dictator.grpc.transcription.job_id_required",
+                    "job_id is required",
+                )
+            job_id = validate_transcription_job_id(request.job_id)
+            record = self.service_context.transcription_job_manager.cancel(job_id)
+            return transcription_pb2.CancelTranscribeJobResponse(
+                job_id=record.job_id,
+                state=self._transcription_job_state_value(record.state),
+            )
+
     def SubmitDiarizeAudioJob(self, request, context):
         with self._request_scope(context):
             if self.service_context.diarization_job_manager is None:
@@ -257,4 +278,23 @@ class TranscriptionServiceServicer(BaseServicer, transcription_pb2_grpc.Transcri
             job_id = validate_diarization_job_id(request.job_id)
             return self._diarization_job_response(
                 self.service_context.diarization_job_manager.get(job_id)
+            )
+
+    def CancelDiarizeAudioJob(self, request, context):
+        with self._request_scope(context, is_inquiry=True):
+            if self.service_context.diarization_job_manager is None:
+                raise ValidationError(
+                    "dictator.grpc.diarization.jobs_unavailable",
+                    "diarization job manager is not configured",
+                )
+            if not request.job_id.strip():
+                raise ValidationError(
+                    "dictator.grpc.diarization.job_id_required",
+                    "job_id is required",
+                )
+            job_id = validate_diarization_job_id(request.job_id)
+            record = self.service_context.diarization_job_manager.cancel(job_id)
+            return transcription_pb2.CancelDiarizeAudioJobResponse(
+                job_id=record.job_id,
+                state=self._diarization_job_state_value(record.state),
             )

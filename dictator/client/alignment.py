@@ -259,6 +259,16 @@ class AlignmentClient:
             finished_at_unix_seconds=response.finished_at_unix_seconds,
         )
 
+    def cancel_alignment_job(self, job_id: str) -> AlignmentJob:
+        response = self._alignment_stub.CancelAlignTranscriptJob(
+            alignment_pb2.CancelAlignTranscriptJobRequest(job_id=job_id),
+            metadata=self._metadata,
+        )
+        return AlignmentJob(
+            job_id=response.job_id,
+            state=alignment_pb2.AlignmentJobState.Name(response.state),
+        )
+
     def wait_for_alignment_job(
         self,
         job_id: str,

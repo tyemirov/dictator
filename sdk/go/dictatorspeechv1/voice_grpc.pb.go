@@ -22,9 +22,11 @@ const (
 	VoiceService_ExtractReferenceSample_FullMethodName          = "/dictator.speech.v1.VoiceService/ExtractReferenceSample"
 	VoiceService_SubmitExtractReferenceSampleJob_FullMethodName = "/dictator.speech.v1.VoiceService/SubmitExtractReferenceSampleJob"
 	VoiceService_GetExtractReferenceSampleJob_FullMethodName    = "/dictator.speech.v1.VoiceService/GetExtractReferenceSampleJob"
+	VoiceService_CancelExtractReferenceSampleJob_FullMethodName = "/dictator.speech.v1.VoiceService/CancelExtractReferenceSampleJob"
 	VoiceService_SynthesizeSpeech_FullMethodName                = "/dictator.speech.v1.VoiceService/SynthesizeSpeech"
 	VoiceService_SubmitSynthesizeSpeechJob_FullMethodName       = "/dictator.speech.v1.VoiceService/SubmitSynthesizeSpeechJob"
 	VoiceService_GetSynthesizeSpeechJob_FullMethodName          = "/dictator.speech.v1.VoiceService/GetSynthesizeSpeechJob"
+	VoiceService_CancelSynthesizeSpeechJob_FullMethodName       = "/dictator.speech.v1.VoiceService/CancelSynthesizeSpeechJob"
 )
 
 // VoiceServiceClient is the client API for VoiceService service.
@@ -34,9 +36,11 @@ type VoiceServiceClient interface {
 	ExtractReferenceSample(ctx context.Context, in *ExtractReferenceSampleRequest, opts ...grpc.CallOption) (*ExtractReferenceSampleResponse, error)
 	SubmitExtractReferenceSampleJob(ctx context.Context, in *ExtractReferenceSampleRequest, opts ...grpc.CallOption) (*SubmitExtractReferenceSampleJobResponse, error)
 	GetExtractReferenceSampleJob(ctx context.Context, in *GetExtractReferenceSampleJobRequest, opts ...grpc.CallOption) (*GetExtractReferenceSampleJobResponse, error)
+	CancelExtractReferenceSampleJob(ctx context.Context, in *CancelExtractReferenceSampleJobRequest, opts ...grpc.CallOption) (*CancelExtractReferenceSampleJobResponse, error)
 	SynthesizeSpeech(ctx context.Context, in *SynthesizeSpeechRequest, opts ...grpc.CallOption) (*SynthesizeSpeechResponse, error)
 	SubmitSynthesizeSpeechJob(ctx context.Context, in *SynthesizeSpeechRequest, opts ...grpc.CallOption) (*SubmitSynthesizeSpeechJobResponse, error)
 	GetSynthesizeSpeechJob(ctx context.Context, in *GetSynthesizeSpeechJobRequest, opts ...grpc.CallOption) (*GetSynthesizeSpeechJobResponse, error)
+	CancelSynthesizeSpeechJob(ctx context.Context, in *CancelSynthesizeSpeechJobRequest, opts ...grpc.CallOption) (*CancelSynthesizeSpeechJobResponse, error)
 }
 
 type voiceServiceClient struct {
@@ -77,6 +81,16 @@ func (c *voiceServiceClient) GetExtractReferenceSampleJob(ctx context.Context, i
 	return out, nil
 }
 
+func (c *voiceServiceClient) CancelExtractReferenceSampleJob(ctx context.Context, in *CancelExtractReferenceSampleJobRequest, opts ...grpc.CallOption) (*CancelExtractReferenceSampleJobResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CancelExtractReferenceSampleJobResponse)
+	err := c.cc.Invoke(ctx, VoiceService_CancelExtractReferenceSampleJob_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *voiceServiceClient) SynthesizeSpeech(ctx context.Context, in *SynthesizeSpeechRequest, opts ...grpc.CallOption) (*SynthesizeSpeechResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SynthesizeSpeechResponse)
@@ -107,6 +121,16 @@ func (c *voiceServiceClient) GetSynthesizeSpeechJob(ctx context.Context, in *Get
 	return out, nil
 }
 
+func (c *voiceServiceClient) CancelSynthesizeSpeechJob(ctx context.Context, in *CancelSynthesizeSpeechJobRequest, opts ...grpc.CallOption) (*CancelSynthesizeSpeechJobResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CancelSynthesizeSpeechJobResponse)
+	err := c.cc.Invoke(ctx, VoiceService_CancelSynthesizeSpeechJob_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // VoiceServiceServer is the server API for VoiceService service.
 // All implementations must embed UnimplementedVoiceServiceServer
 // for forward compatibility.
@@ -114,9 +138,11 @@ type VoiceServiceServer interface {
 	ExtractReferenceSample(context.Context, *ExtractReferenceSampleRequest) (*ExtractReferenceSampleResponse, error)
 	SubmitExtractReferenceSampleJob(context.Context, *ExtractReferenceSampleRequest) (*SubmitExtractReferenceSampleJobResponse, error)
 	GetExtractReferenceSampleJob(context.Context, *GetExtractReferenceSampleJobRequest) (*GetExtractReferenceSampleJobResponse, error)
+	CancelExtractReferenceSampleJob(context.Context, *CancelExtractReferenceSampleJobRequest) (*CancelExtractReferenceSampleJobResponse, error)
 	SynthesizeSpeech(context.Context, *SynthesizeSpeechRequest) (*SynthesizeSpeechResponse, error)
 	SubmitSynthesizeSpeechJob(context.Context, *SynthesizeSpeechRequest) (*SubmitSynthesizeSpeechJobResponse, error)
 	GetSynthesizeSpeechJob(context.Context, *GetSynthesizeSpeechJobRequest) (*GetSynthesizeSpeechJobResponse, error)
+	CancelSynthesizeSpeechJob(context.Context, *CancelSynthesizeSpeechJobRequest) (*CancelSynthesizeSpeechJobResponse, error)
 	mustEmbedUnimplementedVoiceServiceServer()
 }
 
@@ -136,6 +162,9 @@ func (UnimplementedVoiceServiceServer) SubmitExtractReferenceSampleJob(context.C
 func (UnimplementedVoiceServiceServer) GetExtractReferenceSampleJob(context.Context, *GetExtractReferenceSampleJobRequest) (*GetExtractReferenceSampleJobResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetExtractReferenceSampleJob not implemented")
 }
+func (UnimplementedVoiceServiceServer) CancelExtractReferenceSampleJob(context.Context, *CancelExtractReferenceSampleJobRequest) (*CancelExtractReferenceSampleJobResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CancelExtractReferenceSampleJob not implemented")
+}
 func (UnimplementedVoiceServiceServer) SynthesizeSpeech(context.Context, *SynthesizeSpeechRequest) (*SynthesizeSpeechResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SynthesizeSpeech not implemented")
 }
@@ -144,6 +173,9 @@ func (UnimplementedVoiceServiceServer) SubmitSynthesizeSpeechJob(context.Context
 }
 func (UnimplementedVoiceServiceServer) GetSynthesizeSpeechJob(context.Context, *GetSynthesizeSpeechJobRequest) (*GetSynthesizeSpeechJobResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSynthesizeSpeechJob not implemented")
+}
+func (UnimplementedVoiceServiceServer) CancelSynthesizeSpeechJob(context.Context, *CancelSynthesizeSpeechJobRequest) (*CancelSynthesizeSpeechJobResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CancelSynthesizeSpeechJob not implemented")
 }
 func (UnimplementedVoiceServiceServer) mustEmbedUnimplementedVoiceServiceServer() {}
 func (UnimplementedVoiceServiceServer) testEmbeddedByValue()                      {}
@@ -220,6 +252,24 @@ func _VoiceService_GetExtractReferenceSampleJob_Handler(srv interface{}, ctx con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _VoiceService_CancelExtractReferenceSampleJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelExtractReferenceSampleJobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VoiceServiceServer).CancelExtractReferenceSampleJob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VoiceService_CancelExtractReferenceSampleJob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VoiceServiceServer).CancelExtractReferenceSampleJob(ctx, req.(*CancelExtractReferenceSampleJobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _VoiceService_SynthesizeSpeech_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SynthesizeSpeechRequest)
 	if err := dec(in); err != nil {
@@ -274,6 +324,24 @@ func _VoiceService_GetSynthesizeSpeechJob_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _VoiceService_CancelSynthesizeSpeechJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelSynthesizeSpeechJobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VoiceServiceServer).CancelSynthesizeSpeechJob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VoiceService_CancelSynthesizeSpeechJob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VoiceServiceServer).CancelSynthesizeSpeechJob(ctx, req.(*CancelSynthesizeSpeechJobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // VoiceService_ServiceDesc is the grpc.ServiceDesc for VoiceService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -294,6 +362,10 @@ var VoiceService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _VoiceService_GetExtractReferenceSampleJob_Handler,
 		},
 		{
+			MethodName: "CancelExtractReferenceSampleJob",
+			Handler:    _VoiceService_CancelExtractReferenceSampleJob_Handler,
+		},
+		{
 			MethodName: "SynthesizeSpeech",
 			Handler:    _VoiceService_SynthesizeSpeech_Handler,
 		},
@@ -304,6 +376,10 @@ var VoiceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSynthesizeSpeechJob",
 			Handler:    _VoiceService_GetSynthesizeSpeechJob_Handler,
+		},
+		{
+			MethodName: "CancelSynthesizeSpeechJob",
+			Handler:    _VoiceService_CancelSynthesizeSpeechJob_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

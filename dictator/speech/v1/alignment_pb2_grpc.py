@@ -49,6 +49,11 @@ class AlignmentServiceStub(object):
                 request_serializer=dictator_dot_speech_dot_v1_dot_alignment__pb2.GetAlignTranscriptJobRequest.SerializeToString,
                 response_deserializer=dictator_dot_speech_dot_v1_dot_alignment__pb2.GetAlignTranscriptJobResponse.FromString,
                 _registered_method=True)
+        self.CancelAlignTranscriptJob = channel.unary_unary(
+                '/dictator.speech.v1.AlignmentService/CancelAlignTranscriptJob',
+                request_serializer=dictator_dot_speech_dot_v1_dot_alignment__pb2.CancelAlignTranscriptJobRequest.SerializeToString,
+                response_deserializer=dictator_dot_speech_dot_v1_dot_alignment__pb2.CancelAlignTranscriptJobResponse.FromString,
+                _registered_method=True)
 
 
 class AlignmentServiceServicer(object):
@@ -72,6 +77,12 @@ class AlignmentServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CancelAlignTranscriptJob(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_AlignmentServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -89,6 +100,11 @@ def add_AlignmentServiceServicer_to_server(servicer, server):
                     servicer.GetAlignTranscriptJob,
                     request_deserializer=dictator_dot_speech_dot_v1_dot_alignment__pb2.GetAlignTranscriptJobRequest.FromString,
                     response_serializer=dictator_dot_speech_dot_v1_dot_alignment__pb2.GetAlignTranscriptJobResponse.SerializeToString,
+            ),
+            'CancelAlignTranscriptJob': grpc.unary_unary_rpc_method_handler(
+                    servicer.CancelAlignTranscriptJob,
+                    request_deserializer=dictator_dot_speech_dot_v1_dot_alignment__pb2.CancelAlignTranscriptJobRequest.FromString,
+                    response_serializer=dictator_dot_speech_dot_v1_dot_alignment__pb2.CancelAlignTranscriptJobResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -172,6 +188,33 @@ class AlignmentService(object):
             '/dictator.speech.v1.AlignmentService/GetAlignTranscriptJob',
             dictator_dot_speech_dot_v1_dot_alignment__pb2.GetAlignTranscriptJobRequest.SerializeToString,
             dictator_dot_speech_dot_v1_dot_alignment__pb2.GetAlignTranscriptJobResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CancelAlignTranscriptJob(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/dictator.speech.v1.AlignmentService/CancelAlignTranscriptJob',
+            dictator_dot_speech_dot_v1_dot_alignment__pb2.CancelAlignTranscriptJobRequest.SerializeToString,
+            dictator_dot_speech_dot_v1_dot_alignment__pb2.CancelAlignTranscriptJobResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -248,6 +248,16 @@ class DictationClient:
             finished_at_unix_seconds=response.finished_at_unix_seconds,
         )
 
+    def cancel_dictation_job(self, job_id: str) -> DictationJob:
+        response = self._transcription_stub.CancelTranscribeJob(
+            transcription_pb2.CancelTranscribeJobRequest(job_id=job_id),
+            metadata=self._metadata,
+        )
+        return DictationJob(
+            job_id=response.job_id,
+            state=transcription_pb2.TranscriptionJobState.Name(response.state),
+        )
+
     def wait_for_dictation_job(
         self,
         job_id: str,

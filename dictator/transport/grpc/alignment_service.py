@@ -41,6 +41,7 @@ class AlignmentServiceServicer(BaseServicer, alignment_pb2_grpc.AlignmentService
             AlignmentJobState.RUNNING: alignment_pb2.ALIGNMENT_JOB_STATE_RUNNING,
             AlignmentJobState.SUCCEEDED: alignment_pb2.ALIGNMENT_JOB_STATE_SUCCEEDED,
             AlignmentJobState.FAILED: alignment_pb2.ALIGNMENT_JOB_STATE_FAILED,
+            AlignmentJobState.CANCELED: alignment_pb2.ALIGNMENT_JOB_STATE_CANCELED,
         }
         return mapping[state]
 
@@ -135,3 +136,22 @@ class AlignmentServiceServicer(BaseServicer, alignment_pb2_grpc.AlignmentService
                 )
             job_id = validate_alignment_job_id(request.job_id)
             return self._job_response(self.service_context.alignment_job_manager.get(job_id))
+
+    def CancelAlignTranscriptJob(self, request, context):
+        with self._request_scope(context, is_inquiry=True):
+            if self.service_context.alignment_job_manager is None:
+                raise ValidationError(
+                    "dictator.grpc.alignment.jobs_unavailable",
+                    "alignment job manager is not configured",
+                )
+            if not request.job_id.strip():
+                raise ValidationError(
+                    "dictator.grpc.alignment.job_id_required",
+                    "job_id is required",
+                )
+            job_id = validate_alignment_job_id(request.job_id)
+            record = self.service_context.alignment_job_manager.cancel(job_id)
+            return alignment_pb2.CancelAlignTranscriptJobResponse(
+                job_id=record.job_id,
+                state=self._job_state_value(record.state),
+            )

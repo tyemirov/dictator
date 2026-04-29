@@ -8,15 +8,17 @@ import grpc
 from google.protobuf import struct_pb2
 
 from dictator.client import (
+    AlignmentClient,
     DiarizationClient,
     DictationClient,
     ReferenceSampleClient,
     ReferenceSampleResult,
+    RemoteJobCanceledError,
     RemoteJobFailedError,
     SynthesisClient,
     SubtitleClient,
 )
-from dictator.speech.v1 import subtitle_pb2, transcription_pb2, voice_pb2
+from dictator.speech.v1 import alignment_pb2, subtitle_pb2, transcription_pb2, voice_pb2
 
 
 class _FakeRpcError(grpc.RpcError):
@@ -406,6 +408,96 @@ class ClientJobHelpersTests(unittest.TestCase):
                     timeout_seconds=1.0,
                     poll_interval_seconds=0.1,
                 )
+
+        with self.assertRaisesRegex(RemoteJobCanceledError, "dictator.jobs.canceled"):
+            wait_for_job(
+                lambda: types.SimpleNamespace(
+                    job_id="tx-cancel",
+                    state="TRANSCRIPTION_JOB_STATE_CANCELED",
+                    error_code="dictator.jobs.canceled",
+                    error_message="job canceled",
+                )
+            )
+
+    def test_cancel_job_client_helpers_call_expected_rpcs(self):
+        transcription_stub = types.SimpleNamespace(
+            CancelTranscribeJob=MagicMock(
+                return_value=types.SimpleNamespace(
+                    job_id="tx-cancel",
+                    state=transcription_pb2.TRANSCRIPTION_JOB_STATE_CANCELED,
+                )
+            ),
+            CancelDiarizeAudioJob=MagicMock(
+                return_value=types.SimpleNamespace(
+                    job_id="dia-cancel",
+                    state=transcription_pb2.DIARIZATION_JOB_STATE_CANCELED,
+                )
+            ),
+        )
+        alignment_stub = types.SimpleNamespace(
+            CancelAlignTranscriptJob=MagicMock(
+                return_value=types.SimpleNamespace(
+                    job_id="align-cancel",
+                    state=alignment_pb2.ALIGNMENT_JOB_STATE_CANCELED,
+                )
+            )
+        )
+        subtitle_stub = types.SimpleNamespace(
+            CancelRenderSubtitlesJob=MagicMock(
+                return_value=types.SimpleNamespace(
+                    job_id="sub-cancel",
+                    state=subtitle_pb2.SUBTITLE_JOB_STATE_CANCELED,
+                )
+            )
+        )
+        voice_stub = types.SimpleNamespace(
+            CancelSynthesizeSpeechJob=MagicMock(
+                return_value=types.SimpleNamespace(
+                    job_id="syn-cancel",
+                    state=voice_pb2.SYNTHESIS_JOB_STATE_CANCELED,
+                )
+            ),
+            CancelExtractReferenceSampleJob=MagicMock(
+                return_value=types.SimpleNamespace(
+                    job_id="ref-cancel",
+                    state=voice_pb2.EXTRACT_REFERENCE_SAMPLE_JOB_STATE_CANCELED,
+                )
+            ),
+        )
+
+        with (
+            patch("dictator.client.dictation.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
+            patch("dictator.client.dictation.transcription_pb2_grpc.TranscriptionServiceStub", return_value=transcription_stub),
+            patch("dictator.client.diarization.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
+            patch("dictator.client.diarization.transcription_pb2_grpc.TranscriptionServiceStub", return_value=transcription_stub),
+            patch("dictator.client.alignment.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
+            patch("dictator.client.alignment.alignment_pb2_grpc.AlignmentServiceStub", return_value=alignment_stub),
+            patch("dictator.client.subtitles.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
+            patch("dictator.client.subtitles.subtitle_pb2_grpc.SubtitleServiceStub", return_value=subtitle_stub),
+            patch("dictator.client.voice.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
+            patch("dictator.client.voice.voice_pb2_grpc.VoiceServiceStub", return_value=voice_stub),
+        ):
+            dictation = DictationClient(object(), metadata=[("authorization", "Bearer secret")])
+            diarization = DiarizationClient(object(), metadata=[("authorization", "Bearer secret")])
+            alignment = AlignmentClient(object(), metadata=[("authorization", "Bearer secret")])
+            subtitle = SubtitleClient(object(), metadata=[("authorization", "Bearer secret")])
+            synthesis = SynthesisClient(object(), metadata=[("authorization", "Bearer secret")])
+            reference = ReferenceSampleClient(object(), metadata=[("authorization", "Bearer secret")])
+
+        self.assertEqual(dictation.cancel_dictation_job("tx-cancel").state, "TRANSCRIPTION_JOB_STATE_CANCELED")
+        self.assertEqual(diarization.cancel_diarization_job("dia-cancel").state, "DIARIZATION_JOB_STATE_CANCELED")
+        self.assertEqual(alignment.cancel_alignment_job("align-cancel").state, "ALIGNMENT_JOB_STATE_CANCELED")
+        self.assertEqual(subtitle.cancel_subtitle_job("sub-cancel").state, "SUBTITLE_JOB_STATE_CANCELED")
+        self.assertEqual(synthesis.cancel_synthesis_job("syn-cancel").state, "SYNTHESIS_JOB_STATE_CANCELED")
+        self.assertEqual(reference.cancel_reference_sample_job("ref-cancel").state, "EXTRACT_REFERENCE_SAMPLE_JOB_STATE_CANCELED")
+
+        self.assertEqual(transcription_stub.CancelTranscribeJob.call_args.args[0].job_id, "tx-cancel")
+        self.assertEqual(transcription_stub.CancelTranscribeJob.call_args.kwargs["metadata"], (("authorization", "Bearer secret"),))
+        self.assertEqual(transcription_stub.CancelDiarizeAudioJob.call_args.args[0].job_id, "dia-cancel")
+        self.assertEqual(alignment_stub.CancelAlignTranscriptJob.call_args.args[0].job_id, "align-cancel")
+        self.assertEqual(subtitle_stub.CancelRenderSubtitlesJob.call_args.args[0].job_id, "sub-cancel")
+        self.assertEqual(voice_stub.CancelSynthesizeSpeechJob.call_args.args[0].job_id, "syn-cancel")
+        self.assertEqual(voice_stub.CancelExtractReferenceSampleJob.call_args.args[0].job_id, "ref-cancel")
 
     def test_dictation_sync_fallback_and_error_paths(self):
         sync_stub = types.SimpleNamespace(

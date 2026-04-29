@@ -38,6 +38,12 @@ class _ImmediateExecutor:
         return types.SimpleNamespace(result=lambda timeout=None: None)
 
 
+class _CancelJobManager(FakeJobManager):
+    def cancel(self, job_id):
+        self.lookups.append(job_id)
+        return self.record
+
+
 def _build_service_context(**overrides):
     artifact_store = overrides.pop(
         "artifact_store",
@@ -429,6 +435,95 @@ class AsyncJobCoverageTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "must be positive"):
             _parse_positive_float("0", "poll interval")
+
+    def test_cancel_job_grpc_handlers_map_canceled_and_validate_requests(self):
+        from dictator.runtime.jobs import (
+            AlignmentJobRecord,
+            AlignmentJobState,
+            DiarizationJobRecord,
+            DiarizationJobState,
+            ExtractReferenceSampleJobRecord,
+            ExtractReferenceSampleJobState,
+            SubtitleJobRecord,
+            SubtitleJobState,
+            SynthesisJobRecord,
+            SynthesisJobState,
+            TranscriptionJobRecord,
+            TranscriptionJobState,
+        )
+        from dictator.transport.grpc.alignment_service import AlignmentServiceServicer
+        from dictator.transport.grpc.subtitle_service import SubtitleServiceServicer
+        from dictator.transport.grpc.transcription_service import TranscriptionServiceServicer
+        from dictator.transport.grpc.voice_service import VoiceServiceServicer
+
+        cases = (
+            (
+                TranscriptionServiceServicer,
+                "transcription_job_manager",
+                TranscriptionJobRecord("tx-job", TranscriptionJobState.CANCELED, "audio-1", True, 1.0),
+                "CancelTranscribeJob",
+                transcription_pb2.CancelTranscribeJobRequest,
+                transcription_pb2.TRANSCRIPTION_JOB_STATE_CANCELED,
+            ),
+            (
+                TranscriptionServiceServicer,
+                "diarization_job_manager",
+                DiarizationJobRecord("dia-job", DiarizationJobState.CANCELED, "audio-1", True, True, True, False, True, 1.0),
+                "CancelDiarizeAudioJob",
+                transcription_pb2.CancelDiarizeAudioJobRequest,
+                transcription_pb2.DIARIZATION_JOB_STATE_CANCELED,
+            ),
+            (
+                AlignmentServiceServicer,
+                "alignment_job_manager",
+                AlignmentJobRecord("align-job", AlignmentJobState.CANCELED, "audio-1", True, 1.0),
+                "CancelAlignTranscriptJob",
+                alignment_pb2.CancelAlignTranscriptJobRequest,
+                alignment_pb2.ALIGNMENT_JOB_STATE_CANCELED,
+            ),
+            (
+                SubtitleServiceServicer,
+                "subtitle_job_manager",
+                SubtitleJobRecord("sub-job", SubtitleJobState.CANCELED, "audio-1", True, 1.0),
+                "CancelRenderSubtitlesJob",
+                subtitle_pb2.CancelRenderSubtitlesJobRequest,
+                subtitle_pb2.SUBTITLE_JOB_STATE_CANCELED,
+            ),
+            (
+                VoiceServiceServicer,
+                "reference_extraction_job_manager",
+                ExtractReferenceSampleJobRecord("ref-job", ExtractReferenceSampleJobState.CANCELED, "source-1", 1.0),
+                "CancelExtractReferenceSampleJob",
+                voice_pb2.CancelExtractReferenceSampleJobRequest,
+                voice_pb2.EXTRACT_REFERENCE_SAMPLE_JOB_STATE_CANCELED,
+            ),
+            (
+                VoiceServiceServicer,
+                "synthesis_job_manager",
+                SynthesisJobRecord("syn-job", SynthesisJobState.CANCELED, "qwen3", "en", False, "speaker-1", 1.0),
+                "CancelSynthesizeSpeechJob",
+                voice_pb2.CancelSynthesizeSpeechJobRequest,
+                voice_pb2.SYNTHESIS_JOB_STATE_CANCELED,
+            ),
+        )
+
+        for servicer_class, manager_name, record, method_name, request_class, expected_state in cases:
+            with self.subTest(method=method_name):
+                manager = _CancelJobManager(record)
+                servicer = servicer_class(_build_service_context(**{manager_name: manager}))
+                response = getattr(servicer, method_name)(request_class(job_id=record.job_id), FakeContext())
+                self.assertEqual(response.job_id, record.job_id)
+                self.assertEqual(response.state, expected_state)
+                self.assertEqual(manager.lookups, [record.job_id])
+
+                with self.assertRaises(RpcAbort) as blank:
+                    getattr(servicer, method_name)(request_class(job_id=" "), FakeContext())
+                self.assertEqual(blank.exception.status, grpc.StatusCode.INVALID_ARGUMENT)
+
+                missing_manager = servicer_class(_build_service_context(**{manager_name: None}))
+                with self.assertRaises(RpcAbort) as missing:
+                    getattr(missing_manager, method_name)(request_class(job_id=record.job_id), FakeContext())
+                self.assertEqual(missing.exception.status, grpc.StatusCode.INVALID_ARGUMENT)
 
 
 if __name__ == "__main__":

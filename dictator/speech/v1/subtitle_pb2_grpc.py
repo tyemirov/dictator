@@ -49,6 +49,11 @@ class SubtitleServiceStub(object):
                 request_serializer=dictator_dot_speech_dot_v1_dot_subtitle__pb2.GetRenderSubtitlesJobRequest.SerializeToString,
                 response_deserializer=dictator_dot_speech_dot_v1_dot_subtitle__pb2.GetRenderSubtitlesJobResponse.FromString,
                 _registered_method=True)
+        self.CancelRenderSubtitlesJob = channel.unary_unary(
+                '/dictator.speech.v1.SubtitleService/CancelRenderSubtitlesJob',
+                request_serializer=dictator_dot_speech_dot_v1_dot_subtitle__pb2.CancelRenderSubtitlesJobRequest.SerializeToString,
+                response_deserializer=dictator_dot_speech_dot_v1_dot_subtitle__pb2.CancelRenderSubtitlesJobResponse.FromString,
+                _registered_method=True)
 
 
 class SubtitleServiceServicer(object):
@@ -72,6 +77,12 @@ class SubtitleServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CancelRenderSubtitlesJob(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_SubtitleServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -89,6 +100,11 @@ def add_SubtitleServiceServicer_to_server(servicer, server):
                     servicer.GetRenderSubtitlesJob,
                     request_deserializer=dictator_dot_speech_dot_v1_dot_subtitle__pb2.GetRenderSubtitlesJobRequest.FromString,
                     response_serializer=dictator_dot_speech_dot_v1_dot_subtitle__pb2.GetRenderSubtitlesJobResponse.SerializeToString,
+            ),
+            'CancelRenderSubtitlesJob': grpc.unary_unary_rpc_method_handler(
+                    servicer.CancelRenderSubtitlesJob,
+                    request_deserializer=dictator_dot_speech_dot_v1_dot_subtitle__pb2.CancelRenderSubtitlesJobRequest.FromString,
+                    response_serializer=dictator_dot_speech_dot_v1_dot_subtitle__pb2.CancelRenderSubtitlesJobResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -172,6 +188,33 @@ class SubtitleService(object):
             '/dictator.speech.v1.SubtitleService/GetRenderSubtitlesJob',
             dictator_dot_speech_dot_v1_dot_subtitle__pb2.GetRenderSubtitlesJobRequest.SerializeToString,
             dictator_dot_speech_dot_v1_dot_subtitle__pb2.GetRenderSubtitlesJobResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CancelRenderSubtitlesJob(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/dictator.speech.v1.SubtitleService/CancelRenderSubtitlesJob',
+            dictator_dot_speech_dot_v1_dot_subtitle__pb2.CancelRenderSubtitlesJobRequest.SerializeToString,
+            dictator_dot_speech_dot_v1_dot_subtitle__pb2.CancelRenderSubtitlesJobResponse.FromString,
             options,
             channel_credentials,
             insecure,

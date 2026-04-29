@@ -53,6 +53,7 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
             SynthesisJobState.RUNNING: voice_pb2.SYNTHESIS_JOB_STATE_RUNNING,
             SynthesisJobState.SUCCEEDED: voice_pb2.SYNTHESIS_JOB_STATE_SUCCEEDED,
             SynthesisJobState.FAILED: voice_pb2.SYNTHESIS_JOB_STATE_FAILED,
+            SynthesisJobState.CANCELED: voice_pb2.SYNTHESIS_JOB_STATE_CANCELED,
         }
         return mapping[state]
 
@@ -95,6 +96,7 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
             ExtractReferenceSampleJobState.RUNNING: voice_pb2.EXTRACT_REFERENCE_SAMPLE_JOB_STATE_RUNNING,
             ExtractReferenceSampleJobState.SUCCEEDED: voice_pb2.EXTRACT_REFERENCE_SAMPLE_JOB_STATE_SUCCEEDED,
             ExtractReferenceSampleJobState.FAILED: voice_pb2.EXTRACT_REFERENCE_SAMPLE_JOB_STATE_FAILED,
+            ExtractReferenceSampleJobState.CANCELED: voice_pb2.EXTRACT_REFERENCE_SAMPLE_JOB_STATE_CANCELED,
         }
         return mapping[state]
 
@@ -186,6 +188,25 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
                 self.service_context.reference_extraction_job_manager.get(job_id)
             )
 
+    def CancelExtractReferenceSampleJob(self, request, context):
+        with self._request_scope(context, is_inquiry=True):
+            if self.service_context.reference_extraction_job_manager is None:
+                raise ValidationError(
+                    "dictator.grpc.voice.reference_jobs_unavailable",
+                    "reference extraction job manager is not configured",
+                )
+            if not request.job_id.strip():
+                raise ValidationError(
+                    "dictator.grpc.voice.reference_job_id_required",
+                    "job_id is required",
+                )
+            job_id = validate_extract_reference_sample_job_id(request.job_id)
+            record = self.service_context.reference_extraction_job_manager.cancel(job_id)
+            return voice_pb2.CancelExtractReferenceSampleJobResponse(
+                job_id=record.job_id,
+                state=self._reference_extraction_job_state_value(record.state),
+            )
+
     def SynthesizeSpeech(self, request, context):
         with self._request_scope(context):
             prepared = self._resolve_prepared_synthesis_request(request)
@@ -235,3 +256,22 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
                 )
             job_id = validate_synthesis_job_id(request.job_id)
             return self._job_response(self.service_context.synthesis_job_manager.get(job_id))
+
+    def CancelSynthesizeSpeechJob(self, request, context):
+        with self._request_scope(context, is_inquiry=True):
+            if self.service_context.synthesis_job_manager is None:
+                raise ValidationError(
+                    "dictator.grpc.voice.jobs_unavailable",
+                    "synthesis job manager is not configured",
+                )
+            if not request.job_id.strip():
+                raise ValidationError(
+                    "dictator.grpc.voice.job_id_required",
+                    "job_id is required",
+                )
+            job_id = validate_synthesis_job_id(request.job_id)
+            record = self.service_context.synthesis_job_manager.cancel(job_id)
+            return voice_pb2.CancelSynthesizeSpeechJobResponse(
+                job_id=record.job_id,
+                state=self._job_state_value(record.state),
+            )

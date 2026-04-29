@@ -162,6 +162,16 @@ class SynthesisClient:
             completed_chunks=response.completed_chunks,
         )
 
+    def cancel_synthesis_job(self, job_id: str) -> SynthesisJob:
+        response = self._voice_stub.CancelSynthesizeSpeechJob(
+            voice_pb2.CancelSynthesizeSpeechJobRequest(job_id=job_id),
+            metadata=self._metadata,
+        )
+        return SynthesisJob(
+            job_id=response.job_id,
+            state=voice_pb2.SynthesisJobState.Name(response.state),
+        )
+
     def wait_for_synthesis_job(
         self,
         job_id: str,
@@ -342,6 +352,16 @@ class ReferenceSampleClient:
             created_at_unix_seconds=response.created_at_unix_seconds,
             started_at_unix_seconds=response.started_at_unix_seconds,
             finished_at_unix_seconds=response.finished_at_unix_seconds,
+        )
+
+    def cancel_reference_sample_job(self, job_id: str) -> ReferenceSampleJob:
+        response = self._voice_stub.CancelExtractReferenceSampleJob(
+            voice_pb2.CancelExtractReferenceSampleJobRequest(job_id=job_id),
+            metadata=self._metadata,
+        )
+        return ReferenceSampleJob(
+            job_id=response.job_id,
+            state=voice_pb2.ExtractReferenceSampleJobState.Name(response.state),
         )
 
     def wait_for_reference_sample_job(

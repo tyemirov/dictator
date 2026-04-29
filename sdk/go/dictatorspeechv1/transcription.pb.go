@@ -30,6 +30,7 @@ const (
 	TranscriptionJobState_TRANSCRIPTION_JOB_STATE_RUNNING     TranscriptionJobState = 2
 	TranscriptionJobState_TRANSCRIPTION_JOB_STATE_SUCCEEDED   TranscriptionJobState = 3
 	TranscriptionJobState_TRANSCRIPTION_JOB_STATE_FAILED      TranscriptionJobState = 4
+	TranscriptionJobState_TRANSCRIPTION_JOB_STATE_CANCELED    TranscriptionJobState = 5
 )
 
 // Enum value maps for TranscriptionJobState.
@@ -40,6 +41,7 @@ var (
 		2: "TRANSCRIPTION_JOB_STATE_RUNNING",
 		3: "TRANSCRIPTION_JOB_STATE_SUCCEEDED",
 		4: "TRANSCRIPTION_JOB_STATE_FAILED",
+		5: "TRANSCRIPTION_JOB_STATE_CANCELED",
 	}
 	TranscriptionJobState_value = map[string]int32{
 		"TRANSCRIPTION_JOB_STATE_UNSPECIFIED": 0,
@@ -47,6 +49,7 @@ var (
 		"TRANSCRIPTION_JOB_STATE_RUNNING":     2,
 		"TRANSCRIPTION_JOB_STATE_SUCCEEDED":   3,
 		"TRANSCRIPTION_JOB_STATE_FAILED":      4,
+		"TRANSCRIPTION_JOB_STATE_CANCELED":    5,
 	}
 )
 
@@ -85,6 +88,7 @@ const (
 	DiarizationJobState_DIARIZATION_JOB_STATE_RUNNING     DiarizationJobState = 2
 	DiarizationJobState_DIARIZATION_JOB_STATE_SUCCEEDED   DiarizationJobState = 3
 	DiarizationJobState_DIARIZATION_JOB_STATE_FAILED      DiarizationJobState = 4
+	DiarizationJobState_DIARIZATION_JOB_STATE_CANCELED    DiarizationJobState = 5
 )
 
 // Enum value maps for DiarizationJobState.
@@ -95,6 +99,7 @@ var (
 		2: "DIARIZATION_JOB_STATE_RUNNING",
 		3: "DIARIZATION_JOB_STATE_SUCCEEDED",
 		4: "DIARIZATION_JOB_STATE_FAILED",
+		5: "DIARIZATION_JOB_STATE_CANCELED",
 	}
 	DiarizationJobState_value = map[string]int32{
 		"DIARIZATION_JOB_STATE_UNSPECIFIED": 0,
@@ -102,6 +107,7 @@ var (
 		"DIARIZATION_JOB_STATE_RUNNING":     2,
 		"DIARIZATION_JOB_STATE_SUCCEEDED":   3,
 		"DIARIZATION_JOB_STATE_FAILED":      4,
+		"DIARIZATION_JOB_STATE_CANCELED":    5,
 	}
 )
 
@@ -133,12 +139,15 @@ func (DiarizationJobState) EnumDescriptor() ([]byte, []int) {
 }
 
 type TranscribeRequest struct {
-	state               protoimpl.MessageState `protogen:"open.v1"`
-	AudioArtifactId     string                 `protobuf:"bytes,1,opt,name=audio_artifact_id,json=audioArtifactId,proto3" json:"audio_artifact_id,omitempty"`
-	LanguageCode        string                 `protobuf:"bytes,2,opt,name=language_code,json=languageCode,proto3" json:"language_code,omitempty"`
-	ModelSize           string                 `protobuf:"bytes,3,opt,name=model_size,json=modelSize,proto3" json:"model_size,omitempty"`
-	IncludeWordSegments bool                   `protobuf:"varint,4,opt,name=include_word_segments,json=includeWordSegments,proto3" json:"include_word_segments,omitempty"`
-	AutodetectLanguage  bool                   `protobuf:"varint,5,opt,name=autodetect_language,json=autodetectLanguage,proto3" json:"autodetect_language,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Artifact ID for a complete, finalized, decodable audio file. Browser
+	// MediaRecorder clients must upload the final recording, not an in-progress
+	// chunk or WebM/Matroska header-only fragment.
+	AudioArtifactId     string `protobuf:"bytes,1,opt,name=audio_artifact_id,json=audioArtifactId,proto3" json:"audio_artifact_id,omitempty"`
+	LanguageCode        string `protobuf:"bytes,2,opt,name=language_code,json=languageCode,proto3" json:"language_code,omitempty"`
+	ModelSize           string `protobuf:"bytes,3,opt,name=model_size,json=modelSize,proto3" json:"model_size,omitempty"`
+	IncludeWordSegments bool   `protobuf:"varint,4,opt,name=include_word_segments,json=includeWordSegments,proto3" json:"include_word_segments,omitempty"`
+	AutodetectLanguage  bool   `protobuf:"varint,5,opt,name=autodetect_language,json=autodetectLanguage,proto3" json:"autodetect_language,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -488,25 +497,124 @@ func (x *GetTranscribeJobResponse) GetSourceArtifactId() string {
 	return ""
 }
 
+type CancelTranscribeJobRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelTranscribeJobRequest) Reset() {
+	*x = CancelTranscribeJobRequest{}
+	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelTranscribeJobRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelTranscribeJobRequest) ProtoMessage() {}
+
+func (x *CancelTranscribeJobRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelTranscribeJobRequest.ProtoReflect.Descriptor instead.
+func (*CancelTranscribeJobRequest) Descriptor() ([]byte, []int) {
+	return file_dictator_speech_v1_transcription_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *CancelTranscribeJobRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+type CancelTranscribeJobResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	State         TranscriptionJobState  `protobuf:"varint,2,opt,name=state,proto3,enum=dictator.speech.v1.TranscriptionJobState" json:"state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelTranscribeJobResponse) Reset() {
+	*x = CancelTranscribeJobResponse{}
+	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelTranscribeJobResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelTranscribeJobResponse) ProtoMessage() {}
+
+func (x *CancelTranscribeJobResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelTranscribeJobResponse.ProtoReflect.Descriptor instead.
+func (*CancelTranscribeJobResponse) Descriptor() ([]byte, []int) {
+	return file_dictator_speech_v1_transcription_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *CancelTranscribeJobResponse) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *CancelTranscribeJobResponse) GetState() TranscriptionJobState {
+	if x != nil {
+		return x.State
+	}
+	return TranscriptionJobState_TRANSCRIPTION_JOB_STATE_UNSPECIFIED
+}
+
 type DiarizeAudioRequest struct {
-	state                  protoimpl.MessageState `protogen:"open.v1"`
-	AudioArtifactId        string                 `protobuf:"bytes,1,opt,name=audio_artifact_id,json=audioArtifactId,proto3" json:"audio_artifact_id,omitempty"`
-	LanguageCode           string                 `protobuf:"bytes,2,opt,name=language_code,json=languageCode,proto3" json:"language_code,omitempty"`
-	ModelSize              string                 `protobuf:"bytes,3,opt,name=model_size,json=modelSize,proto3" json:"model_size,omitempty"`
-	IncludeWords           bool                   `protobuf:"varint,4,opt,name=include_words,json=includeWords,proto3" json:"include_words,omitempty"`
-	IncludeUtterances      bool                   `protobuf:"varint,5,opt,name=include_utterances,json=includeUtterances,proto3" json:"include_utterances,omitempty"`
-	IncludeSpeakerSegments bool                   `protobuf:"varint,6,opt,name=include_speaker_segments,json=includeSpeakerSegments,proto3" json:"include_speaker_segments,omitempty"`
-	UtteranceGapSeconds    *float64               `protobuf:"fixed64,7,opt,name=utterance_gap_seconds,json=utteranceGapSeconds,proto3,oneof" json:"utterance_gap_seconds,omitempty"`
-	PersistJsonArtifact    bool                   `protobuf:"varint,8,opt,name=persist_json_artifact,json=persistJsonArtifact,proto3" json:"persist_json_artifact,omitempty"`
-	IncludeSpeakers        bool                   `protobuf:"varint,9,opt,name=include_speakers,json=includeSpeakers,proto3" json:"include_speakers,omitempty"`
-	AutodetectLanguage     bool                   `protobuf:"varint,10,opt,name=autodetect_language,json=autodetectLanguage,proto3" json:"autodetect_language,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Artifact ID for a complete, finalized, decodable audio file. Browser
+	// MediaRecorder clients must upload the final recording, not an in-progress
+	// chunk or WebM/Matroska header-only fragment.
+	AudioArtifactId        string   `protobuf:"bytes,1,opt,name=audio_artifact_id,json=audioArtifactId,proto3" json:"audio_artifact_id,omitempty"`
+	LanguageCode           string   `protobuf:"bytes,2,opt,name=language_code,json=languageCode,proto3" json:"language_code,omitempty"`
+	ModelSize              string   `protobuf:"bytes,3,opt,name=model_size,json=modelSize,proto3" json:"model_size,omitempty"`
+	IncludeWords           bool     `protobuf:"varint,4,opt,name=include_words,json=includeWords,proto3" json:"include_words,omitempty"`
+	IncludeUtterances      bool     `protobuf:"varint,5,opt,name=include_utterances,json=includeUtterances,proto3" json:"include_utterances,omitempty"`
+	IncludeSpeakerSegments bool     `protobuf:"varint,6,opt,name=include_speaker_segments,json=includeSpeakerSegments,proto3" json:"include_speaker_segments,omitempty"`
+	UtteranceGapSeconds    *float64 `protobuf:"fixed64,7,opt,name=utterance_gap_seconds,json=utteranceGapSeconds,proto3,oneof" json:"utterance_gap_seconds,omitempty"`
+	PersistJsonArtifact    bool     `protobuf:"varint,8,opt,name=persist_json_artifact,json=persistJsonArtifact,proto3" json:"persist_json_artifact,omitempty"`
+	IncludeSpeakers        bool     `protobuf:"varint,9,opt,name=include_speakers,json=includeSpeakers,proto3" json:"include_speakers,omitempty"`
+	AutodetectLanguage     bool     `protobuf:"varint,10,opt,name=autodetect_language,json=autodetectLanguage,proto3" json:"autodetect_language,omitempty"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
 
 func (x *DiarizeAudioRequest) Reset() {
 	*x = DiarizeAudioRequest{}
-	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[5]
+	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -518,7 +626,7 @@ func (x *DiarizeAudioRequest) String() string {
 func (*DiarizeAudioRequest) ProtoMessage() {}
 
 func (x *DiarizeAudioRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[5]
+	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -531,7 +639,7 @@ func (x *DiarizeAudioRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiarizeAudioRequest.ProtoReflect.Descriptor instead.
 func (*DiarizeAudioRequest) Descriptor() ([]byte, []int) {
-	return file_dictator_speech_v1_transcription_proto_rawDescGZIP(), []int{5}
+	return file_dictator_speech_v1_transcription_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *DiarizeAudioRequest) GetAudioArtifactId() string {
@@ -616,7 +724,7 @@ type DiarizeAudioResponse struct {
 
 func (x *DiarizeAudioResponse) Reset() {
 	*x = DiarizeAudioResponse{}
-	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[6]
+	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -628,7 +736,7 @@ func (x *DiarizeAudioResponse) String() string {
 func (*DiarizeAudioResponse) ProtoMessage() {}
 
 func (x *DiarizeAudioResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[6]
+	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -641,7 +749,7 @@ func (x *DiarizeAudioResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiarizeAudioResponse.ProtoReflect.Descriptor instead.
 func (*DiarizeAudioResponse) Descriptor() ([]byte, []int) {
-	return file_dictator_speech_v1_transcription_proto_rawDescGZIP(), []int{6}
+	return file_dictator_speech_v1_transcription_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *DiarizeAudioResponse) GetText() string {
@@ -682,7 +790,7 @@ type SubmitDiarizeAudioJobResponse struct {
 
 func (x *SubmitDiarizeAudioJobResponse) Reset() {
 	*x = SubmitDiarizeAudioJobResponse{}
-	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[7]
+	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -694,7 +802,7 @@ func (x *SubmitDiarizeAudioJobResponse) String() string {
 func (*SubmitDiarizeAudioJobResponse) ProtoMessage() {}
 
 func (x *SubmitDiarizeAudioJobResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[7]
+	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -707,7 +815,7 @@ func (x *SubmitDiarizeAudioJobResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitDiarizeAudioJobResponse.ProtoReflect.Descriptor instead.
 func (*SubmitDiarizeAudioJobResponse) Descriptor() ([]byte, []int) {
-	return file_dictator_speech_v1_transcription_proto_rawDescGZIP(), []int{7}
+	return file_dictator_speech_v1_transcription_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *SubmitDiarizeAudioJobResponse) GetJobId() string {
@@ -733,7 +841,7 @@ type GetDiarizeAudioJobRequest struct {
 
 func (x *GetDiarizeAudioJobRequest) Reset() {
 	*x = GetDiarizeAudioJobRequest{}
-	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[8]
+	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -745,7 +853,7 @@ func (x *GetDiarizeAudioJobRequest) String() string {
 func (*GetDiarizeAudioJobRequest) ProtoMessage() {}
 
 func (x *GetDiarizeAudioJobRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[8]
+	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -758,7 +866,7 @@ func (x *GetDiarizeAudioJobRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDiarizeAudioJobRequest.ProtoReflect.Descriptor instead.
 func (*GetDiarizeAudioJobRequest) Descriptor() ([]byte, []int) {
-	return file_dictator_speech_v1_transcription_proto_rawDescGZIP(), []int{8}
+	return file_dictator_speech_v1_transcription_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GetDiarizeAudioJobRequest) GetJobId() string {
@@ -788,7 +896,7 @@ type GetDiarizeAudioJobResponse struct {
 
 func (x *GetDiarizeAudioJobResponse) Reset() {
 	*x = GetDiarizeAudioJobResponse{}
-	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[9]
+	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -800,7 +908,7 @@ func (x *GetDiarizeAudioJobResponse) String() string {
 func (*GetDiarizeAudioJobResponse) ProtoMessage() {}
 
 func (x *GetDiarizeAudioJobResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[9]
+	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -813,7 +921,7 @@ func (x *GetDiarizeAudioJobResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDiarizeAudioJobResponse.ProtoReflect.Descriptor instead.
 func (*GetDiarizeAudioJobResponse) Descriptor() ([]byte, []int) {
-	return file_dictator_speech_v1_transcription_proto_rawDescGZIP(), []int{9}
+	return file_dictator_speech_v1_transcription_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GetDiarizeAudioJobResponse) GetJobId() string {
@@ -900,6 +1008,102 @@ func (x *GetDiarizeAudioJobResponse) GetSourceArtifactId() string {
 	return ""
 }
 
+type CancelDiarizeAudioJobRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelDiarizeAudioJobRequest) Reset() {
+	*x = CancelDiarizeAudioJobRequest{}
+	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelDiarizeAudioJobRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelDiarizeAudioJobRequest) ProtoMessage() {}
+
+func (x *CancelDiarizeAudioJobRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelDiarizeAudioJobRequest.ProtoReflect.Descriptor instead.
+func (*CancelDiarizeAudioJobRequest) Descriptor() ([]byte, []int) {
+	return file_dictator_speech_v1_transcription_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *CancelDiarizeAudioJobRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+type CancelDiarizeAudioJobResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	State         DiarizationJobState    `protobuf:"varint,2,opt,name=state,proto3,enum=dictator.speech.v1.DiarizationJobState" json:"state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelDiarizeAudioJobResponse) Reset() {
+	*x = CancelDiarizeAudioJobResponse{}
+	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelDiarizeAudioJobResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelDiarizeAudioJobResponse) ProtoMessage() {}
+
+func (x *CancelDiarizeAudioJobResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dictator_speech_v1_transcription_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelDiarizeAudioJobResponse.ProtoReflect.Descriptor instead.
+func (*CancelDiarizeAudioJobResponse) Descriptor() ([]byte, []int) {
+	return file_dictator_speech_v1_transcription_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *CancelDiarizeAudioJobResponse) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *CancelDiarizeAudioJobResponse) GetState() DiarizationJobState {
+	if x != nil {
+		return x.State
+	}
+	return DiarizationJobState_DIARIZATION_JOB_STATE_UNSPECIFIED
+}
+
 var File_dictator_speech_v1_transcription_proto protoreflect.FileDescriptor
 
 const file_dictator_speech_v1_transcription_proto_rawDesc = "" +
@@ -934,7 +1138,12 @@ const file_dictator_speech_v1_transcription_proto_rawDesc = "" +
 	"\x17started_at_unix_seconds\x18\t \x01(\x01R\x14startedAtUnixSeconds\x127\n" +
 	"\x18finished_at_unix_seconds\x18\n" +
 	" \x01(\x01R\x15finishedAtUnixSeconds\x12,\n" +
-	"\x12source_artifact_id\x18\v \x01(\tR\x10sourceArtifactId\"\xf6\x03\n" +
+	"\x12source_artifact_id\x18\v \x01(\tR\x10sourceArtifactId\"3\n" +
+	"\x1aCancelTranscribeJobRequest\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"u\n" +
+	"\x1bCancelTranscribeJobResponse\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12?\n" +
+	"\x05state\x18\x02 \x01(\x0e2).dictator.speech.v1.TranscriptionJobStateR\x05state\"\xf6\x03\n" +
 	"\x13DiarizeAudioRequest\x12*\n" +
 	"\x11audio_artifact_id\x18\x01 \x01(\tR\x0faudioArtifactId\x12#\n" +
 	"\rlanguage_code\x18\x02 \x01(\tR\flanguageCode\x12\x1d\n" +
@@ -973,27 +1182,36 @@ const file_dictator_speech_v1_transcription_proto_rawDesc = "" +
 	"\x17started_at_unix_seconds\x18\n" +
 	" \x01(\x01R\x14startedAtUnixSeconds\x127\n" +
 	"\x18finished_at_unix_seconds\x18\v \x01(\x01R\x15finishedAtUnixSeconds\x12,\n" +
-	"\x12source_artifact_id\x18\f \x01(\tR\x10sourceArtifactId*\xd4\x01\n" +
+	"\x12source_artifact_id\x18\f \x01(\tR\x10sourceArtifactId\"5\n" +
+	"\x1cCancelDiarizeAudioJobRequest\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"u\n" +
+	"\x1dCancelDiarizeAudioJobResponse\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12=\n" +
+	"\x05state\x18\x02 \x01(\x0e2'.dictator.speech.v1.DiarizationJobStateR\x05state*\xfa\x01\n" +
 	"\x15TranscriptionJobState\x12'\n" +
 	"#TRANSCRIPTION_JOB_STATE_UNSPECIFIED\x10\x00\x12\"\n" +
 	"\x1eTRANSCRIPTION_JOB_STATE_QUEUED\x10\x01\x12#\n" +
 	"\x1fTRANSCRIPTION_JOB_STATE_RUNNING\x10\x02\x12%\n" +
 	"!TRANSCRIPTION_JOB_STATE_SUCCEEDED\x10\x03\x12\"\n" +
-	"\x1eTRANSCRIPTION_JOB_STATE_FAILED\x10\x04*\xc8\x01\n" +
+	"\x1eTRANSCRIPTION_JOB_STATE_FAILED\x10\x04\x12$\n" +
+	" TRANSCRIPTION_JOB_STATE_CANCELED\x10\x05*\xec\x01\n" +
 	"\x13DiarizationJobState\x12%\n" +
 	"!DIARIZATION_JOB_STATE_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cDIARIZATION_JOB_STATE_QUEUED\x10\x01\x12!\n" +
 	"\x1dDIARIZATION_JOB_STATE_RUNNING\x10\x02\x12#\n" +
 	"\x1fDIARIZATION_JOB_STATE_SUCCEEDED\x10\x03\x12 \n" +
-	"\x1cDIARIZATION_JOB_STATE_FAILED\x10\x042\x9e\x05\n" +
+	"\x1cDIARIZATION_JOB_STATE_FAILED\x10\x04\x12\"\n" +
+	"\x1eDIARIZATION_JOB_STATE_CANCELED\x10\x052\x94\a\n" +
 	"\x14TranscriptionService\x12[\n" +
 	"\n" +
 	"Transcribe\x12%.dictator.speech.v1.TranscribeRequest\x1a&.dictator.speech.v1.TranscribeResponse\x12m\n" +
 	"\x13SubmitTranscribeJob\x12%.dictator.speech.v1.TranscribeRequest\x1a/.dictator.speech.v1.SubmitTranscribeJobResponse\x12m\n" +
-	"\x10GetTranscribeJob\x12+.dictator.speech.v1.GetTranscribeJobRequest\x1a,.dictator.speech.v1.GetTranscribeJobResponse\x12a\n" +
+	"\x10GetTranscribeJob\x12+.dictator.speech.v1.GetTranscribeJobRequest\x1a,.dictator.speech.v1.GetTranscribeJobResponse\x12v\n" +
+	"\x13CancelTranscribeJob\x12..dictator.speech.v1.CancelTranscribeJobRequest\x1a/.dictator.speech.v1.CancelTranscribeJobResponse\x12a\n" +
 	"\fDiarizeAudio\x12'.dictator.speech.v1.DiarizeAudioRequest\x1a(.dictator.speech.v1.DiarizeAudioResponse\x12s\n" +
 	"\x15SubmitDiarizeAudioJob\x12'.dictator.speech.v1.DiarizeAudioRequest\x1a1.dictator.speech.v1.SubmitDiarizeAudioJobResponse\x12s\n" +
-	"\x12GetDiarizeAudioJob\x12-.dictator.speech.v1.GetDiarizeAudioJobRequest\x1a..dictator.speech.v1.GetDiarizeAudioJobResponseBGZEgithub.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1b\x06proto3"
+	"\x12GetDiarizeAudioJob\x12-.dictator.speech.v1.GetDiarizeAudioJobRequest\x1a..dictator.speech.v1.GetDiarizeAudioJobResponse\x12|\n" +
+	"\x15CancelDiarizeAudioJob\x120.dictator.speech.v1.CancelDiarizeAudioJobRequest\x1a1.dictator.speech.v1.CancelDiarizeAudioJobResponseBGZEgithub.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1b\x06proto3"
 
 var (
 	file_dictator_speech_v1_transcription_proto_rawDescOnce sync.Once
@@ -1008,7 +1226,7 @@ func file_dictator_speech_v1_transcription_proto_rawDescGZIP() []byte {
 }
 
 var file_dictator_speech_v1_transcription_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_dictator_speech_v1_transcription_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_dictator_speech_v1_transcription_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_dictator_speech_v1_transcription_proto_goTypes = []any{
 	(TranscriptionJobState)(0),            // 0: dictator.speech.v1.TranscriptionJobState
 	(DiarizationJobState)(0),              // 1: dictator.speech.v1.DiarizationJobState
@@ -1017,40 +1235,50 @@ var file_dictator_speech_v1_transcription_proto_goTypes = []any{
 	(*SubmitTranscribeJobResponse)(nil),   // 4: dictator.speech.v1.SubmitTranscribeJobResponse
 	(*GetTranscribeJobRequest)(nil),       // 5: dictator.speech.v1.GetTranscribeJobRequest
 	(*GetTranscribeJobResponse)(nil),      // 6: dictator.speech.v1.GetTranscribeJobResponse
-	(*DiarizeAudioRequest)(nil),           // 7: dictator.speech.v1.DiarizeAudioRequest
-	(*DiarizeAudioResponse)(nil),          // 8: dictator.speech.v1.DiarizeAudioResponse
-	(*SubmitDiarizeAudioJobResponse)(nil), // 9: dictator.speech.v1.SubmitDiarizeAudioJobResponse
-	(*GetDiarizeAudioJobRequest)(nil),     // 10: dictator.speech.v1.GetDiarizeAudioJobRequest
-	(*GetDiarizeAudioJobResponse)(nil),    // 11: dictator.speech.v1.GetDiarizeAudioJobResponse
-	(*WordSegment)(nil),                   // 12: dictator.speech.v1.WordSegment
-	(*structpb.Struct)(nil),               // 13: google.protobuf.Struct
+	(*CancelTranscribeJobRequest)(nil),    // 7: dictator.speech.v1.CancelTranscribeJobRequest
+	(*CancelTranscribeJobResponse)(nil),   // 8: dictator.speech.v1.CancelTranscribeJobResponse
+	(*DiarizeAudioRequest)(nil),           // 9: dictator.speech.v1.DiarizeAudioRequest
+	(*DiarizeAudioResponse)(nil),          // 10: dictator.speech.v1.DiarizeAudioResponse
+	(*SubmitDiarizeAudioJobResponse)(nil), // 11: dictator.speech.v1.SubmitDiarizeAudioJobResponse
+	(*GetDiarizeAudioJobRequest)(nil),     // 12: dictator.speech.v1.GetDiarizeAudioJobRequest
+	(*GetDiarizeAudioJobResponse)(nil),    // 13: dictator.speech.v1.GetDiarizeAudioJobResponse
+	(*CancelDiarizeAudioJobRequest)(nil),  // 14: dictator.speech.v1.CancelDiarizeAudioJobRequest
+	(*CancelDiarizeAudioJobResponse)(nil), // 15: dictator.speech.v1.CancelDiarizeAudioJobResponse
+	(*WordSegment)(nil),                   // 16: dictator.speech.v1.WordSegment
+	(*structpb.Struct)(nil),               // 17: google.protobuf.Struct
 }
 var file_dictator_speech_v1_transcription_proto_depIdxs = []int32{
-	12, // 0: dictator.speech.v1.TranscribeResponse.words:type_name -> dictator.speech.v1.WordSegment
+	16, // 0: dictator.speech.v1.TranscribeResponse.words:type_name -> dictator.speech.v1.WordSegment
 	0,  // 1: dictator.speech.v1.SubmitTranscribeJobResponse.state:type_name -> dictator.speech.v1.TranscriptionJobState
 	0,  // 2: dictator.speech.v1.GetTranscribeJobResponse.state:type_name -> dictator.speech.v1.TranscriptionJobState
-	12, // 3: dictator.speech.v1.GetTranscribeJobResponse.words:type_name -> dictator.speech.v1.WordSegment
-	13, // 4: dictator.speech.v1.DiarizeAudioResponse.diarization:type_name -> google.protobuf.Struct
-	1,  // 5: dictator.speech.v1.SubmitDiarizeAudioJobResponse.state:type_name -> dictator.speech.v1.DiarizationJobState
-	1,  // 6: dictator.speech.v1.GetDiarizeAudioJobResponse.state:type_name -> dictator.speech.v1.DiarizationJobState
-	13, // 7: dictator.speech.v1.GetDiarizeAudioJobResponse.diarization:type_name -> google.protobuf.Struct
-	2,  // 8: dictator.speech.v1.TranscriptionService.Transcribe:input_type -> dictator.speech.v1.TranscribeRequest
-	2,  // 9: dictator.speech.v1.TranscriptionService.SubmitTranscribeJob:input_type -> dictator.speech.v1.TranscribeRequest
-	5,  // 10: dictator.speech.v1.TranscriptionService.GetTranscribeJob:input_type -> dictator.speech.v1.GetTranscribeJobRequest
-	7,  // 11: dictator.speech.v1.TranscriptionService.DiarizeAudio:input_type -> dictator.speech.v1.DiarizeAudioRequest
-	7,  // 12: dictator.speech.v1.TranscriptionService.SubmitDiarizeAudioJob:input_type -> dictator.speech.v1.DiarizeAudioRequest
-	10, // 13: dictator.speech.v1.TranscriptionService.GetDiarizeAudioJob:input_type -> dictator.speech.v1.GetDiarizeAudioJobRequest
-	3,  // 14: dictator.speech.v1.TranscriptionService.Transcribe:output_type -> dictator.speech.v1.TranscribeResponse
-	4,  // 15: dictator.speech.v1.TranscriptionService.SubmitTranscribeJob:output_type -> dictator.speech.v1.SubmitTranscribeJobResponse
-	6,  // 16: dictator.speech.v1.TranscriptionService.GetTranscribeJob:output_type -> dictator.speech.v1.GetTranscribeJobResponse
-	8,  // 17: dictator.speech.v1.TranscriptionService.DiarizeAudio:output_type -> dictator.speech.v1.DiarizeAudioResponse
-	9,  // 18: dictator.speech.v1.TranscriptionService.SubmitDiarizeAudioJob:output_type -> dictator.speech.v1.SubmitDiarizeAudioJobResponse
-	11, // 19: dictator.speech.v1.TranscriptionService.GetDiarizeAudioJob:output_type -> dictator.speech.v1.GetDiarizeAudioJobResponse
-	14, // [14:20] is the sub-list for method output_type
-	8,  // [8:14] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	16, // 3: dictator.speech.v1.GetTranscribeJobResponse.words:type_name -> dictator.speech.v1.WordSegment
+	0,  // 4: dictator.speech.v1.CancelTranscribeJobResponse.state:type_name -> dictator.speech.v1.TranscriptionJobState
+	17, // 5: dictator.speech.v1.DiarizeAudioResponse.diarization:type_name -> google.protobuf.Struct
+	1,  // 6: dictator.speech.v1.SubmitDiarizeAudioJobResponse.state:type_name -> dictator.speech.v1.DiarizationJobState
+	1,  // 7: dictator.speech.v1.GetDiarizeAudioJobResponse.state:type_name -> dictator.speech.v1.DiarizationJobState
+	17, // 8: dictator.speech.v1.GetDiarizeAudioJobResponse.diarization:type_name -> google.protobuf.Struct
+	1,  // 9: dictator.speech.v1.CancelDiarizeAudioJobResponse.state:type_name -> dictator.speech.v1.DiarizationJobState
+	2,  // 10: dictator.speech.v1.TranscriptionService.Transcribe:input_type -> dictator.speech.v1.TranscribeRequest
+	2,  // 11: dictator.speech.v1.TranscriptionService.SubmitTranscribeJob:input_type -> dictator.speech.v1.TranscribeRequest
+	5,  // 12: dictator.speech.v1.TranscriptionService.GetTranscribeJob:input_type -> dictator.speech.v1.GetTranscribeJobRequest
+	7,  // 13: dictator.speech.v1.TranscriptionService.CancelTranscribeJob:input_type -> dictator.speech.v1.CancelTranscribeJobRequest
+	9,  // 14: dictator.speech.v1.TranscriptionService.DiarizeAudio:input_type -> dictator.speech.v1.DiarizeAudioRequest
+	9,  // 15: dictator.speech.v1.TranscriptionService.SubmitDiarizeAudioJob:input_type -> dictator.speech.v1.DiarizeAudioRequest
+	12, // 16: dictator.speech.v1.TranscriptionService.GetDiarizeAudioJob:input_type -> dictator.speech.v1.GetDiarizeAudioJobRequest
+	14, // 17: dictator.speech.v1.TranscriptionService.CancelDiarizeAudioJob:input_type -> dictator.speech.v1.CancelDiarizeAudioJobRequest
+	3,  // 18: dictator.speech.v1.TranscriptionService.Transcribe:output_type -> dictator.speech.v1.TranscribeResponse
+	4,  // 19: dictator.speech.v1.TranscriptionService.SubmitTranscribeJob:output_type -> dictator.speech.v1.SubmitTranscribeJobResponse
+	6,  // 20: dictator.speech.v1.TranscriptionService.GetTranscribeJob:output_type -> dictator.speech.v1.GetTranscribeJobResponse
+	8,  // 21: dictator.speech.v1.TranscriptionService.CancelTranscribeJob:output_type -> dictator.speech.v1.CancelTranscribeJobResponse
+	10, // 22: dictator.speech.v1.TranscriptionService.DiarizeAudio:output_type -> dictator.speech.v1.DiarizeAudioResponse
+	11, // 23: dictator.speech.v1.TranscriptionService.SubmitDiarizeAudioJob:output_type -> dictator.speech.v1.SubmitDiarizeAudioJobResponse
+	13, // 24: dictator.speech.v1.TranscriptionService.GetDiarizeAudioJob:output_type -> dictator.speech.v1.GetDiarizeAudioJobResponse
+	15, // 25: dictator.speech.v1.TranscriptionService.CancelDiarizeAudioJob:output_type -> dictator.speech.v1.CancelDiarizeAudioJobResponse
+	18, // [18:26] is the sub-list for method output_type
+	10, // [10:18] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_dictator_speech_v1_transcription_proto_init() }
@@ -1059,14 +1287,14 @@ func file_dictator_speech_v1_transcription_proto_init() {
 		return
 	}
 	file_dictator_speech_v1_common_proto_init()
-	file_dictator_speech_v1_transcription_proto_msgTypes[5].OneofWrappers = []any{}
+	file_dictator_speech_v1_transcription_proto_msgTypes[7].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dictator_speech_v1_transcription_proto_rawDesc), len(file_dictator_speech_v1_transcription_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   10,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

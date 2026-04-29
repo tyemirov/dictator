@@ -20,6 +20,18 @@ class RemoteJobFailedError(RuntimeError):
         super().__init__(detail)
 
 
+class RemoteJobCanceledError(RuntimeError):
+    def __init__(self, *, job_id: str, state: str, error_code: str, error_message: str) -> None:
+        self.job_id = job_id
+        self.state = state
+        self.error_code = error_code
+        self.error_message = error_message
+        detail = error_message or "remote job canceled"
+        if error_code:
+            detail = f"{error_code}: {detail}"
+        super().__init__(detail)
+
+
 def wait_for_job(
     fetch_job: Callable[[], JobT],
     *,
@@ -37,6 +49,13 @@ def wait_for_job(
         state = str(getattr(job, "state", ""))
         if state.endswith("_SUCCEEDED"):
             return job
+        if state.endswith("_CANCELED"):
+            raise RemoteJobCanceledError(
+                job_id=str(getattr(job, "job_id", "")),
+                state=state,
+                error_code=str(getattr(job, "error_code", "")),
+                error_message=str(getattr(job, "error_message", "")),
+            )
         if state.endswith("_FAILED"):
             raise RemoteJobFailedError(
                 job_id=str(getattr(job, "job_id", "")),

@@ -1,6 +1,6 @@
 """Client helpers for Dictator services."""
 
-from ._jobs import RemoteJobFailedError
+from ._jobs import RemoteJobCanceledError, RemoteJobFailedError
 from .diarization import DiarizationClient, DiarizationResult
 from .dictation import DictationClient, DictationJob, DictationResult
 from .subtitles import SubtitleClient, SubtitleJob, SubtitleResult
@@ -24,6 +24,7 @@ __all__ = [
     "ReferenceSampleClient",
     "ReferenceSampleJob",
     "ReferenceSampleResult",
+    "RemoteJobCanceledError",
     "RemoteJobFailedError",
     "SynthesisClient",
     "SynthesisJob",

@@ -29,6 +29,7 @@ const (
 	SubtitleJobState_SUBTITLE_JOB_STATE_RUNNING     SubtitleJobState = 2
 	SubtitleJobState_SUBTITLE_JOB_STATE_SUCCEEDED   SubtitleJobState = 3
 	SubtitleJobState_SUBTITLE_JOB_STATE_FAILED      SubtitleJobState = 4
+	SubtitleJobState_SUBTITLE_JOB_STATE_CANCELED    SubtitleJobState = 5
 )
 
 // Enum value maps for SubtitleJobState.
@@ -39,6 +40,7 @@ var (
 		2: "SUBTITLE_JOB_STATE_RUNNING",
 		3: "SUBTITLE_JOB_STATE_SUCCEEDED",
 		4: "SUBTITLE_JOB_STATE_FAILED",
+		5: "SUBTITLE_JOB_STATE_CANCELED",
 	}
 	SubtitleJobState_value = map[string]int32{
 		"SUBTITLE_JOB_STATE_UNSPECIFIED": 0,
@@ -46,6 +48,7 @@ var (
 		"SUBTITLE_JOB_STATE_RUNNING":     2,
 		"SUBTITLE_JOB_STATE_SUCCEEDED":   3,
 		"SUBTITLE_JOB_STATE_FAILED":      4,
+		"SUBTITLE_JOB_STATE_CANCELED":    5,
 	}
 )
 
@@ -802,6 +805,102 @@ func (x *GetRenderSubtitlesJobResponse) GetSourceArtifactId() string {
 	return ""
 }
 
+type CancelRenderSubtitlesJobRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelRenderSubtitlesJobRequest) Reset() {
+	*x = CancelRenderSubtitlesJobRequest{}
+	mi := &file_dictator_speech_v1_subtitle_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelRenderSubtitlesJobRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelRenderSubtitlesJobRequest) ProtoMessage() {}
+
+func (x *CancelRenderSubtitlesJobRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dictator_speech_v1_subtitle_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelRenderSubtitlesJobRequest.ProtoReflect.Descriptor instead.
+func (*CancelRenderSubtitlesJobRequest) Descriptor() ([]byte, []int) {
+	return file_dictator_speech_v1_subtitle_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *CancelRenderSubtitlesJobRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+type CancelRenderSubtitlesJobResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	State         SubtitleJobState       `protobuf:"varint,2,opt,name=state,proto3,enum=dictator.speech.v1.SubtitleJobState" json:"state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelRenderSubtitlesJobResponse) Reset() {
+	*x = CancelRenderSubtitlesJobResponse{}
+	mi := &file_dictator_speech_v1_subtitle_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelRenderSubtitlesJobResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelRenderSubtitlesJobResponse) ProtoMessage() {}
+
+func (x *CancelRenderSubtitlesJobResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dictator_speech_v1_subtitle_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelRenderSubtitlesJobResponse.ProtoReflect.Descriptor instead.
+func (*CancelRenderSubtitlesJobResponse) Descriptor() ([]byte, []int) {
+	return file_dictator_speech_v1_subtitle_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *CancelRenderSubtitlesJobResponse) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *CancelRenderSubtitlesJobResponse) GetState() SubtitleJobState {
+	if x != nil {
+		return x.State
+	}
+	return SubtitleJobState_SUBTITLE_JOB_STATE_UNSPECIFIED
+}
+
 var File_dictator_speech_v1_subtitle_proto protoreflect.FileDescriptor
 
 const file_dictator_speech_v1_subtitle_proto_rawDesc = "" +
@@ -865,13 +964,19 @@ const file_dictator_speech_v1_subtitle_proto_rawDesc = "" +
 	"\x17created_at_unix_seconds\x18\r \x01(\x01R\x14createdAtUnixSeconds\x125\n" +
 	"\x17started_at_unix_seconds\x18\x0e \x01(\x01R\x14startedAtUnixSeconds\x127\n" +
 	"\x18finished_at_unix_seconds\x18\x0f \x01(\x01R\x15finishedAtUnixSeconds\x12,\n" +
-	"\x12source_artifact_id\x18\x10 \x01(\tR\x10sourceArtifactId*\xb6\x01\n" +
+	"\x12source_artifact_id\x18\x10 \x01(\tR\x10sourceArtifactId\"8\n" +
+	"\x1fCancelRenderSubtitlesJobRequest\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"u\n" +
+	" CancelRenderSubtitlesJobResponse\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12:\n" +
+	"\x05state\x18\x02 \x01(\x0e2$.dictator.speech.v1.SubtitleJobStateR\x05state*\xd7\x01\n" +
 	"\x10SubtitleJobState\x12\"\n" +
 	"\x1eSUBTITLE_JOB_STATE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19SUBTITLE_JOB_STATE_QUEUED\x10\x01\x12\x1e\n" +
 	"\x1aSUBTITLE_JOB_STATE_RUNNING\x10\x02\x12 \n" +
 	"\x1cSUBTITLE_JOB_STATE_SUCCEEDED\x10\x03\x12\x1d\n" +
-	"\x19SUBTITLE_JOB_STATE_FAILED\x10\x04*J\n" +
+	"\x19SUBTITLE_JOB_STATE_FAILED\x10\x04\x12\x1f\n" +
+	"\x1bSUBTITLE_JOB_STATE_CANCELED\x10\x05*J\n" +
 	"\x0eSubtitleFormat\x12\x1f\n" +
 	"\x1bSUBTITLE_FORMAT_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13SUBTITLE_FORMAT_SRT\x10\x01*\x7f\n" +
@@ -882,11 +987,12 @@ const file_dictator_speech_v1_subtitle_proto_rawDesc = "" +
 	"\fSubtitleMode\x12\x1d\n" +
 	"\x19SUBTITLE_MODE_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bSUBTITLE_MODE_TRANSCRIPTION\x10\x01\x12\"\n" +
-	"\x1eSUBTITLE_MODE_FORCED_ALIGNMENT\x10\x022\xf9\x02\n" +
+	"\x1eSUBTITLE_MODE_FORCED_ALIGNMENT\x10\x022\x81\x04\n" +
 	"\x0fSubtitleService\x12j\n" +
 	"\x0fRenderSubtitles\x12*.dictator.speech.v1.RenderSubtitlesRequest\x1a+.dictator.speech.v1.RenderSubtitlesResponse\x12|\n" +
 	"\x18SubmitRenderSubtitlesJob\x12*.dictator.speech.v1.RenderSubtitlesRequest\x1a4.dictator.speech.v1.SubmitRenderSubtitlesJobResponse\x12|\n" +
-	"\x15GetRenderSubtitlesJob\x120.dictator.speech.v1.GetRenderSubtitlesJobRequest\x1a1.dictator.speech.v1.GetRenderSubtitlesJobResponseBGZEgithub.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1b\x06proto3"
+	"\x15GetRenderSubtitlesJob\x120.dictator.speech.v1.GetRenderSubtitlesJobRequest\x1a1.dictator.speech.v1.GetRenderSubtitlesJobResponse\x12\x85\x01\n" +
+	"\x18CancelRenderSubtitlesJob\x123.dictator.speech.v1.CancelRenderSubtitlesJobRequest\x1a4.dictator.speech.v1.CancelRenderSubtitlesJobResponseBGZEgithub.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1b\x06proto3"
 
 var (
 	file_dictator_speech_v1_subtitle_proto_rawDescOnce sync.Once
@@ -901,7 +1007,7 @@ func file_dictator_speech_v1_subtitle_proto_rawDescGZIP() []byte {
 }
 
 var file_dictator_speech_v1_subtitle_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_dictator_speech_v1_subtitle_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_dictator_speech_v1_subtitle_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_dictator_speech_v1_subtitle_proto_goTypes = []any{
 	(SubtitleJobState)(0),                    // 0: dictator.speech.v1.SubtitleJobState
 	(SubtitleFormat)(0),                      // 1: dictator.speech.v1.SubtitleFormat
@@ -913,6 +1019,8 @@ var file_dictator_speech_v1_subtitle_proto_goTypes = []any{
 	(*SubmitRenderSubtitlesJobResponse)(nil), // 7: dictator.speech.v1.SubmitRenderSubtitlesJobResponse
 	(*GetRenderSubtitlesJobRequest)(nil),     // 8: dictator.speech.v1.GetRenderSubtitlesJobRequest
 	(*GetRenderSubtitlesJobResponse)(nil),    // 9: dictator.speech.v1.GetRenderSubtitlesJobResponse
+	(*CancelRenderSubtitlesJobRequest)(nil),  // 10: dictator.speech.v1.CancelRenderSubtitlesJobRequest
+	(*CancelRenderSubtitlesJobResponse)(nil), // 11: dictator.speech.v1.CancelRenderSubtitlesJobResponse
 }
 var file_dictator_speech_v1_subtitle_proto_depIdxs = []int32{
 	1,  // 0: dictator.speech.v1.RenderSubtitlesRequest.output_format:type_name -> dictator.speech.v1.SubtitleFormat
@@ -927,17 +1035,20 @@ var file_dictator_speech_v1_subtitle_proto_depIdxs = []int32{
 	1,  // 9: dictator.speech.v1.GetRenderSubtitlesJobResponse.output_format:type_name -> dictator.speech.v1.SubtitleFormat
 	2,  // 10: dictator.speech.v1.GetRenderSubtitlesJobResponse.granularity:type_name -> dictator.speech.v1.SubtitleGranularity
 	4,  // 11: dictator.speech.v1.GetRenderSubtitlesJobResponse.cues:type_name -> dictator.speech.v1.SubtitleCue
-	5,  // 12: dictator.speech.v1.SubtitleService.RenderSubtitles:input_type -> dictator.speech.v1.RenderSubtitlesRequest
-	5,  // 13: dictator.speech.v1.SubtitleService.SubmitRenderSubtitlesJob:input_type -> dictator.speech.v1.RenderSubtitlesRequest
-	8,  // 14: dictator.speech.v1.SubtitleService.GetRenderSubtitlesJob:input_type -> dictator.speech.v1.GetRenderSubtitlesJobRequest
-	6,  // 15: dictator.speech.v1.SubtitleService.RenderSubtitles:output_type -> dictator.speech.v1.RenderSubtitlesResponse
-	7,  // 16: dictator.speech.v1.SubtitleService.SubmitRenderSubtitlesJob:output_type -> dictator.speech.v1.SubmitRenderSubtitlesJobResponse
-	9,  // 17: dictator.speech.v1.SubtitleService.GetRenderSubtitlesJob:output_type -> dictator.speech.v1.GetRenderSubtitlesJobResponse
-	15, // [15:18] is the sub-list for method output_type
-	12, // [12:15] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	0,  // 12: dictator.speech.v1.CancelRenderSubtitlesJobResponse.state:type_name -> dictator.speech.v1.SubtitleJobState
+	5,  // 13: dictator.speech.v1.SubtitleService.RenderSubtitles:input_type -> dictator.speech.v1.RenderSubtitlesRequest
+	5,  // 14: dictator.speech.v1.SubtitleService.SubmitRenderSubtitlesJob:input_type -> dictator.speech.v1.RenderSubtitlesRequest
+	8,  // 15: dictator.speech.v1.SubtitleService.GetRenderSubtitlesJob:input_type -> dictator.speech.v1.GetRenderSubtitlesJobRequest
+	10, // 16: dictator.speech.v1.SubtitleService.CancelRenderSubtitlesJob:input_type -> dictator.speech.v1.CancelRenderSubtitlesJobRequest
+	6,  // 17: dictator.speech.v1.SubtitleService.RenderSubtitles:output_type -> dictator.speech.v1.RenderSubtitlesResponse
+	7,  // 18: dictator.speech.v1.SubtitleService.SubmitRenderSubtitlesJob:output_type -> dictator.speech.v1.SubmitRenderSubtitlesJobResponse
+	9,  // 19: dictator.speech.v1.SubtitleService.GetRenderSubtitlesJob:output_type -> dictator.speech.v1.GetRenderSubtitlesJobResponse
+	11, // 20: dictator.speech.v1.SubtitleService.CancelRenderSubtitlesJob:output_type -> dictator.speech.v1.CancelRenderSubtitlesJobResponse
+	17, // [17:21] is the sub-list for method output_type
+	13, // [13:17] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_dictator_speech_v1_subtitle_proto_init() }
@@ -955,7 +1066,7 @@ func file_dictator_speech_v1_subtitle_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dictator_speech_v1_subtitle_proto_rawDesc), len(file_dictator_speech_v1_subtitle_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

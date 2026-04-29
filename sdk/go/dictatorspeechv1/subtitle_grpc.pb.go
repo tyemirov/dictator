@@ -22,6 +22,7 @@ const (
 	SubtitleService_RenderSubtitles_FullMethodName          = "/dictator.speech.v1.SubtitleService/RenderSubtitles"
 	SubtitleService_SubmitRenderSubtitlesJob_FullMethodName = "/dictator.speech.v1.SubtitleService/SubmitRenderSubtitlesJob"
 	SubtitleService_GetRenderSubtitlesJob_FullMethodName    = "/dictator.speech.v1.SubtitleService/GetRenderSubtitlesJob"
+	SubtitleService_CancelRenderSubtitlesJob_FullMethodName = "/dictator.speech.v1.SubtitleService/CancelRenderSubtitlesJob"
 )
 
 // SubtitleServiceClient is the client API for SubtitleService service.
@@ -31,6 +32,7 @@ type SubtitleServiceClient interface {
 	RenderSubtitles(ctx context.Context, in *RenderSubtitlesRequest, opts ...grpc.CallOption) (*RenderSubtitlesResponse, error)
 	SubmitRenderSubtitlesJob(ctx context.Context, in *RenderSubtitlesRequest, opts ...grpc.CallOption) (*SubmitRenderSubtitlesJobResponse, error)
 	GetRenderSubtitlesJob(ctx context.Context, in *GetRenderSubtitlesJobRequest, opts ...grpc.CallOption) (*GetRenderSubtitlesJobResponse, error)
+	CancelRenderSubtitlesJob(ctx context.Context, in *CancelRenderSubtitlesJobRequest, opts ...grpc.CallOption) (*CancelRenderSubtitlesJobResponse, error)
 }
 
 type subtitleServiceClient struct {
@@ -71,6 +73,16 @@ func (c *subtitleServiceClient) GetRenderSubtitlesJob(ctx context.Context, in *G
 	return out, nil
 }
 
+func (c *subtitleServiceClient) CancelRenderSubtitlesJob(ctx context.Context, in *CancelRenderSubtitlesJobRequest, opts ...grpc.CallOption) (*CancelRenderSubtitlesJobResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CancelRenderSubtitlesJobResponse)
+	err := c.cc.Invoke(ctx, SubtitleService_CancelRenderSubtitlesJob_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SubtitleServiceServer is the server API for SubtitleService service.
 // All implementations must embed UnimplementedSubtitleServiceServer
 // for forward compatibility.
@@ -78,6 +90,7 @@ type SubtitleServiceServer interface {
 	RenderSubtitles(context.Context, *RenderSubtitlesRequest) (*RenderSubtitlesResponse, error)
 	SubmitRenderSubtitlesJob(context.Context, *RenderSubtitlesRequest) (*SubmitRenderSubtitlesJobResponse, error)
 	GetRenderSubtitlesJob(context.Context, *GetRenderSubtitlesJobRequest) (*GetRenderSubtitlesJobResponse, error)
+	CancelRenderSubtitlesJob(context.Context, *CancelRenderSubtitlesJobRequest) (*CancelRenderSubtitlesJobResponse, error)
 	mustEmbedUnimplementedSubtitleServiceServer()
 }
 
@@ -96,6 +109,9 @@ func (UnimplementedSubtitleServiceServer) SubmitRenderSubtitlesJob(context.Conte
 }
 func (UnimplementedSubtitleServiceServer) GetRenderSubtitlesJob(context.Context, *GetRenderSubtitlesJobRequest) (*GetRenderSubtitlesJobResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRenderSubtitlesJob not implemented")
+}
+func (UnimplementedSubtitleServiceServer) CancelRenderSubtitlesJob(context.Context, *CancelRenderSubtitlesJobRequest) (*CancelRenderSubtitlesJobResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CancelRenderSubtitlesJob not implemented")
 }
 func (UnimplementedSubtitleServiceServer) mustEmbedUnimplementedSubtitleServiceServer() {}
 func (UnimplementedSubtitleServiceServer) testEmbeddedByValue()                         {}
@@ -172,6 +188,24 @@ func _SubtitleService_GetRenderSubtitlesJob_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SubtitleService_CancelRenderSubtitlesJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelRenderSubtitlesJobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SubtitleServiceServer).CancelRenderSubtitlesJob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SubtitleService_CancelRenderSubtitlesJob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SubtitleServiceServer).CancelRenderSubtitlesJob(ctx, req.(*CancelRenderSubtitlesJobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SubtitleService_ServiceDesc is the grpc.ServiceDesc for SubtitleService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -190,6 +224,10 @@ var SubtitleService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRenderSubtitlesJob",
 			Handler:    _SubtitleService_GetRenderSubtitlesJob_Handler,
+		},
+		{
+			MethodName: "CancelRenderSubtitlesJob",
+			Handler:    _SubtitleService_CancelRenderSubtitlesJob_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -310,6 +310,16 @@ class SubtitleClient:
             finished_at_unix_seconds=response.finished_at_unix_seconds,
         )
 
+    def cancel_subtitle_job(self, job_id: str) -> SubtitleJob:
+        response = self._subtitle_stub.CancelRenderSubtitlesJob(
+            subtitle_pb2.CancelRenderSubtitlesJobRequest(job_id=job_id),
+            metadata=self._metadata,
+        )
+        return SubtitleJob(
+            job_id=response.job_id,
+            state=subtitle_pb2.SubtitleJobState.Name(response.state),
+        )
+
     def wait_for_subtitle_job(
         self,
         job_id: str,

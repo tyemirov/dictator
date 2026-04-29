@@ -49,6 +49,11 @@ class TranscriptionServiceStub(object):
                 request_serializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.GetTranscribeJobRequest.SerializeToString,
                 response_deserializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.GetTranscribeJobResponse.FromString,
                 _registered_method=True)
+        self.CancelTranscribeJob = channel.unary_unary(
+                '/dictator.speech.v1.TranscriptionService/CancelTranscribeJob',
+                request_serializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.CancelTranscribeJobRequest.SerializeToString,
+                response_deserializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.CancelTranscribeJobResponse.FromString,
+                _registered_method=True)
         self.DiarizeAudio = channel.unary_unary(
                 '/dictator.speech.v1.TranscriptionService/DiarizeAudio',
                 request_serializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.DiarizeAudioRequest.SerializeToString,
@@ -63,6 +68,11 @@ class TranscriptionServiceStub(object):
                 '/dictator.speech.v1.TranscriptionService/GetDiarizeAudioJob',
                 request_serializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.GetDiarizeAudioJobRequest.SerializeToString,
                 response_deserializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.GetDiarizeAudioJobResponse.FromString,
+                _registered_method=True)
+        self.CancelDiarizeAudioJob = channel.unary_unary(
+                '/dictator.speech.v1.TranscriptionService/CancelDiarizeAudioJob',
+                request_serializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.CancelDiarizeAudioJobRequest.SerializeToString,
+                response_deserializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.CancelDiarizeAudioJobResponse.FromString,
                 _registered_method=True)
 
 
@@ -87,6 +97,12 @@ class TranscriptionServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CancelTranscribeJob(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def DiarizeAudio(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -100,6 +116,12 @@ class TranscriptionServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def GetDiarizeAudioJob(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CancelDiarizeAudioJob(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -123,6 +145,11 @@ def add_TranscriptionServiceServicer_to_server(servicer, server):
                     request_deserializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.GetTranscribeJobRequest.FromString,
                     response_serializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.GetTranscribeJobResponse.SerializeToString,
             ),
+            'CancelTranscribeJob': grpc.unary_unary_rpc_method_handler(
+                    servicer.CancelTranscribeJob,
+                    request_deserializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.CancelTranscribeJobRequest.FromString,
+                    response_serializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.CancelTranscribeJobResponse.SerializeToString,
+            ),
             'DiarizeAudio': grpc.unary_unary_rpc_method_handler(
                     servicer.DiarizeAudio,
                     request_deserializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.DiarizeAudioRequest.FromString,
@@ -137,6 +164,11 @@ def add_TranscriptionServiceServicer_to_server(servicer, server):
                     servicer.GetDiarizeAudioJob,
                     request_deserializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.GetDiarizeAudioJobRequest.FromString,
                     response_serializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.GetDiarizeAudioJobResponse.SerializeToString,
+            ),
+            'CancelDiarizeAudioJob': grpc.unary_unary_rpc_method_handler(
+                    servicer.CancelDiarizeAudioJob,
+                    request_deserializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.CancelDiarizeAudioJobRequest.FromString,
+                    response_serializer=dictator_dot_speech_dot_v1_dot_transcription__pb2.CancelDiarizeAudioJobResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -231,6 +263,33 @@ class TranscriptionService(object):
             _registered_method=True)
 
     @staticmethod
+    def CancelTranscribeJob(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/dictator.speech.v1.TranscriptionService/CancelTranscribeJob',
+            dictator_dot_speech_dot_v1_dot_transcription__pb2.CancelTranscribeJobRequest.SerializeToString,
+            dictator_dot_speech_dot_v1_dot_transcription__pb2.CancelTranscribeJobResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
     def DiarizeAudio(request,
             target,
             options=(),
@@ -301,6 +360,33 @@ class TranscriptionService(object):
             '/dictator.speech.v1.TranscriptionService/GetDiarizeAudioJob',
             dictator_dot_speech_dot_v1_dot_transcription__pb2.GetDiarizeAudioJobRequest.SerializeToString,
             dictator_dot_speech_dot_v1_dot_transcription__pb2.GetDiarizeAudioJobResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CancelDiarizeAudioJob(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/dictator.speech.v1.TranscriptionService/CancelDiarizeAudioJob',
+            dictator_dot_speech_dot_v1_dot_transcription__pb2.CancelDiarizeAudioJobRequest.SerializeToString,
+            dictator_dot_speech_dot_v1_dot_transcription__pb2.CancelDiarizeAudioJobResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -48,6 +48,22 @@ class _ExplodingExecutor(_ImmediateExecutor):
         raise RuntimeError("submit failed")
 
 
+class _ManualFuture:
+    def __init__(self):
+        self.callbacks = []
+        self.cancel_called = False
+
+    def done(self):
+        return False
+
+    def cancel(self):
+        self.cancel_called = True
+        return True
+
+    def add_done_callback(self, callback):
+        self.callbacks.append(callback)
+
+
 class RuntimeStorageCoverageTests(unittest.TestCase):
     def test_duration_and_synthesis_text_helpers(self):
         self.assertEqual(parse_duration("90"), 90.0)
@@ -568,6 +584,60 @@ class GenericJobRuntimeCoverageTests(unittest.TestCase):
             manager._create_record(None)
         with self.assertRaises(NotImplementedError):
             manager._run_job("job-1", None)
+
+    def test_job_cancel_persists_terminal_state_and_cancels_queued_future(self):
+        from dictator.runtime import jobs as jobs_module
+
+        class _HoldingExecutor:
+            def __init__(self):
+                self.futures = []
+
+            def submit(self, fn, *args, **kwargs):
+                future = _ManualFuture()
+                self.futures.append(future)
+                return future
+
+        class _TestManager(jobs_module._QueuedJobManager):
+            def _create_record(self, prepared):
+                return self.job_store.create(prepared)
+
+            def _run_job(self, job_id, prepared):
+                self.job_store.update(job_id, state=jobs_module.TranscriptionJobState.SUCCEEDED.value)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            audio_record = types.SimpleNamespace(artifact_id="audio-1", path=root / "audio.wav", filename="audio.wav")
+            store = jobs_module.LocalTranscriptionJobStore(root / "jobs")
+            manager = _TestManager(
+                job_store=store,
+                max_workers=1,
+                max_pending_jobs=2,
+                thread_name_prefix="test-cancel",
+            )
+            manager._executor.shutdown(wait=False, cancel_futures=True)
+            executor = _HoldingExecutor()
+            manager._executor = executor
+            prepared = jobs_module.PreparedTranscriptionJob(
+                audio_record=audio_record,
+                language_code="en",
+                model_size="base",
+                include_word_segments=True,
+            )
+
+            callback_record = manager.submit(prepared)
+            self.assertIn(callback_record.job_id, manager._futures)
+            executor.futures[0].callbacks[0](executor.futures[0])
+            self.assertNotIn(callback_record.job_id, manager._futures)
+
+            queued = manager.submit(prepared)
+            canceled = manager.cancel(queued.job_id)
+            self.assertEqual(canceled.state, jobs_module.TranscriptionJobState.CANCELED)
+            self.assertEqual(canceled.error_code, "dictator.jobs.canceled")
+            self.assertEqual(manager._pending_jobs, 1)
+            self.assertTrue(executor.futures[1].cancel_called)
+
+            self.assertEqual(store.update(queued.job_id, state=jobs_module.TranscriptionJobState.SUCCEEDED.value).state, jobs_module.TranscriptionJobState.CANCELED)
+            self.assertEqual(manager.cancel(queued.job_id).state, jobs_module.TranscriptionJobState.CANCELED)
 
     def test_generic_job_stores_create_and_fail_incomplete_jobs(self):
         from dictator.runtime import jobs as jobs_module

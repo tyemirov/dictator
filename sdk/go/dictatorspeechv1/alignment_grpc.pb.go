@@ -22,6 +22,7 @@ const (
 	AlignmentService_AlignTranscript_FullMethodName          = "/dictator.speech.v1.AlignmentService/AlignTranscript"
 	AlignmentService_SubmitAlignTranscriptJob_FullMethodName = "/dictator.speech.v1.AlignmentService/SubmitAlignTranscriptJob"
 	AlignmentService_GetAlignTranscriptJob_FullMethodName    = "/dictator.speech.v1.AlignmentService/GetAlignTranscriptJob"
+	AlignmentService_CancelAlignTranscriptJob_FullMethodName = "/dictator.speech.v1.AlignmentService/CancelAlignTranscriptJob"
 )
 
 // AlignmentServiceClient is the client API for AlignmentService service.
@@ -31,6 +32,7 @@ type AlignmentServiceClient interface {
 	AlignTranscript(ctx context.Context, in *AlignTranscriptRequest, opts ...grpc.CallOption) (*AlignTranscriptResponse, error)
 	SubmitAlignTranscriptJob(ctx context.Context, in *AlignTranscriptRequest, opts ...grpc.CallOption) (*SubmitAlignTranscriptJobResponse, error)
 	GetAlignTranscriptJob(ctx context.Context, in *GetAlignTranscriptJobRequest, opts ...grpc.CallOption) (*GetAlignTranscriptJobResponse, error)
+	CancelAlignTranscriptJob(ctx context.Context, in *CancelAlignTranscriptJobRequest, opts ...grpc.CallOption) (*CancelAlignTranscriptJobResponse, error)
 }
 
 type alignmentServiceClient struct {
@@ -71,6 +73,16 @@ func (c *alignmentServiceClient) GetAlignTranscriptJob(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *alignmentServiceClient) CancelAlignTranscriptJob(ctx context.Context, in *CancelAlignTranscriptJobRequest, opts ...grpc.CallOption) (*CancelAlignTranscriptJobResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CancelAlignTranscriptJobResponse)
+	err := c.cc.Invoke(ctx, AlignmentService_CancelAlignTranscriptJob_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AlignmentServiceServer is the server API for AlignmentService service.
 // All implementations must embed UnimplementedAlignmentServiceServer
 // for forward compatibility.
@@ -78,6 +90,7 @@ type AlignmentServiceServer interface {
 	AlignTranscript(context.Context, *AlignTranscriptRequest) (*AlignTranscriptResponse, error)
 	SubmitAlignTranscriptJob(context.Context, *AlignTranscriptRequest) (*SubmitAlignTranscriptJobResponse, error)
 	GetAlignTranscriptJob(context.Context, *GetAlignTranscriptJobRequest) (*GetAlignTranscriptJobResponse, error)
+	CancelAlignTranscriptJob(context.Context, *CancelAlignTranscriptJobRequest) (*CancelAlignTranscriptJobResponse, error)
 	mustEmbedUnimplementedAlignmentServiceServer()
 }
 
@@ -96,6 +109,9 @@ func (UnimplementedAlignmentServiceServer) SubmitAlignTranscriptJob(context.Cont
 }
 func (UnimplementedAlignmentServiceServer) GetAlignTranscriptJob(context.Context, *GetAlignTranscriptJobRequest) (*GetAlignTranscriptJobResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAlignTranscriptJob not implemented")
+}
+func (UnimplementedAlignmentServiceServer) CancelAlignTranscriptJob(context.Context, *CancelAlignTranscriptJobRequest) (*CancelAlignTranscriptJobResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CancelAlignTranscriptJob not implemented")
 }
 func (UnimplementedAlignmentServiceServer) mustEmbedUnimplementedAlignmentServiceServer() {}
 func (UnimplementedAlignmentServiceServer) testEmbeddedByValue()                          {}
@@ -172,6 +188,24 @@ func _AlignmentService_GetAlignTranscriptJob_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AlignmentService_CancelAlignTranscriptJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelAlignTranscriptJobRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlignmentServiceServer).CancelAlignTranscriptJob(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AlignmentService_CancelAlignTranscriptJob_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlignmentServiceServer).CancelAlignTranscriptJob(ctx, req.(*CancelAlignTranscriptJobRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AlignmentService_ServiceDesc is the grpc.ServiceDesc for AlignmentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -190,6 +224,10 @@ var AlignmentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAlignTranscriptJob",
 			Handler:    _AlignmentService_GetAlignTranscriptJob_Handler,
+		},
+		{
+			MethodName: "CancelAlignTranscriptJob",
+			Handler:    _AlignmentService_CancelAlignTranscriptJob_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

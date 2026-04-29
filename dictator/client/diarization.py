@@ -286,6 +286,16 @@ class DiarizationClient:
             finished_at_unix_seconds=response.finished_at_unix_seconds,
         )
 
+    def cancel_diarization_job(self, job_id: str) -> DiarizationJob:
+        response = self._transcription_stub.CancelDiarizeAudioJob(
+            transcription_pb2.CancelDiarizeAudioJobRequest(job_id=job_id),
+            metadata=self._metadata,
+        )
+        return DiarizationJob(
+            job_id=response.job_id,
+            state=transcription_pb2.DiarizationJobState.Name(response.state),
+        )
+
     def wait_for_diarization_job(
         self,
         job_id: str,

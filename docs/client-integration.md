@@ -73,6 +73,8 @@ The intended integration path is:
 
 The convenience clients perform the upload step automatically.
 
+Uploaded audio artifacts must be complete, finalized, decodable media files. Dictator does not accept streaming fragments or partially finalized container data. Browser clients using `MediaRecorder` must wait for recording shutdown and final `dataavailable` delivery before uploading; for WebM/Matroska, uploading only an EBML initialization/header fragment is outside the contract and will fail during decode.
+
 ## Universal async job contract
 
 All slow endpoints that support jobs follow the same shape:
@@ -169,6 +171,7 @@ Rules:
 
 - `language_code` and `autodetect_language=True` must not both be set
 - if no `language_code` is given, set `autodetect_language=True`
+- the referenced `audio_artifact_id` must point to a complete, finalized, decodable audio artifact, not an in-progress recording fragment
 
 Result:
 

@@ -29,6 +29,7 @@ const (
 	AlignmentJobState_ALIGNMENT_JOB_STATE_RUNNING     AlignmentJobState = 2
 	AlignmentJobState_ALIGNMENT_JOB_STATE_SUCCEEDED   AlignmentJobState = 3
 	AlignmentJobState_ALIGNMENT_JOB_STATE_FAILED      AlignmentJobState = 4
+	AlignmentJobState_ALIGNMENT_JOB_STATE_CANCELED    AlignmentJobState = 5
 )
 
 // Enum value maps for AlignmentJobState.
@@ -39,6 +40,7 @@ var (
 		2: "ALIGNMENT_JOB_STATE_RUNNING",
 		3: "ALIGNMENT_JOB_STATE_SUCCEEDED",
 		4: "ALIGNMENT_JOB_STATE_FAILED",
+		5: "ALIGNMENT_JOB_STATE_CANCELED",
 	}
 	AlignmentJobState_value = map[string]int32{
 		"ALIGNMENT_JOB_STATE_UNSPECIFIED": 0,
@@ -46,6 +48,7 @@ var (
 		"ALIGNMENT_JOB_STATE_RUNNING":     2,
 		"ALIGNMENT_JOB_STATE_SUCCEEDED":   3,
 		"ALIGNMENT_JOB_STATE_FAILED":      4,
+		"ALIGNMENT_JOB_STATE_CANCELED":    5,
 	}
 )
 
@@ -486,6 +489,102 @@ func (x *GetAlignTranscriptJobResponse) GetSourceArtifactId() string {
 	return ""
 }
 
+type CancelAlignTranscriptJobRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelAlignTranscriptJobRequest) Reset() {
+	*x = CancelAlignTranscriptJobRequest{}
+	mi := &file_dictator_speech_v1_alignment_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelAlignTranscriptJobRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelAlignTranscriptJobRequest) ProtoMessage() {}
+
+func (x *CancelAlignTranscriptJobRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dictator_speech_v1_alignment_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelAlignTranscriptJobRequest.ProtoReflect.Descriptor instead.
+func (*CancelAlignTranscriptJobRequest) Descriptor() ([]byte, []int) {
+	return file_dictator_speech_v1_alignment_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *CancelAlignTranscriptJobRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+type CancelAlignTranscriptJobResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	State         AlignmentJobState      `protobuf:"varint,2,opt,name=state,proto3,enum=dictator.speech.v1.AlignmentJobState" json:"state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelAlignTranscriptJobResponse) Reset() {
+	*x = CancelAlignTranscriptJobResponse{}
+	mi := &file_dictator_speech_v1_alignment_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelAlignTranscriptJobResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelAlignTranscriptJobResponse) ProtoMessage() {}
+
+func (x *CancelAlignTranscriptJobResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dictator_speech_v1_alignment_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelAlignTranscriptJobResponse.ProtoReflect.Descriptor instead.
+func (*CancelAlignTranscriptJobResponse) Descriptor() ([]byte, []int) {
+	return file_dictator_speech_v1_alignment_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *CancelAlignTranscriptJobResponse) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *CancelAlignTranscriptJobResponse) GetState() AlignmentJobState {
+	if x != nil {
+		return x.State
+	}
+	return AlignmentJobState_ALIGNMENT_JOB_STATE_UNSPECIFIED
+}
+
 var File_dictator_speech_v1_alignment_proto protoreflect.FileDescriptor
 
 const file_dictator_speech_v1_alignment_proto_rawDesc = "" +
@@ -523,17 +622,24 @@ const file_dictator_speech_v1_alignment_proto_rawDesc = "" +
 	"\x17started_at_unix_seconds\x18\n" +
 	" \x01(\x01R\x14startedAtUnixSeconds\x127\n" +
 	"\x18finished_at_unix_seconds\x18\v \x01(\x01R\x15finishedAtUnixSeconds\x12,\n" +
-	"\x12source_artifact_id\x18\f \x01(\tR\x10sourceArtifactId*\xbc\x01\n" +
+	"\x12source_artifact_id\x18\f \x01(\tR\x10sourceArtifactId\"8\n" +
+	"\x1fCancelAlignTranscriptJobRequest\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"v\n" +
+	" CancelAlignTranscriptJobResponse\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12;\n" +
+	"\x05state\x18\x02 \x01(\x0e2%.dictator.speech.v1.AlignmentJobStateR\x05state*\xde\x01\n" +
 	"\x11AlignmentJobState\x12#\n" +
 	"\x1fALIGNMENT_JOB_STATE_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aALIGNMENT_JOB_STATE_QUEUED\x10\x01\x12\x1f\n" +
 	"\x1bALIGNMENT_JOB_STATE_RUNNING\x10\x02\x12!\n" +
 	"\x1dALIGNMENT_JOB_STATE_SUCCEEDED\x10\x03\x12\x1e\n" +
-	"\x1aALIGNMENT_JOB_STATE_FAILED\x10\x042\xfa\x02\n" +
+	"\x1aALIGNMENT_JOB_STATE_FAILED\x10\x04\x12 \n" +
+	"\x1cALIGNMENT_JOB_STATE_CANCELED\x10\x052\x82\x04\n" +
 	"\x10AlignmentService\x12j\n" +
 	"\x0fAlignTranscript\x12*.dictator.speech.v1.AlignTranscriptRequest\x1a+.dictator.speech.v1.AlignTranscriptResponse\x12|\n" +
 	"\x18SubmitAlignTranscriptJob\x12*.dictator.speech.v1.AlignTranscriptRequest\x1a4.dictator.speech.v1.SubmitAlignTranscriptJobResponse\x12|\n" +
-	"\x15GetAlignTranscriptJob\x120.dictator.speech.v1.GetAlignTranscriptJobRequest\x1a1.dictator.speech.v1.GetAlignTranscriptJobResponseBGZEgithub.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1b\x06proto3"
+	"\x15GetAlignTranscriptJob\x120.dictator.speech.v1.GetAlignTranscriptJobRequest\x1a1.dictator.speech.v1.GetAlignTranscriptJobResponse\x12\x85\x01\n" +
+	"\x18CancelAlignTranscriptJob\x123.dictator.speech.v1.CancelAlignTranscriptJobRequest\x1a4.dictator.speech.v1.CancelAlignTranscriptJobResponseBGZEgithub.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1b\x06proto3"
 
 var (
 	file_dictator_speech_v1_alignment_proto_rawDescOnce sync.Once
@@ -548,7 +654,7 @@ func file_dictator_speech_v1_alignment_proto_rawDescGZIP() []byte {
 }
 
 var file_dictator_speech_v1_alignment_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dictator_speech_v1_alignment_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_dictator_speech_v1_alignment_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_dictator_speech_v1_alignment_proto_goTypes = []any{
 	(AlignmentJobState)(0),                   // 0: dictator.speech.v1.AlignmentJobState
 	(*AlignTranscriptRequest)(nil),           // 1: dictator.speech.v1.AlignTranscriptRequest
@@ -556,24 +662,29 @@ var file_dictator_speech_v1_alignment_proto_goTypes = []any{
 	(*SubmitAlignTranscriptJobResponse)(nil), // 3: dictator.speech.v1.SubmitAlignTranscriptJobResponse
 	(*GetAlignTranscriptJobRequest)(nil),     // 4: dictator.speech.v1.GetAlignTranscriptJobRequest
 	(*GetAlignTranscriptJobResponse)(nil),    // 5: dictator.speech.v1.GetAlignTranscriptJobResponse
-	(*WordSegment)(nil),                      // 6: dictator.speech.v1.WordSegment
+	(*CancelAlignTranscriptJobRequest)(nil),  // 6: dictator.speech.v1.CancelAlignTranscriptJobRequest
+	(*CancelAlignTranscriptJobResponse)(nil), // 7: dictator.speech.v1.CancelAlignTranscriptJobResponse
+	(*WordSegment)(nil),                      // 8: dictator.speech.v1.WordSegment
 }
 var file_dictator_speech_v1_alignment_proto_depIdxs = []int32{
-	6, // 0: dictator.speech.v1.AlignTranscriptResponse.words:type_name -> dictator.speech.v1.WordSegment
+	8, // 0: dictator.speech.v1.AlignTranscriptResponse.words:type_name -> dictator.speech.v1.WordSegment
 	0, // 1: dictator.speech.v1.SubmitAlignTranscriptJobResponse.state:type_name -> dictator.speech.v1.AlignmentJobState
 	0, // 2: dictator.speech.v1.GetAlignTranscriptJobResponse.state:type_name -> dictator.speech.v1.AlignmentJobState
-	6, // 3: dictator.speech.v1.GetAlignTranscriptJobResponse.words:type_name -> dictator.speech.v1.WordSegment
-	1, // 4: dictator.speech.v1.AlignmentService.AlignTranscript:input_type -> dictator.speech.v1.AlignTranscriptRequest
-	1, // 5: dictator.speech.v1.AlignmentService.SubmitAlignTranscriptJob:input_type -> dictator.speech.v1.AlignTranscriptRequest
-	4, // 6: dictator.speech.v1.AlignmentService.GetAlignTranscriptJob:input_type -> dictator.speech.v1.GetAlignTranscriptJobRequest
-	2, // 7: dictator.speech.v1.AlignmentService.AlignTranscript:output_type -> dictator.speech.v1.AlignTranscriptResponse
-	3, // 8: dictator.speech.v1.AlignmentService.SubmitAlignTranscriptJob:output_type -> dictator.speech.v1.SubmitAlignTranscriptJobResponse
-	5, // 9: dictator.speech.v1.AlignmentService.GetAlignTranscriptJob:output_type -> dictator.speech.v1.GetAlignTranscriptJobResponse
-	7, // [7:10] is the sub-list for method output_type
-	4, // [4:7] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	8, // 3: dictator.speech.v1.GetAlignTranscriptJobResponse.words:type_name -> dictator.speech.v1.WordSegment
+	0, // 4: dictator.speech.v1.CancelAlignTranscriptJobResponse.state:type_name -> dictator.speech.v1.AlignmentJobState
+	1, // 5: dictator.speech.v1.AlignmentService.AlignTranscript:input_type -> dictator.speech.v1.AlignTranscriptRequest
+	1, // 6: dictator.speech.v1.AlignmentService.SubmitAlignTranscriptJob:input_type -> dictator.speech.v1.AlignTranscriptRequest
+	4, // 7: dictator.speech.v1.AlignmentService.GetAlignTranscriptJob:input_type -> dictator.speech.v1.GetAlignTranscriptJobRequest
+	6, // 8: dictator.speech.v1.AlignmentService.CancelAlignTranscriptJob:input_type -> dictator.speech.v1.CancelAlignTranscriptJobRequest
+	2, // 9: dictator.speech.v1.AlignmentService.AlignTranscript:output_type -> dictator.speech.v1.AlignTranscriptResponse
+	3, // 10: dictator.speech.v1.AlignmentService.SubmitAlignTranscriptJob:output_type -> dictator.speech.v1.SubmitAlignTranscriptJobResponse
+	5, // 11: dictator.speech.v1.AlignmentService.GetAlignTranscriptJob:output_type -> dictator.speech.v1.GetAlignTranscriptJobResponse
+	7, // 12: dictator.speech.v1.AlignmentService.CancelAlignTranscriptJob:output_type -> dictator.speech.v1.CancelAlignTranscriptJobResponse
+	9, // [9:13] is the sub-list for method output_type
+	5, // [5:9] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_dictator_speech_v1_alignment_proto_init() }
@@ -592,7 +703,7 @@ func file_dictator_speech_v1_alignment_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dictator_speech_v1_alignment_proto_rawDesc), len(file_dictator_speech_v1_alignment_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

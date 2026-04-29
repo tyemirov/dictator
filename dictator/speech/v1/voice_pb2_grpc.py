@@ -49,6 +49,11 @@ class VoiceServiceStub(object):
                 request_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.GetExtractReferenceSampleJobRequest.SerializeToString,
                 response_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.GetExtractReferenceSampleJobResponse.FromString,
                 _registered_method=True)
+        self.CancelExtractReferenceSampleJob = channel.unary_unary(
+                '/dictator.speech.v1.VoiceService/CancelExtractReferenceSampleJob',
+                request_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.CancelExtractReferenceSampleJobRequest.SerializeToString,
+                response_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.CancelExtractReferenceSampleJobResponse.FromString,
+                _registered_method=True)
         self.SynthesizeSpeech = channel.unary_unary(
                 '/dictator.speech.v1.VoiceService/SynthesizeSpeech',
                 request_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.SynthesizeSpeechRequest.SerializeToString,
@@ -63,6 +68,11 @@ class VoiceServiceStub(object):
                 '/dictator.speech.v1.VoiceService/GetSynthesizeSpeechJob',
                 request_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.GetSynthesizeSpeechJobRequest.SerializeToString,
                 response_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.GetSynthesizeSpeechJobResponse.FromString,
+                _registered_method=True)
+        self.CancelSynthesizeSpeechJob = channel.unary_unary(
+                '/dictator.speech.v1.VoiceService/CancelSynthesizeSpeechJob',
+                request_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.CancelSynthesizeSpeechJobRequest.SerializeToString,
+                response_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.CancelSynthesizeSpeechJobResponse.FromString,
                 _registered_method=True)
 
 
@@ -87,6 +97,12 @@ class VoiceServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CancelExtractReferenceSampleJob(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def SynthesizeSpeech(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -100,6 +116,12 @@ class VoiceServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def GetSynthesizeSpeechJob(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CancelSynthesizeSpeechJob(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -123,6 +145,11 @@ def add_VoiceServiceServicer_to_server(servicer, server):
                     request_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.GetExtractReferenceSampleJobRequest.FromString,
                     response_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.GetExtractReferenceSampleJobResponse.SerializeToString,
             ),
+            'CancelExtractReferenceSampleJob': grpc.unary_unary_rpc_method_handler(
+                    servicer.CancelExtractReferenceSampleJob,
+                    request_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.CancelExtractReferenceSampleJobRequest.FromString,
+                    response_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.CancelExtractReferenceSampleJobResponse.SerializeToString,
+            ),
             'SynthesizeSpeech': grpc.unary_unary_rpc_method_handler(
                     servicer.SynthesizeSpeech,
                     request_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.SynthesizeSpeechRequest.FromString,
@@ -137,6 +164,11 @@ def add_VoiceServiceServicer_to_server(servicer, server):
                     servicer.GetSynthesizeSpeechJob,
                     request_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.GetSynthesizeSpeechJobRequest.FromString,
                     response_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.GetSynthesizeSpeechJobResponse.SerializeToString,
+            ),
+            'CancelSynthesizeSpeechJob': grpc.unary_unary_rpc_method_handler(
+                    servicer.CancelSynthesizeSpeechJob,
+                    request_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.CancelSynthesizeSpeechJobRequest.FromString,
+                    response_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.CancelSynthesizeSpeechJobResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -231,6 +263,33 @@ class VoiceService(object):
             _registered_method=True)
 
     @staticmethod
+    def CancelExtractReferenceSampleJob(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/dictator.speech.v1.VoiceService/CancelExtractReferenceSampleJob',
+            dictator_dot_speech_dot_v1_dot_voice__pb2.CancelExtractReferenceSampleJobRequest.SerializeToString,
+            dictator_dot_speech_dot_v1_dot_voice__pb2.CancelExtractReferenceSampleJobResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
     def SynthesizeSpeech(request,
             target,
             options=(),
@@ -301,6 +360,33 @@ class VoiceService(object):
             '/dictator.speech.v1.VoiceService/GetSynthesizeSpeechJob',
             dictator_dot_speech_dot_v1_dot_voice__pb2.GetSynthesizeSpeechJobRequest.SerializeToString,
             dictator_dot_speech_dot_v1_dot_voice__pb2.GetSynthesizeSpeechJobResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CancelSynthesizeSpeechJob(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/dictator.speech.v1.VoiceService/CancelSynthesizeSpeechJob',
+            dictator_dot_speech_dot_v1_dot_voice__pb2.CancelSynthesizeSpeechJobRequest.SerializeToString,
+            dictator_dot_speech_dot_v1_dot_voice__pb2.CancelSynthesizeSpeechJobResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from enum import Enum
 import json
 import logging
@@ -32,6 +32,10 @@ class JobState(str, Enum):
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
+    CANCELED = "canceled"
+
+
+_TERMINAL_JOB_STATES = {JobState.SUCCEEDED, JobState.FAILED, JobState.CANCELED}
 
 
 SynthesisJobState = JobState
@@ -547,9 +551,26 @@ class _LocalJsonJobStore(Generic[RecordT]):
     def update(self, job_id: str, **updates: object) -> RecordT:
         with self._lock:
             current = self.get(job_id)
+            if current.state == JobState.CANCELED:
+                return current
             payload = current.to_json_dict()
             payload.update(updates)
             record = self._record_from_json(payload)
+            self._write_record(record)
+            return record
+
+    def cancel(self, job_id: str) -> RecordT:
+        with self._lock:
+            current = self.get(job_id)
+            if current.state in _TERMINAL_JOB_STATES:
+                return current
+            record = replace(
+                current,
+                state=JobState.CANCELED,
+                finished_at_unix_seconds=time.time(),
+                error_code="dictator.jobs.canceled",
+                error_message="job canceled",
+            )
             self._write_record(record)
             return record
 
@@ -857,6 +878,7 @@ class _QueuedJobManager(Generic[PreparedT, RecordT]):
         self.max_pending_jobs = max_pending_jobs
         self._lock = threading.Lock()
         self._pending_jobs = 0
+        self._futures: dict[str, object] = {}
         self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix=thread_name_prefix)
         self.job_store.fail_incomplete_jobs("service restarted before the job completed")
 
@@ -871,7 +893,15 @@ class _QueuedJobManager(Generic[PreparedT, RecordT]):
             self._pending_jobs += 1
         try:
             record = self._create_record(prepared)
-            self._executor.submit(self._run_job_wrapper, record.job_id, prepared)
+            future = self._executor.submit(self._run_job_wrapper, record.job_id, prepared)
+            should_track = False
+            with self._lock:
+                if not getattr(future, "done", lambda: False)():
+                    self._futures[record.job_id] = future
+                    should_track = True
+            add_done_callback = getattr(future, "add_done_callback", None)
+            if should_track and add_done_callback is not None:
+                add_done_callback(lambda _future, job_id=record.job_id: self._discard_future(job_id))
             return record
         except Exception:
             with self._lock:
@@ -881,6 +911,18 @@ class _QueuedJobManager(Generic[PreparedT, RecordT]):
     def get(self, job_id: str) -> RecordT:
         return self.job_store.get(job_id)
 
+    def cancel(self, job_id: str) -> RecordT:
+        record = self.job_store.cancel(job_id)
+        if record.state == JobState.CANCELED:
+            with self._lock:
+                future = self._futures.get(record.job_id)
+                cancel = getattr(future, "cancel", None)
+                if cancel is not None and cancel():
+                    self._futures.pop(record.job_id, None)
+                    if self._pending_jobs > 0:
+                        self._pending_jobs -= 1
+        return record
+
     def _create_record(self, prepared: PreparedT) -> RecordT:
         raise NotImplementedError
 
@@ -888,7 +930,14 @@ class _QueuedJobManager(Generic[PreparedT, RecordT]):
         raise NotImplementedError
 
     def _run_job_wrapper(self, job_id: str, prepared: PreparedT) -> None:
-        self._run_job(job_id, prepared)
+        try:
+            self._run_job(job_id, prepared)
+        finally:
+            self._discard_future(job_id)
+
+    def _discard_future(self, job_id: str) -> None:
+        with self._lock:
+            self._futures.pop(job_id, None)
 
 
 class SynthesisJobManager(_QueuedJobManager[PreparedSynthesisRequest, SynthesisJobRecord]):

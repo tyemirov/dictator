@@ -75,6 +75,7 @@ const (
 	SynthesisJobState_SYNTHESIS_JOB_STATE_RUNNING     SynthesisJobState = 2
 	SynthesisJobState_SYNTHESIS_JOB_STATE_SUCCEEDED   SynthesisJobState = 3
 	SynthesisJobState_SYNTHESIS_JOB_STATE_FAILED      SynthesisJobState = 4
+	SynthesisJobState_SYNTHESIS_JOB_STATE_CANCELED    SynthesisJobState = 5
 )
 
 // Enum value maps for SynthesisJobState.
@@ -85,6 +86,7 @@ var (
 		2: "SYNTHESIS_JOB_STATE_RUNNING",
 		3: "SYNTHESIS_JOB_STATE_SUCCEEDED",
 		4: "SYNTHESIS_JOB_STATE_FAILED",
+		5: "SYNTHESIS_JOB_STATE_CANCELED",
 	}
 	SynthesisJobState_value = map[string]int32{
 		"SYNTHESIS_JOB_STATE_UNSPECIFIED": 0,
@@ -92,6 +94,7 @@ var (
 		"SYNTHESIS_JOB_STATE_RUNNING":     2,
 		"SYNTHESIS_JOB_STATE_SUCCEEDED":   3,
 		"SYNTHESIS_JOB_STATE_FAILED":      4,
+		"SYNTHESIS_JOB_STATE_CANCELED":    5,
 	}
 )
 
@@ -130,6 +133,7 @@ const (
 	ExtractReferenceSampleJobState_EXTRACT_REFERENCE_SAMPLE_JOB_STATE_RUNNING     ExtractReferenceSampleJobState = 2
 	ExtractReferenceSampleJobState_EXTRACT_REFERENCE_SAMPLE_JOB_STATE_SUCCEEDED   ExtractReferenceSampleJobState = 3
 	ExtractReferenceSampleJobState_EXTRACT_REFERENCE_SAMPLE_JOB_STATE_FAILED      ExtractReferenceSampleJobState = 4
+	ExtractReferenceSampleJobState_EXTRACT_REFERENCE_SAMPLE_JOB_STATE_CANCELED    ExtractReferenceSampleJobState = 5
 )
 
 // Enum value maps for ExtractReferenceSampleJobState.
@@ -140,6 +144,7 @@ var (
 		2: "EXTRACT_REFERENCE_SAMPLE_JOB_STATE_RUNNING",
 		3: "EXTRACT_REFERENCE_SAMPLE_JOB_STATE_SUCCEEDED",
 		4: "EXTRACT_REFERENCE_SAMPLE_JOB_STATE_FAILED",
+		5: "EXTRACT_REFERENCE_SAMPLE_JOB_STATE_CANCELED",
 	}
 	ExtractReferenceSampleJobState_value = map[string]int32{
 		"EXTRACT_REFERENCE_SAMPLE_JOB_STATE_UNSPECIFIED": 0,
@@ -147,6 +152,7 @@ var (
 		"EXTRACT_REFERENCE_SAMPLE_JOB_STATE_RUNNING":     2,
 		"EXTRACT_REFERENCE_SAMPLE_JOB_STATE_SUCCEEDED":   3,
 		"EXTRACT_REFERENCE_SAMPLE_JOB_STATE_FAILED":      4,
+		"EXTRACT_REFERENCE_SAMPLE_JOB_STATE_CANCELED":    5,
 	}
 )
 
@@ -597,6 +603,102 @@ func (x *GetExtractReferenceSampleJobResponse) GetSourceArtifactId() string {
 	return ""
 }
 
+type CancelExtractReferenceSampleJobRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelExtractReferenceSampleJobRequest) Reset() {
+	*x = CancelExtractReferenceSampleJobRequest{}
+	mi := &file_dictator_speech_v1_voice_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelExtractReferenceSampleJobRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelExtractReferenceSampleJobRequest) ProtoMessage() {}
+
+func (x *CancelExtractReferenceSampleJobRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dictator_speech_v1_voice_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelExtractReferenceSampleJobRequest.ProtoReflect.Descriptor instead.
+func (*CancelExtractReferenceSampleJobRequest) Descriptor() ([]byte, []int) {
+	return file_dictator_speech_v1_voice_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *CancelExtractReferenceSampleJobRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+type CancelExtractReferenceSampleJobResponse struct {
+	state         protoimpl.MessageState         `protogen:"open.v1"`
+	JobId         string                         `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	State         ExtractReferenceSampleJobState `protobuf:"varint,2,opt,name=state,proto3,enum=dictator.speech.v1.ExtractReferenceSampleJobState" json:"state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelExtractReferenceSampleJobResponse) Reset() {
+	*x = CancelExtractReferenceSampleJobResponse{}
+	mi := &file_dictator_speech_v1_voice_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelExtractReferenceSampleJobResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelExtractReferenceSampleJobResponse) ProtoMessage() {}
+
+func (x *CancelExtractReferenceSampleJobResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dictator_speech_v1_voice_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelExtractReferenceSampleJobResponse.ProtoReflect.Descriptor instead.
+func (*CancelExtractReferenceSampleJobResponse) Descriptor() ([]byte, []int) {
+	return file_dictator_speech_v1_voice_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *CancelExtractReferenceSampleJobResponse) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *CancelExtractReferenceSampleJobResponse) GetState() ExtractReferenceSampleJobState {
+	if x != nil {
+		return x.State
+	}
+	return ExtractReferenceSampleJobState_EXTRACT_REFERENCE_SAMPLE_JOB_STATE_UNSPECIFIED
+}
+
 type SynthesizeSpeechRequest struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	SpeakerArtifactId string                 `protobuf:"bytes,1,opt,name=speaker_artifact_id,json=speakerArtifactId,proto3" json:"speaker_artifact_id,omitempty"`
@@ -616,7 +718,7 @@ type SynthesizeSpeechRequest struct {
 
 func (x *SynthesizeSpeechRequest) Reset() {
 	*x = SynthesizeSpeechRequest{}
-	mi := &file_dictator_speech_v1_voice_proto_msgTypes[5]
+	mi := &file_dictator_speech_v1_voice_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -628,7 +730,7 @@ func (x *SynthesizeSpeechRequest) String() string {
 func (*SynthesizeSpeechRequest) ProtoMessage() {}
 
 func (x *SynthesizeSpeechRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dictator_speech_v1_voice_proto_msgTypes[5]
+	mi := &file_dictator_speech_v1_voice_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -641,7 +743,7 @@ func (x *SynthesizeSpeechRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SynthesizeSpeechRequest.ProtoReflect.Descriptor instead.
 func (*SynthesizeSpeechRequest) Descriptor() ([]byte, []int) {
-	return file_dictator_speech_v1_voice_proto_rawDescGZIP(), []int{5}
+	return file_dictator_speech_v1_voice_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *SynthesizeSpeechRequest) GetSpeakerArtifactId() string {
@@ -740,7 +842,7 @@ type SynthesizeSpeechResponse struct {
 
 func (x *SynthesizeSpeechResponse) Reset() {
 	*x = SynthesizeSpeechResponse{}
-	mi := &file_dictator_speech_v1_voice_proto_msgTypes[6]
+	mi := &file_dictator_speech_v1_voice_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -752,7 +854,7 @@ func (x *SynthesizeSpeechResponse) String() string {
 func (*SynthesizeSpeechResponse) ProtoMessage() {}
 
 func (x *SynthesizeSpeechResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dictator_speech_v1_voice_proto_msgTypes[6]
+	mi := &file_dictator_speech_v1_voice_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -765,7 +867,7 @@ func (x *SynthesizeSpeechResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SynthesizeSpeechResponse.ProtoReflect.Descriptor instead.
 func (*SynthesizeSpeechResponse) Descriptor() ([]byte, []int) {
-	return file_dictator_speech_v1_voice_proto_rawDescGZIP(), []int{6}
+	return file_dictator_speech_v1_voice_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *SynthesizeSpeechResponse) GetAudioArtifact() *ArtifactRef {
@@ -813,7 +915,7 @@ type SubmitSynthesizeSpeechJobResponse struct {
 
 func (x *SubmitSynthesizeSpeechJobResponse) Reset() {
 	*x = SubmitSynthesizeSpeechJobResponse{}
-	mi := &file_dictator_speech_v1_voice_proto_msgTypes[7]
+	mi := &file_dictator_speech_v1_voice_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -825,7 +927,7 @@ func (x *SubmitSynthesizeSpeechJobResponse) String() string {
 func (*SubmitSynthesizeSpeechJobResponse) ProtoMessage() {}
 
 func (x *SubmitSynthesizeSpeechJobResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dictator_speech_v1_voice_proto_msgTypes[7]
+	mi := &file_dictator_speech_v1_voice_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -838,7 +940,7 @@ func (x *SubmitSynthesizeSpeechJobResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use SubmitSynthesizeSpeechJobResponse.ProtoReflect.Descriptor instead.
 func (*SubmitSynthesizeSpeechJobResponse) Descriptor() ([]byte, []int) {
-	return file_dictator_speech_v1_voice_proto_rawDescGZIP(), []int{7}
+	return file_dictator_speech_v1_voice_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *SubmitSynthesizeSpeechJobResponse) GetJobId() string {
@@ -864,7 +966,7 @@ type GetSynthesizeSpeechJobRequest struct {
 
 func (x *GetSynthesizeSpeechJobRequest) Reset() {
 	*x = GetSynthesizeSpeechJobRequest{}
-	mi := &file_dictator_speech_v1_voice_proto_msgTypes[8]
+	mi := &file_dictator_speech_v1_voice_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -876,7 +978,7 @@ func (x *GetSynthesizeSpeechJobRequest) String() string {
 func (*GetSynthesizeSpeechJobRequest) ProtoMessage() {}
 
 func (x *GetSynthesizeSpeechJobRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dictator_speech_v1_voice_proto_msgTypes[8]
+	mi := &file_dictator_speech_v1_voice_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -889,7 +991,7 @@ func (x *GetSynthesizeSpeechJobRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSynthesizeSpeechJobRequest.ProtoReflect.Descriptor instead.
 func (*GetSynthesizeSpeechJobRequest) Descriptor() ([]byte, []int) {
-	return file_dictator_speech_v1_voice_proto_rawDescGZIP(), []int{8}
+	return file_dictator_speech_v1_voice_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GetSynthesizeSpeechJobRequest) GetJobId() string {
@@ -920,7 +1022,7 @@ type GetSynthesizeSpeechJobResponse struct {
 
 func (x *GetSynthesizeSpeechJobResponse) Reset() {
 	*x = GetSynthesizeSpeechJobResponse{}
-	mi := &file_dictator_speech_v1_voice_proto_msgTypes[9]
+	mi := &file_dictator_speech_v1_voice_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -932,7 +1034,7 @@ func (x *GetSynthesizeSpeechJobResponse) String() string {
 func (*GetSynthesizeSpeechJobResponse) ProtoMessage() {}
 
 func (x *GetSynthesizeSpeechJobResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dictator_speech_v1_voice_proto_msgTypes[9]
+	mi := &file_dictator_speech_v1_voice_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -945,7 +1047,7 @@ func (x *GetSynthesizeSpeechJobResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSynthesizeSpeechJobResponse.ProtoReflect.Descriptor instead.
 func (*GetSynthesizeSpeechJobResponse) Descriptor() ([]byte, []int) {
-	return file_dictator_speech_v1_voice_proto_rawDescGZIP(), []int{9}
+	return file_dictator_speech_v1_voice_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GetSynthesizeSpeechJobResponse) GetJobId() string {
@@ -1039,6 +1141,102 @@ func (x *GetSynthesizeSpeechJobResponse) GetCompletedChunks() int32 {
 	return 0
 }
 
+type CancelSynthesizeSpeechJobRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelSynthesizeSpeechJobRequest) Reset() {
+	*x = CancelSynthesizeSpeechJobRequest{}
+	mi := &file_dictator_speech_v1_voice_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelSynthesizeSpeechJobRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelSynthesizeSpeechJobRequest) ProtoMessage() {}
+
+func (x *CancelSynthesizeSpeechJobRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dictator_speech_v1_voice_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelSynthesizeSpeechJobRequest.ProtoReflect.Descriptor instead.
+func (*CancelSynthesizeSpeechJobRequest) Descriptor() ([]byte, []int) {
+	return file_dictator_speech_v1_voice_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *CancelSynthesizeSpeechJobRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+type CancelSynthesizeSpeechJobResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	State         SynthesisJobState      `protobuf:"varint,2,opt,name=state,proto3,enum=dictator.speech.v1.SynthesisJobState" json:"state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelSynthesizeSpeechJobResponse) Reset() {
+	*x = CancelSynthesizeSpeechJobResponse{}
+	mi := &file_dictator_speech_v1_voice_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelSynthesizeSpeechJobResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelSynthesizeSpeechJobResponse) ProtoMessage() {}
+
+func (x *CancelSynthesizeSpeechJobResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dictator_speech_v1_voice_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelSynthesizeSpeechJobResponse.ProtoReflect.Descriptor instead.
+func (*CancelSynthesizeSpeechJobResponse) Descriptor() ([]byte, []int) {
+	return file_dictator_speech_v1_voice_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *CancelSynthesizeSpeechJobResponse) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *CancelSynthesizeSpeechJobResponse) GetState() SynthesisJobState {
+	if x != nil {
+		return x.State
+	}
+	return SynthesisJobState_SYNTHESIS_JOB_STATE_UNSPECIFIED
+}
+
 var File_dictator_speech_v1_voice_proto protoreflect.FileDescriptor
 
 const file_dictator_speech_v1_voice_proto_rawDesc = "" +
@@ -1081,7 +1279,12 @@ const file_dictator_speech_v1_voice_proto_rawDesc = "" +
 	"\x17created_at_unix_seconds\x18\v \x01(\x01R\x14createdAtUnixSeconds\x125\n" +
 	"\x17started_at_unix_seconds\x18\f \x01(\x01R\x14startedAtUnixSeconds\x127\n" +
 	"\x18finished_at_unix_seconds\x18\r \x01(\x01R\x15finishedAtUnixSeconds\x12,\n" +
-	"\x12source_artifact_id\x18\x0e \x01(\tR\x10sourceArtifactId\"\xa4\x03\n" +
+	"\x12source_artifact_id\x18\x0e \x01(\tR\x10sourceArtifactId\"?\n" +
+	"&CancelExtractReferenceSampleJobRequest\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"\x8a\x01\n" +
+	"'CancelExtractReferenceSampleJobResponse\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12H\n" +
+	"\x05state\x18\x02 \x01(\x0e22.dictator.speech.v1.ExtractReferenceSampleJobStateR\x05state\"\xa4\x03\n" +
 	"\x17SynthesizeSpeechRequest\x12.\n" +
 	"\x13speaker_artifact_id\x18\x01 \x01(\tR\x11speakerArtifactId\x12\x14\n" +
 	"\x04text\x18\x02 \x01(\tH\x00R\x04text\x12*\n" +
@@ -1120,29 +1323,38 @@ const file_dictator_speech_v1_voice_proto_rawDesc = "" +
 	" \x01(\x01R\x14startedAtUnixSeconds\x127\n" +
 	"\x18finished_at_unix_seconds\x18\v \x01(\x01R\x15finishedAtUnixSeconds\x124\n" +
 	"\x16estimated_total_chunks\x18\f \x01(\x05R\x14estimatedTotalChunks\x12)\n" +
-	"\x10completed_chunks\x18\r \x01(\x05R\x0fcompletedChunks*O\n" +
+	"\x10completed_chunks\x18\r \x01(\x05R\x0fcompletedChunks\"9\n" +
+	" CancelSynthesizeSpeechJobRequest\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"w\n" +
+	"!CancelSynthesizeSpeechJobResponse\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12;\n" +
+	"\x05state\x18\x02 \x01(\x0e2%.dictator.speech.v1.SynthesisJobStateR\x05state*O\n" +
 	"\x0fSynthesisEngine\x12 \n" +
 	"\x1cSYNTHESIS_ENGINE_UNSPECIFIED\x10\x00\x12\x1a\n" +
-	"\x16SYNTHESIS_ENGINE_QWEN3\x10\x01*\xbc\x01\n" +
+	"\x16SYNTHESIS_ENGINE_QWEN3\x10\x01*\xde\x01\n" +
 	"\x11SynthesisJobState\x12#\n" +
 	"\x1fSYNTHESIS_JOB_STATE_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aSYNTHESIS_JOB_STATE_QUEUED\x10\x01\x12\x1f\n" +
 	"\x1bSYNTHESIS_JOB_STATE_RUNNING\x10\x02\x12!\n" +
 	"\x1dSYNTHESIS_JOB_STATE_SUCCEEDED\x10\x03\x12\x1e\n" +
-	"\x1aSYNTHESIS_JOB_STATE_FAILED\x10\x04*\x94\x02\n" +
+	"\x1aSYNTHESIS_JOB_STATE_FAILED\x10\x04\x12 \n" +
+	"\x1cSYNTHESIS_JOB_STATE_CANCELED\x10\x05*\xc5\x02\n" +
 	"\x1eExtractReferenceSampleJobState\x122\n" +
 	".EXTRACT_REFERENCE_SAMPLE_JOB_STATE_UNSPECIFIED\x10\x00\x12-\n" +
 	")EXTRACT_REFERENCE_SAMPLE_JOB_STATE_QUEUED\x10\x01\x12.\n" +
 	"*EXTRACT_REFERENCE_SAMPLE_JOB_STATE_RUNNING\x10\x02\x120\n" +
 	",EXTRACT_REFERENCE_SAMPLE_JOB_STATE_SUCCEEDED\x10\x03\x12-\n" +
-	")EXTRACT_REFERENCE_SAMPLE_JOB_STATE_FAILED\x10\x042\xa8\x06\n" +
+	")EXTRACT_REFERENCE_SAMPLE_JOB_STATE_FAILED\x10\x04\x12/\n" +
+	"+EXTRACT_REFERENCE_SAMPLE_JOB_STATE_CANCELED\x10\x052\xd0\b\n" +
 	"\fVoiceService\x12\x7f\n" +
 	"\x16ExtractReferenceSample\x121.dictator.speech.v1.ExtractReferenceSampleRequest\x1a2.dictator.speech.v1.ExtractReferenceSampleResponse\x12\x91\x01\n" +
 	"\x1fSubmitExtractReferenceSampleJob\x121.dictator.speech.v1.ExtractReferenceSampleRequest\x1a;.dictator.speech.v1.SubmitExtractReferenceSampleJobResponse\x12\x91\x01\n" +
-	"\x1cGetExtractReferenceSampleJob\x127.dictator.speech.v1.GetExtractReferenceSampleJobRequest\x1a8.dictator.speech.v1.GetExtractReferenceSampleJobResponse\x12m\n" +
+	"\x1cGetExtractReferenceSampleJob\x127.dictator.speech.v1.GetExtractReferenceSampleJobRequest\x1a8.dictator.speech.v1.GetExtractReferenceSampleJobResponse\x12\x9a\x01\n" +
+	"\x1fCancelExtractReferenceSampleJob\x12:.dictator.speech.v1.CancelExtractReferenceSampleJobRequest\x1a;.dictator.speech.v1.CancelExtractReferenceSampleJobResponse\x12m\n" +
 	"\x10SynthesizeSpeech\x12+.dictator.speech.v1.SynthesizeSpeechRequest\x1a,.dictator.speech.v1.SynthesizeSpeechResponse\x12\x7f\n" +
 	"\x19SubmitSynthesizeSpeechJob\x12+.dictator.speech.v1.SynthesizeSpeechRequest\x1a5.dictator.speech.v1.SubmitSynthesizeSpeechJobResponse\x12\x7f\n" +
-	"\x16GetSynthesizeSpeechJob\x121.dictator.speech.v1.GetSynthesizeSpeechJobRequest\x1a2.dictator.speech.v1.GetSynthesizeSpeechJobResponseBGZEgithub.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1b\x06proto3"
+	"\x16GetSynthesizeSpeechJob\x121.dictator.speech.v1.GetSynthesizeSpeechJobRequest\x1a2.dictator.speech.v1.GetSynthesizeSpeechJobResponse\x12\x88\x01\n" +
+	"\x19CancelSynthesizeSpeechJob\x124.dictator.speech.v1.CancelSynthesizeSpeechJobRequest\x1a5.dictator.speech.v1.CancelSynthesizeSpeechJobResponseBGZEgithub.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1b\x06proto3"
 
 var (
 	file_dictator_speech_v1_voice_proto_rawDescOnce sync.Once
@@ -1157,7 +1369,7 @@ func file_dictator_speech_v1_voice_proto_rawDescGZIP() []byte {
 }
 
 var file_dictator_speech_v1_voice_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_dictator_speech_v1_voice_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_dictator_speech_v1_voice_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_dictator_speech_v1_voice_proto_goTypes = []any{
 	(SynthesisEngine)(0),                            // 0: dictator.speech.v1.SynthesisEngine
 	(SynthesisJobState)(0),                          // 1: dictator.speech.v1.SynthesisJobState
@@ -1167,42 +1379,52 @@ var file_dictator_speech_v1_voice_proto_goTypes = []any{
 	(*SubmitExtractReferenceSampleJobResponse)(nil), // 5: dictator.speech.v1.SubmitExtractReferenceSampleJobResponse
 	(*GetExtractReferenceSampleJobRequest)(nil),     // 6: dictator.speech.v1.GetExtractReferenceSampleJobRequest
 	(*GetExtractReferenceSampleJobResponse)(nil),    // 7: dictator.speech.v1.GetExtractReferenceSampleJobResponse
-	(*SynthesizeSpeechRequest)(nil),                 // 8: dictator.speech.v1.SynthesizeSpeechRequest
-	(*SynthesizeSpeechResponse)(nil),                // 9: dictator.speech.v1.SynthesizeSpeechResponse
-	(*SubmitSynthesizeSpeechJobResponse)(nil),       // 10: dictator.speech.v1.SubmitSynthesizeSpeechJobResponse
-	(*GetSynthesizeSpeechJobRequest)(nil),           // 11: dictator.speech.v1.GetSynthesizeSpeechJobRequest
-	(*GetSynthesizeSpeechJobResponse)(nil),          // 12: dictator.speech.v1.GetSynthesizeSpeechJobResponse
-	(*ArtifactRef)(nil),                             // 13: dictator.speech.v1.ArtifactRef
-	(*TimelineSegment)(nil),                         // 14: dictator.speech.v1.TimelineSegment
+	(*CancelExtractReferenceSampleJobRequest)(nil),  // 8: dictator.speech.v1.CancelExtractReferenceSampleJobRequest
+	(*CancelExtractReferenceSampleJobResponse)(nil), // 9: dictator.speech.v1.CancelExtractReferenceSampleJobResponse
+	(*SynthesizeSpeechRequest)(nil),                 // 10: dictator.speech.v1.SynthesizeSpeechRequest
+	(*SynthesizeSpeechResponse)(nil),                // 11: dictator.speech.v1.SynthesizeSpeechResponse
+	(*SubmitSynthesizeSpeechJobResponse)(nil),       // 12: dictator.speech.v1.SubmitSynthesizeSpeechJobResponse
+	(*GetSynthesizeSpeechJobRequest)(nil),           // 13: dictator.speech.v1.GetSynthesizeSpeechJobRequest
+	(*GetSynthesizeSpeechJobResponse)(nil),          // 14: dictator.speech.v1.GetSynthesizeSpeechJobResponse
+	(*CancelSynthesizeSpeechJobRequest)(nil),        // 15: dictator.speech.v1.CancelSynthesizeSpeechJobRequest
+	(*CancelSynthesizeSpeechJobResponse)(nil),       // 16: dictator.speech.v1.CancelSynthesizeSpeechJobResponse
+	(*ArtifactRef)(nil),                             // 17: dictator.speech.v1.ArtifactRef
+	(*TimelineSegment)(nil),                         // 18: dictator.speech.v1.TimelineSegment
 }
 var file_dictator_speech_v1_voice_proto_depIdxs = []int32{
-	13, // 0: dictator.speech.v1.ExtractReferenceSampleResponse.sample_artifact:type_name -> dictator.speech.v1.ArtifactRef
+	17, // 0: dictator.speech.v1.ExtractReferenceSampleResponse.sample_artifact:type_name -> dictator.speech.v1.ArtifactRef
 	2,  // 1: dictator.speech.v1.SubmitExtractReferenceSampleJobResponse.state:type_name -> dictator.speech.v1.ExtractReferenceSampleJobState
 	2,  // 2: dictator.speech.v1.GetExtractReferenceSampleJobResponse.state:type_name -> dictator.speech.v1.ExtractReferenceSampleJobState
-	13, // 3: dictator.speech.v1.GetExtractReferenceSampleJobResponse.sample_artifact:type_name -> dictator.speech.v1.ArtifactRef
-	0,  // 4: dictator.speech.v1.SynthesizeSpeechRequest.synthesis_engine:type_name -> dictator.speech.v1.SynthesisEngine
-	13, // 5: dictator.speech.v1.SynthesizeSpeechResponse.audio_artifact:type_name -> dictator.speech.v1.ArtifactRef
-	14, // 6: dictator.speech.v1.SynthesizeSpeechResponse.timeline:type_name -> dictator.speech.v1.TimelineSegment
-	1,  // 7: dictator.speech.v1.SubmitSynthesizeSpeechJobResponse.state:type_name -> dictator.speech.v1.SynthesisJobState
-	1,  // 8: dictator.speech.v1.GetSynthesizeSpeechJobResponse.state:type_name -> dictator.speech.v1.SynthesisJobState
-	13, // 9: dictator.speech.v1.GetSynthesizeSpeechJobResponse.audio_artifact:type_name -> dictator.speech.v1.ArtifactRef
-	3,  // 10: dictator.speech.v1.VoiceService.ExtractReferenceSample:input_type -> dictator.speech.v1.ExtractReferenceSampleRequest
-	3,  // 11: dictator.speech.v1.VoiceService.SubmitExtractReferenceSampleJob:input_type -> dictator.speech.v1.ExtractReferenceSampleRequest
-	6,  // 12: dictator.speech.v1.VoiceService.GetExtractReferenceSampleJob:input_type -> dictator.speech.v1.GetExtractReferenceSampleJobRequest
-	8,  // 13: dictator.speech.v1.VoiceService.SynthesizeSpeech:input_type -> dictator.speech.v1.SynthesizeSpeechRequest
-	8,  // 14: dictator.speech.v1.VoiceService.SubmitSynthesizeSpeechJob:input_type -> dictator.speech.v1.SynthesizeSpeechRequest
-	11, // 15: dictator.speech.v1.VoiceService.GetSynthesizeSpeechJob:input_type -> dictator.speech.v1.GetSynthesizeSpeechJobRequest
-	4,  // 16: dictator.speech.v1.VoiceService.ExtractReferenceSample:output_type -> dictator.speech.v1.ExtractReferenceSampleResponse
-	5,  // 17: dictator.speech.v1.VoiceService.SubmitExtractReferenceSampleJob:output_type -> dictator.speech.v1.SubmitExtractReferenceSampleJobResponse
-	7,  // 18: dictator.speech.v1.VoiceService.GetExtractReferenceSampleJob:output_type -> dictator.speech.v1.GetExtractReferenceSampleJobResponse
-	9,  // 19: dictator.speech.v1.VoiceService.SynthesizeSpeech:output_type -> dictator.speech.v1.SynthesizeSpeechResponse
-	10, // 20: dictator.speech.v1.VoiceService.SubmitSynthesizeSpeechJob:output_type -> dictator.speech.v1.SubmitSynthesizeSpeechJobResponse
-	12, // 21: dictator.speech.v1.VoiceService.GetSynthesizeSpeechJob:output_type -> dictator.speech.v1.GetSynthesizeSpeechJobResponse
-	16, // [16:22] is the sub-list for method output_type
-	10, // [10:16] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	17, // 3: dictator.speech.v1.GetExtractReferenceSampleJobResponse.sample_artifact:type_name -> dictator.speech.v1.ArtifactRef
+	2,  // 4: dictator.speech.v1.CancelExtractReferenceSampleJobResponse.state:type_name -> dictator.speech.v1.ExtractReferenceSampleJobState
+	0,  // 5: dictator.speech.v1.SynthesizeSpeechRequest.synthesis_engine:type_name -> dictator.speech.v1.SynthesisEngine
+	17, // 6: dictator.speech.v1.SynthesizeSpeechResponse.audio_artifact:type_name -> dictator.speech.v1.ArtifactRef
+	18, // 7: dictator.speech.v1.SynthesizeSpeechResponse.timeline:type_name -> dictator.speech.v1.TimelineSegment
+	1,  // 8: dictator.speech.v1.SubmitSynthesizeSpeechJobResponse.state:type_name -> dictator.speech.v1.SynthesisJobState
+	1,  // 9: dictator.speech.v1.GetSynthesizeSpeechJobResponse.state:type_name -> dictator.speech.v1.SynthesisJobState
+	17, // 10: dictator.speech.v1.GetSynthesizeSpeechJobResponse.audio_artifact:type_name -> dictator.speech.v1.ArtifactRef
+	1,  // 11: dictator.speech.v1.CancelSynthesizeSpeechJobResponse.state:type_name -> dictator.speech.v1.SynthesisJobState
+	3,  // 12: dictator.speech.v1.VoiceService.ExtractReferenceSample:input_type -> dictator.speech.v1.ExtractReferenceSampleRequest
+	3,  // 13: dictator.speech.v1.VoiceService.SubmitExtractReferenceSampleJob:input_type -> dictator.speech.v1.ExtractReferenceSampleRequest
+	6,  // 14: dictator.speech.v1.VoiceService.GetExtractReferenceSampleJob:input_type -> dictator.speech.v1.GetExtractReferenceSampleJobRequest
+	8,  // 15: dictator.speech.v1.VoiceService.CancelExtractReferenceSampleJob:input_type -> dictator.speech.v1.CancelExtractReferenceSampleJobRequest
+	10, // 16: dictator.speech.v1.VoiceService.SynthesizeSpeech:input_type -> dictator.speech.v1.SynthesizeSpeechRequest
+	10, // 17: dictator.speech.v1.VoiceService.SubmitSynthesizeSpeechJob:input_type -> dictator.speech.v1.SynthesizeSpeechRequest
+	13, // 18: dictator.speech.v1.VoiceService.GetSynthesizeSpeechJob:input_type -> dictator.speech.v1.GetSynthesizeSpeechJobRequest
+	15, // 19: dictator.speech.v1.VoiceService.CancelSynthesizeSpeechJob:input_type -> dictator.speech.v1.CancelSynthesizeSpeechJobRequest
+	4,  // 20: dictator.speech.v1.VoiceService.ExtractReferenceSample:output_type -> dictator.speech.v1.ExtractReferenceSampleResponse
+	5,  // 21: dictator.speech.v1.VoiceService.SubmitExtractReferenceSampleJob:output_type -> dictator.speech.v1.SubmitExtractReferenceSampleJobResponse
+	7,  // 22: dictator.speech.v1.VoiceService.GetExtractReferenceSampleJob:output_type -> dictator.speech.v1.GetExtractReferenceSampleJobResponse
+	9,  // 23: dictator.speech.v1.VoiceService.CancelExtractReferenceSampleJob:output_type -> dictator.speech.v1.CancelExtractReferenceSampleJobResponse
+	11, // 24: dictator.speech.v1.VoiceService.SynthesizeSpeech:output_type -> dictator.speech.v1.SynthesizeSpeechResponse
+	12, // 25: dictator.speech.v1.VoiceService.SubmitSynthesizeSpeechJob:output_type -> dictator.speech.v1.SubmitSynthesizeSpeechJobResponse
+	14, // 26: dictator.speech.v1.VoiceService.GetSynthesizeSpeechJob:output_type -> dictator.speech.v1.GetSynthesizeSpeechJobResponse
+	16, // 27: dictator.speech.v1.VoiceService.CancelSynthesizeSpeechJob:output_type -> dictator.speech.v1.CancelSynthesizeSpeechJobResponse
+	20, // [20:28] is the sub-list for method output_type
+	12, // [12:20] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_dictator_speech_v1_voice_proto_init() }
@@ -1211,7 +1433,7 @@ func file_dictator_speech_v1_voice_proto_init() {
 		return
 	}
 	file_dictator_speech_v1_common_proto_init()
-	file_dictator_speech_v1_voice_proto_msgTypes[5].OneofWrappers = []any{
+	file_dictator_speech_v1_voice_proto_msgTypes[7].OneofWrappers = []any{
 		(*SynthesizeSpeechRequest_Text)(nil),
 		(*SynthesizeSpeechRequest_TextArtifactId)(nil),
 	}
@@ -1221,7 +1443,7 @@ func file_dictator_speech_v1_voice_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dictator_speech_v1_voice_proto_rawDesc), len(file_dictator_speech_v1_voice_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   10,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
