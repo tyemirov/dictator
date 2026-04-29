@@ -7,13 +7,14 @@ usage() {
 Usage: scripts/test-docker-image.sh [options]
 
 Build or reuse a Docker image and run the in-image blackbox probe.
-The probe generates a spoken WAV sample inside the image and verifies that the
-service returns a synthesized Qwen3-TTS WAV back over gRPC.
+The default probe verifies baked model assets, dependency imports, and gRPC
+startup. Full Qwen3 synthesis is opt-in because it requires suitable GPU/RAM.
 
 Options:
   --image IMAGE       Probe an existing image instead of building one
   --tag TAG           Local tag to use when building (default: dictator:blackbox)
   --platform PLATFORM Docker platform to build/run (default: linux/amd64)
+  --full-synthesis    Run full Qwen3 synthesis roundtrip inside the image
   --dockerfile PATH   Dockerfile to build (default: Dockerfile.gpu)
   --context PATH      Docker build context (default: repo root)
   -h, --help          Show this help
@@ -34,6 +35,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 IMAGE_NAME=""
 LOCAL_TAG="dictator:blackbox"
 PLATFORM="${PLATFORM:-linux/amd64}"
+FULL_SYNTHESIS=0
 DOCKERFILE_PATH="Dockerfile.gpu"
 BUILD_CONTEXT="${REPO_ROOT}"
 
@@ -53,6 +55,9 @@ while [[ $# -gt 0 ]]; do
       shift
       [[ $# -gt 0 ]] || die "--platform requires a value."
       PLATFORM="$1"
+      ;;
+    --full-synthesis)
+      FULL_SYNTHESIS=1
       ;;
     --dockerfile)
       shift
@@ -86,9 +91,17 @@ if [[ -z "${IMAGE_NAME}" ]]; then
 fi
 
 printf 'Running blackbox probe inside %s for %s\n' "${IMAGE_NAME}" "${PLATFORM}"
-docker run \
-  --rm \
-  --platform "${PLATFORM}" \
-  --entrypoint python \
-  "${IMAGE_NAME}" \
+docker_run=(
+  docker run
+  --rm
+  --platform "${PLATFORM}"
+)
+if [[ "${FULL_SYNTHESIS}" -eq 1 ]]; then
+  docker_run+=(-e DICTATOR_DOCKER_PROBE_FULL_SYNTHESIS=1)
+fi
+docker_run+=(
+  --entrypoint python
+  "${IMAGE_NAME}"
   /app/scripts/docker_image_blackbox_probe.py
+)
+"${docker_run[@]}"

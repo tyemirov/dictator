@@ -26,11 +26,24 @@ from dictator.speech.v1 import artifacts_pb2, artifacts_pb2_grpc, voice_pb2, voi
 
 
 AUTH_TOKEN = "docker-image-blackbox-secret"
+FULL_SYNTHESIS_ENV = "DICTATOR_DOCKER_PROBE_FULL_SYNTHESIS"
 PROBE_SAMPLE_TEXT = (
     "The quick brown fox jumped over the lazy dog. "
     "Eleven benevolent elephants balanced on bright blue bicycles. "
     "She sells sea shells by the seashore."
 )
+
+
+def _log_tail(path: Path, *, lines: int = 80) -> str:
+    if not path.exists():
+        return "<no logs captured>"
+    content = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    tail = content[-lines:]
+    return "\n".join(tail) if tail else "<no logs captured>"
+
+
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def assert_baked_model_paths() -> None:
@@ -101,10 +114,12 @@ def running_default_entrypoint() -> contextlib.AbstractContextManager[int]:
             encoding="utf-8",
         )
 
+        log_path = Path(tmpdir) / "entrypoint.log"
+        log_handle = log_path.open("w+", encoding="utf-8")
         process = subprocess.Popen(
             ["python", "serve.py", "--config", str(config_path)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
         )
         try:
             deadline = time.time() + 15.0
@@ -113,12 +128,29 @@ def running_default_entrypoint() -> contextlib.AbstractContextManager[int]:
                 with contextlib.closing(grpc.insecure_channel(f"127.0.0.1:{port}")) as channel:
                     try:
                         grpc.channel_ready_future(channel).result(timeout=1)
-                        yield port
-                        return
                     except Exception as exc:  # pragma: no cover - exercised in container only
                         last_error = exc
                         time.sleep(0.25)
-            raise AssertionError(f"default container entrypoint did not become healthy: {last_error!r}")
+                        continue
+                try:
+                    yield port
+                except Exception as exc:
+                    time.sleep(0.5)
+                    exit_code = process.poll()
+                    if exit_code is not None:
+                        log_handle.flush()
+                        raise AssertionError(
+                            "default container entrypoint exited during probe "
+                            f"with code {exit_code} after error {exc!r}.\n"
+                            f"Entrypoint logs:\n{_log_tail(log_path)}"
+                        ) from exc
+                    raise
+                return
+            log_handle.flush()
+            raise AssertionError(
+                f"default container entrypoint did not become healthy: {last_error!r}.\n"
+                f"Entrypoint logs:\n{_log_tail(log_path)}"
+            )
         finally:
             process.terminate()
             try:
@@ -126,6 +158,7 @@ def running_default_entrypoint() -> contextlib.AbstractContextManager[int]:
             except subprocess.TimeoutExpired:  # pragma: no cover - defensive cleanup
                 process.kill()
                 process.wait(timeout=10)
+            log_handle.close()
 
 
 def synthesize_probe_sample_wav(temp_dir: Path) -> Path:
@@ -226,7 +259,10 @@ def main() -> int:
     assert_dependency_imports()
     assert_default_entrypoint_starts()
     assert_whisper_loader_call_shape()
-    assert_grpc_voice_roundtrip()
+    if _env_flag(FULL_SYNTHESIS_ENV):
+        assert_grpc_voice_roundtrip()
+    else:
+        print(f"Skipping full Qwen3 synthesis probe; set {FULL_SYNTHESIS_ENV}=1 to enable.")
     print("Docker image blackbox probe passed.")
     return 0
 
