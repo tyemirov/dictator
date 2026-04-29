@@ -351,7 +351,7 @@ fi
 
 if [[ "$SKIP_IMAGE_TEST" -eq 0 ]]; then
   log "Running Docker image blackbox smoke test before publish."
-  ./scripts/test-docker-image.sh --tag dictator:publish-blackbox
+  ./scripts/test-docker-image.sh --tag dictator:publish-blackbox --platform "$PLATFORM"
 fi
 
 if [[ "$SKIP_LOGIN" -eq 0 ]]; then

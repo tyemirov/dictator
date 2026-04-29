@@ -13,6 +13,7 @@ service returns a synthesized Qwen3-TTS WAV back over gRPC.
 Options:
   --image IMAGE       Probe an existing image instead of building one
   --tag TAG           Local tag to use when building (default: dictator:blackbox)
+  --platform PLATFORM Docker platform to build/run (default: linux/amd64)
   --dockerfile PATH   Dockerfile to build (default: Dockerfile.gpu)
   --context PATH      Docker build context (default: repo root)
   -h, --help          Show this help
@@ -32,6 +33,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 IMAGE_NAME=""
 LOCAL_TAG="dictator:blackbox"
+PLATFORM="${PLATFORM:-linux/amd64}"
 DOCKERFILE_PATH="Dockerfile.gpu"
 BUILD_CONTEXT="${REPO_ROOT}"
 
@@ -46,6 +48,11 @@ while [[ $# -gt 0 ]]; do
       shift
       [[ $# -gt 0 ]] || die "--tag requires a value."
       LOCAL_TAG="$1"
+      ;;
+    --platform)
+      shift
+      [[ $# -gt 0 ]] || die "--platform requires a value."
+      PLATFORM="$1"
       ;;
     --dockerfile)
       shift
@@ -73,14 +80,15 @@ require_cmd docker
 cd "${REPO_ROOT}"
 
 if [[ -z "${IMAGE_NAME}" ]]; then
-  printf 'Building Docker image %s from %s\n' "${LOCAL_TAG}" "${DOCKERFILE_PATH}"
-  docker build --file "${DOCKERFILE_PATH}" --tag "${LOCAL_TAG}" "${BUILD_CONTEXT}"
+  printf 'Building Docker image %s from %s for %s\n' "${LOCAL_TAG}" "${DOCKERFILE_PATH}" "${PLATFORM}"
+  docker build --platform "${PLATFORM}" --file "${DOCKERFILE_PATH}" --tag "${LOCAL_TAG}" "${BUILD_CONTEXT}"
   IMAGE_NAME="${LOCAL_TAG}"
 fi
 
-printf 'Running blackbox probe inside %s\n' "${IMAGE_NAME}"
+printf 'Running blackbox probe inside %s for %s\n' "${IMAGE_NAME}" "${PLATFORM}"
 docker run \
   --rm \
+  --platform "${PLATFORM}" \
   --entrypoint python \
   "${IMAGE_NAME}" \
   /app/scripts/docker_image_blackbox_probe.py
