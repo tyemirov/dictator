@@ -17,6 +17,26 @@
 ### Docs 📚
 - _No changes._
 
+## [v1.9.4] - 2026-04-29
+
+### Features ✨
+- Added opt-in full synthesis probe for blackbox testing inside the Docker image.
+- Introduced environment flag to enable full Qwen3 synthesis probe requiring GPU/RAM.
+
+### Improvements ⚙️
+- Enhanced Docker entrypoint health checking with improved logging and error reporting.
+- Updated blackbox probe script to support optional full synthesis roundtrip.
+- Modified test Docker script to include `--full-synthesis` option and pass related environment variable.
+
+### Bug Fixes 🐛
+- _No changes._
+
+### Testing 🧪
+- Added coverage for full synthesis testing via opt-in in Docker blackbox probe.
+
+### Docs 📚
+- Updated test-docker-image.sh usage information to document `--full-synthesis` option and probe behavior.
+
 ## [v1.9.3] - 2026-04-29
 
 ### Features ✨
