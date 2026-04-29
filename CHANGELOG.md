@@ -17,6 +17,26 @@
 ### Docs 📚
 - _No changes._
 
+## [v1.9.1] - 2026-04-29
+
+### Features ✨
+- _No changes._
+
+### Improvements ⚙️
+- Stabilize CI with fixed dependency versions and cache improvements.
+- Add explicit installation of CPU-specific PyTorch packages in CI.
+- Upgrade protobuf tool dependencies to specific versions for consistency.
+
+### Bug Fixes 🐛
+- _No changes._
+
+### Testing 🧪
+- Disable pip caching in CI to ensure fresh installs.
+- Refine test workflow setup to improve stability and reliability.
+
+### Docs 📚
+- _No changes._
+
 ## [v1.9.0] - 2026-04-29
 
 ### Features ✨
