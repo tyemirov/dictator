@@ -17,6 +17,24 @@
 ### Docs 📚
 - _No changes._
 
+## [v1.9.3] - 2026-04-29
+
+### Features ✨
+- Add `--platform` option to test Docker images for multi-architecture support.
+
+### Improvements ⚙️
+- Enhance Docker build and run commands to support platform specification.
+- Update smoke test scripts to run on specified platforms during deployment.
+
+### Bug Fixes 🐛
+- _No changes._
+
+### Testing 🧪
+- Test the Docker image blackbox probe across multiple platforms via new option.
+
+### Docs 📚
+- _No changes._
+
 ## [v1.9.2] - 2026-04-29
 
 ### Features ✨
