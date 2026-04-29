@@ -17,6 +17,26 @@
 ### Docs 📚
 - _No changes._
 
+## [v1.9.2] - 2026-04-29
+
+### Features ✨
+- Refactor GPU image publishing to be performed locally for better Buildx cache reuse.
+- Publish script now requires master branch, no open PRs, and HEAD with latest SemVer tag.
+
+### Improvements ⚙️
+- Enhanced verification in publish script to validate branch, PR state, and tag consistency.
+- Simplified Makefile target `publish` replaces `publish-gpu-image` with improved defaults.
+- Updated documentation to clarify new publishing workflow and requirements.
+
+### Bug Fixes 🐛
+- _No changes._
+
+### Testing 🧪
+- _No changes._
+
+### Docs 📚
+- Updated README to reflect new publishing process and usage examples with `make publish`.
+
 ## [v1.9.1] - 2026-04-29
 
 ### Features ✨
