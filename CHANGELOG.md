@@ -17,6 +17,25 @@
 ### Docs 📚
 - _No changes._
 
+## [v1.10.0] - 2026-05-02
+
+### Features ✨
+- Added handwritten Go `Client` helper for the Dictator Speech API to simplify artifact-first speech interactions.
+- Introduced `TranscribeAudio` method that uploads audio and transcribes in a single call.
+
+### Improvements ⚙️
+- Default and customizable authentication metadata keys and upload chunk sizes for client configuration.
+- Streamlined upload process with chunked content sending and metadata handling in the Go client.
+
+### Bug Fixes 🐛
+- _No changes._
+
+### Testing 🧪
+- Comprehensive unit tests covering artifact upload, transcription, authentication handling, and error scenarios for the new Go client helper.
+
+### Docs 📚
+- Updated Go client README with usage details of the new handwritten `Client` helper.
+
 ## [v1.9.4] - 2026-04-29
 
 ### Features ✨
