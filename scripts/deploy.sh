@@ -6,18 +6,18 @@ usage() {
 Usage:
   scripts/deploy.sh [options]
 
-Deploys Dictator through mprlab-gateway after verifying that the release image
-has been published. Dictator is backend-only, so this command does not publish
-GitHub Pages.
+Deploys the published Dictator image through mprlab-gateway after verifying
+that the release image has been published. Dictator is backend-only, so this
+command does not publish GitHub Pages.
 
 Options:
-  --gateway-dir <path>  Gateway checkout. Default: $GATEWAY_DIR or sibling ../mprlab-gateway
-  --image <value>       Image repository. Default: $DICTATOR_IMAGE or derived from origin remote
-  --tag <value>         Release tag. Default: v* tag pointing at HEAD
-  --skip-ci             Skip local make ci deployment gate
-  --skip-image-verify   Skip release/latest image digest verification
-  --skip-backend        Skip gateway deployment
-  --help                Show this help text
+  --gateway-dir <path>     Gateway checkout. Default: $GATEWAY_DIR or sibling ../mprlab-gateway
+  --image <value>          Image repository without tag. Default: $DICTATOR_IMAGE_REPOSITORY or ghcr.io/tyemirov/dictator
+  --tag <value>            Release tag to verify. Default: latest v* tag at HEAD
+  --skip-ci                Skip local make ci deployment gate
+  --skip-image-verify      Skip release tag/latest image digest verification
+  --skip-backend           Skip gateway deployment
+  --help                   Show this help text
 USAGE
 }
 
@@ -35,46 +35,18 @@ env_or_default() {
   fi
 }
 
-to_lower() {
-  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
-}
-
-derive_image_name() {
-  local remote_url path
-
-  remote_url="$(git remote get-url origin 2>/dev/null || true)"
-  case "$remote_url" in
-    git@github.com:*)
-      path="${remote_url#git@github.com:}"
-      ;;
-    https://github.com/*)
-      path="${remote_url#https://github.com/}"
-      ;;
-    ssh://git@github.com/*)
-      path="${remote_url#ssh://git@github.com/}"
-      ;;
-    *)
-      echo "error: unable to derive GHCR image name from origin remote '${remote_url}'. Use --image or DICTATOR_IMAGE." >&2
-      exit 1
-      ;;
-  esac
-
-  path="${path%.git}"
-  printf 'ghcr.io/%s\n' "$(to_lower "$path")"
-}
-
-image_digest() {
-  local image_ref="$1"
-  docker buildx imagetools inspect "$image_ref" | awk '/^Digest:/ { print $2; exit }'
-}
-
 GATEWAY_DIR="$(env_or_default GATEWAY_DIR "")"
-IMAGE_REPOSITORY="$(env_or_default DICTATOR_IMAGE "")"
+IMAGE_REPOSITORY="$(env_or_default DICTATOR_IMAGE_REPOSITORY ghcr.io/tyemirov/dictator)"
 TAG="$(env_or_default DEPLOY_TAG "")"
 SKIP_CI="false"
 SKIP_IMAGE_VERIFY="false"
 SKIP_BACKEND="false"
 DEFAULT_BRANCH="master"
+
+image_digest() {
+  local image_ref="$1"
+  docker buildx imagetools inspect "$image_ref" | awk '/^Digest:/ { print $2; exit }'
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -121,11 +93,6 @@ command -v git >/dev/null 2>&1 || { echo "error: git is required" >&2; exit 1; }
 
 repo_root="$(git rev-parse --show-toplevel)"
 cd "${repo_root}"
-
-if [[ -z "${IMAGE_REPOSITORY}" ]]; then
-  IMAGE_REPOSITORY="$(derive_image_name)"
-fi
-
 resolve_gateway_dir() {
   local candidate
   if [[ -n "${GATEWAY_DIR}" ]]; then

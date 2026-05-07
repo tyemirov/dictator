@@ -6,8 +6,8 @@ usage() {
 Usage:
   scripts/release.sh [options]
 
-Cuts a repository release from the default branch without publishing the GPU
-image or deploying production.
+Cuts a repository release from the default branch without publishing images,
+publishing Pages, or deploying production.
 
 Options:
   --bump <patch|minor|major>  SemVer bump when RELEASE_VERSION is not set. Default: patch
@@ -24,10 +24,10 @@ if [[ -v RELEASE_HELPER ]]; then
 else
   HELPER=""
 fi
-if ! [[ -v RELEASE_BUMP ]] || [[ -z "${RELEASE_BUMP}" ]]; then
-  BUMP="patch"
-else
+if [[ -v RELEASE_BUMP ]] && [[ -n "${RELEASE_BUMP}" ]]; then
   BUMP="${RELEASE_BUMP}"
+else
+  BUMP="patch"
 fi
 if [[ -v RELEASE_VERSION ]]; then
   VERSION="${RELEASE_VERSION}"
@@ -181,10 +181,12 @@ select_version() {
     printf '%s\n' "${VERSION}"
     return
   fi
+
   local detected_scheme="${SCHEME}"
   if [[ -z "${detected_scheme}" ]]; then
     detected_scheme="$(json_value "${preflight_json}" "version_info.scheme_guess")"
   fi
+
   case "${detected_scheme}" in
     semver|mixed)
       semver_bump "$(json_value "${preflight_json}" "version_info.latest_semver_tag")" "${BUMP}"
@@ -192,7 +194,10 @@ select_version() {
     calver)
       local calver_ok
       calver_ok="$(json_value "${preflight_json}" "version_info.calver_candidate.ok")"
-      [[ "${calver_ok}" == "True" || "${calver_ok}" == "true" ]] || { echo "error: CalVer candidate is not valid for this release timestamp" >&2; exit 1; }
+      [[ "${calver_ok}" == "True" || "${calver_ok}" == "true" ]] || {
+        echo "error: CalVer candidate is not valid for this release timestamp" >&2
+        exit 1
+      }
       json_value "${preflight_json}" "version_info.next_calver"
       ;;
     none|"")
@@ -212,13 +217,16 @@ select_changelog_boundary() {
   if [[ -z "${detected_scheme}" ]]; then
     detected_scheme="$(json_value "${preflight_json}" "version_info.scheme_guess")"
   fi
+
   if [[ "${selected_version}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+ ]]; then
     json_value "${preflight_json}" "version_info.latest_semver_tag"
-  elif [[ "${detected_scheme}" == "calver" ]]; then
-    json_value "${preflight_json}" "version_info.latest_calver_tag"
-  else
-    json_value "${preflight_json}" "version_info.latest_tag"
+    return
   fi
+  if [[ "${detected_scheme}" == "calver" ]]; then
+    json_value "${preflight_json}" "version_info.latest_calver_tag"
+    return
+  fi
+  json_value "${preflight_json}" "version_info.latest_tag"
 }
 
 release_timestamp="$(date +%Y-%m-%dT%H:%M:%S)"
@@ -274,6 +282,7 @@ else
 fi
 
 "${HELPER}" insert-changelog --notes-file "${notes_file}"
+
 git add CHANGELOG.md
 if git diff --cached --quiet -- CHANGELOG.md; then
   echo "error: CHANGELOG.md has no staged release changes" >&2
