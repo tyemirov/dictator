@@ -17,6 +17,28 @@
 ### Docs 📚
 - _No changes._
 
+## [v1.10.1] - 2026-05-07
+
+### Features ✨
+- Added new release and deploy scripts with Makefile integration for streamlined operations.
+- Introduced `make release` command to cut and verify SemVer releases from the master branch.
+- Introduced `make deploy` command to verify and deploy the backend through mprlab-gateway.
+
+### Improvements ⚙️
+- Updated Makefile to include release and deploy targets with customizable arguments.
+- Enhanced README with detailed explanations of the new release flow and Makefile contract.
+- Integrated image digest verification in deploy script to ensure consistency between release tags and latest images.
+
+### Bug Fixes 🐛
+- _No changes._
+
+### Testing 🧪
+- `make ci` is now run automatically before deployment to ensure code quality.
+
+### Docs 📚
+- Expanded the README to cover new release and deployment processes using Makefile commands.
+- Added usage and detailed information for the new release and deploy scripts.
+
 ## [v1.10.0] - 2026-05-02
 
 ### Features ✨
