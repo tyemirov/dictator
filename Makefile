@@ -12,8 +12,14 @@ PROTO_PYTHON_READY := $(PROTO_PYTHON_VENV)/.ready
 PROTO_GRPCIO_VERSION ?= 1.78.0
 PROTO_GRPCIO_TOOLS_VERSION ?= 1.78.0
 PROTO_PROTOBUF_VERSION ?= 6.33.6
+RELEASE_ARGS ?=
+RELEASE_HELPER ?=
+PUBLISH_ARGS ?=
+DEPLOY_ARGS ?=
+GATEWAY_DIR ?=
+DICTATOR_IMAGE_REPOSITORY ?= ghcr.io/tyemirov/dictator
 
-.PHONY: test coverage ci publish publish-gpu-image test-docker-image proto proto-python proto-go proto-check proto-python-tools
+.PHONY: test coverage ci release publish publish-gpu-image deploy test-docker-image proto proto-python proto-go proto-check proto-python-tools
 
 test:
 	$(PYTHON) -m unittest discover -s tests -p 'test_*.py'
@@ -24,6 +30,9 @@ coverage:
 	$(PYTHON) -m coverage report -m
 
 ci: proto-check coverage
+
+release:
+	RELEASE_HELPER="$(RELEASE_HELPER)" bash scripts/release.sh $(RELEASE_ARGS)
 
 test-docker-image:
 	./scripts/test-docker-image.sh
@@ -61,6 +70,9 @@ proto-check:
 	fi
 
 publish:
-	./scripts/docker-gh-deploy.sh
+	./scripts/docker-gh-deploy.sh --image-name "$(DICTATOR_IMAGE_REPOSITORY)" $(PUBLISH_ARGS)
 
 publish-gpu-image: publish
+
+deploy:
+	GATEWAY_DIR="$(GATEWAY_DIR)" DICTATOR_IMAGE_REPOSITORY="$(DICTATOR_IMAGE_REPOSITORY)" bash scripts/deploy.sh $(DEPLOY_ARGS)
