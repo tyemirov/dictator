@@ -80,10 +80,13 @@ docker build -f Dockerfile.gpu -t dictator:gpu .
 
 ### GPU Release Flow
 
-Pushing a semver Git tag like `1.2.3` or `v1.2.3` now triggers a GitHub Actions validation workflow that:
+Dictator follows the deployed-app Makefile contract used by `mprlab-gateway`:
 
-* verifies the tagged commit is contained in `master`
-* reruns the unit test workflow on that tagged commit
+* `make release` cuts and verifies a SemVer repository release from `master`.
+* `make publish` validates the release state and pushes the GPU image to GHCR.
+* `make deploy` verifies the published image and deploys the backend through `mprlab-gateway`.
+
+Pushing a semver Git tag like `1.2.3` or `v1.2.3` also triggers a GitHub Actions validation workflow that verifies the tagged commit is contained in `master` and reruns the unit test workflow on that tagged commit.
 
 The actual GPU image build and push now happens locally so Buildx layer cache can be reused across releases.
 
@@ -93,6 +96,7 @@ To publish the GPU image for the latest release tag:
 git fetch --tags origin
 git checkout master
 git pull --ff-only origin master
+make release
 make publish
 ```
 
