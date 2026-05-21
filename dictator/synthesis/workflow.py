@@ -9,7 +9,7 @@ from pathlib import Path
 from dictator.runtime import ValidationError
 from dictator.storage import ArtifactRecord, LocalArtifactStore
 
-from .models import SynthesisEngine, SynthesisRequest
+from .models import DEFAULT_SYNTHESIS_AUDIO_FORMAT, SynthesisAudioFormat, SynthesisEngine, SynthesisRequest
 
 
 @dataclass(frozen=True)
@@ -19,6 +19,7 @@ class PreparedSynthesisRequest:
     speaker_record: ArtifactRecord
     synthesis_request: SynthesisRequest
     include_timeline: bool
+    audio_format: SynthesisAudioFormat = DEFAULT_SYNTHESIS_AUDIO_FORMAT
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,7 @@ class SynthesisExecutionOutcome:
 
     audio_record: ArtifactRecord
     audio_duration_seconds: float
+    audio_format: SynthesisAudioFormat
     chunk_count: int
     timeline_artifact_id: str | None
     timeline_segments: tuple[dict[str, float | str], ...]
@@ -43,6 +45,7 @@ def prepare_synthesis_request(
     include_timeline: bool,
     engine: SynthesisEngine,
     speaker_transcript_text: str | None,
+    audio_format: SynthesisAudioFormat | None = None,
 ) -> PreparedSynthesisRequest:
     speaker = artifact_store.get_artifact(speaker_artifact_id)
     resolved_text = text
@@ -65,6 +68,7 @@ def prepare_synthesis_request(
             speaker_transcript_text=speaker_transcript_text,
         ),
         include_timeline=include_timeline,
+        audio_format=audio_format or DEFAULT_SYNTHESIS_AUDIO_FORMAT,
     )
 
 
@@ -98,6 +102,7 @@ def execute_synthesis_request(
                 result.wav_paths,
                 audio_reservation.path,
                 prepared.synthesis_request.cap_seconds,
+                target_sample_rate=prepared.audio_format.sample_rate_hz,
             )
             audio_record = artifact_store.finalize_artifact(audio_reservation)
         except Exception:
@@ -129,6 +134,7 @@ def execute_synthesis_request(
         return SynthesisExecutionOutcome(
             audio_record=audio_record,
             audio_duration_seconds=result.segments[-1].end_seconds if result.segments else 0.0,
+            audio_format=prepared.audio_format,
             chunk_count=len(result.wav_paths),
             timeline_artifact_id=timeline_artifact_id,
             timeline_segments=timeline_segments,

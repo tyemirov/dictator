@@ -13,9 +13,9 @@ import grpc
 from dictator.diarization.models import DiarizeAudioResult, DiarizedUtterance, DiarizedWord, SpeakerSummary, SpeakerSegment
 from dictator.runtime.jobs import SynthesisJobRecord, SynthesisJobState
 from dictator.runtime import DependencyError, InflightLimiter, MetricsRegistry, ProcessingError, ServiceRequestError, ValidationError
-from dictator.speech.v1 import alignment_pb2, artifacts_pb2, subtitle_pb2, transcription_pb2, voice_pb2
+from dictator.speech.v1 import alignment_pb2, artifacts_pb2, common_pb2, subtitle_pb2, transcription_pb2, voice_pb2
 from dictator.storage import LocalArtifactStore
-from dictator.synthesis.models import SynthesisEngine
+from dictator.synthesis.models import DEFAULT_SYNTHESIS_AUDIO_FORMAT, SynthesisEngine
 from dictator.transport.grpc.services import (
     AlignmentServiceServicer,
     ArtifactServiceServicer,
@@ -401,6 +401,12 @@ class GrpcServicesUnitTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "synthesis_engine must be set"):
             servicer._resolve_synthesis_engine(voice_pb2.SYNTHESIS_ENGINE_UNSPECIFIED)
         self.assertEqual(
+            servicer._resolve_synthesis_audio_format(
+                voice_pb2.SynthesizeSpeechRequest(audio_format=common_pb2.AudioFormat(sample_rate_hz=24000))
+            ),
+            DEFAULT_SYNTHESIS_AUDIO_FORMAT,
+        )
+        self.assertEqual(
             servicer._resolve_speaker_transcript_text(
                 types.SimpleNamespace(
                     speaker_transcript_text="sample transcript",
@@ -431,8 +437,19 @@ class GrpcServicesUnitTests(unittest.TestCase):
                 FakeContext(metadata=(("x-dictator-token", "secret"),)),
             )
 
+        with self.assertRaises(RpcAbort):
+            servicer.SynthesizeSpeech(
+                voice_pb2.SynthesizeSpeechRequest(
+                    speaker_artifact_id=self.audio_record.artifact_id,
+                    text="hello",
+                    synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_QWEN3,
+                    audio_format=common_pb2.AudioFormat(sample_rate_hz=48000),
+                ),
+                FakeContext(metadata=(("x-dictator-token", "secret"),)),
+            )
+
         fake_ffmpeg_module = types.ModuleType("dictator.audio.ffmpeg_ops")
-        fake_ffmpeg_module.concat_normalise = lambda inputs, dst, cap: dst.write_bytes(b"wav")
+        fake_ffmpeg_module.concat_normalise = lambda inputs, dst, cap, target_sample_rate=0: dst.write_bytes(b"wav")
         cleanup_calls = []
         fake_synthesis_service = types.ModuleType("dictator.synthesis.service")
         fake_synthesis_service.cleanup_synthesis_result = lambda result: cleanup_calls.append(result)
@@ -454,6 +471,11 @@ class GrpcServicesUnitTests(unittest.TestCase):
             )
         self.assertEqual(response.chunk_count, 1)
         self.assertFalse(response.timeline_artifact_id)
+        self.assertEqual(response.resolved_audio_format.container, common_pb2.AUDIO_CONTAINER_WAV)
+        self.assertEqual(response.resolved_audio_format.codec, common_pb2.AUDIO_CODEC_PCM_S16LE)
+        self.assertEqual(response.resolved_audio_format.sample_rate_hz, 24000)
+        self.assertEqual(response.resolved_audio_format.channel_count, 1)
+        self.assertEqual(response.resolved_audio_format.bit_depth, 16)
         self.assertEqual(self.runtime.synthesis_service.calls[0].speaker_artifact_id, self.audio_record.artifact_id)
         self.assertEqual(len(cleanup_calls), 1)
         self.assertEqual(self.runtime.mark_synthesis_ready_calls, 1)
@@ -497,6 +519,7 @@ class GrpcServicesUnitTests(unittest.TestCase):
                 finished_at_unix_seconds=3.0,
                 audio_artifact_id=audio_record.artifact_id,
                 audio_duration_seconds=4.0,
+                audio_format=None,
                 timeline_artifact_id="timeline-1",
                 chunk_count=2,
             )
@@ -531,6 +554,7 @@ class GrpcServicesUnitTests(unittest.TestCase):
             FakeContext(metadata=(("x-dictator-token", "secret"),)),
         )
         self.assertEqual(lookup.audio_artifact.artifact_id, audio_record.artifact_id)
+        self.assertEqual(lookup.resolved_audio_format.sample_rate_hz, 24000)
         self.assertEqual(lookup.chunk_count, 2)
         self.assertEqual(manager.lookups, ["job-1"])
 

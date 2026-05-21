@@ -21,6 +21,98 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type AudioContainer int32
+
+const (
+	AudioContainer_AUDIO_CONTAINER_UNSPECIFIED AudioContainer = 0
+	AudioContainer_AUDIO_CONTAINER_WAV         AudioContainer = 1
+)
+
+// Enum value maps for AudioContainer.
+var (
+	AudioContainer_name = map[int32]string{
+		0: "AUDIO_CONTAINER_UNSPECIFIED",
+		1: "AUDIO_CONTAINER_WAV",
+	}
+	AudioContainer_value = map[string]int32{
+		"AUDIO_CONTAINER_UNSPECIFIED": 0,
+		"AUDIO_CONTAINER_WAV":         1,
+	}
+)
+
+func (x AudioContainer) Enum() *AudioContainer {
+	p := new(AudioContainer)
+	*p = x
+	return p
+}
+
+func (x AudioContainer) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AudioContainer) Descriptor() protoreflect.EnumDescriptor {
+	return file_dictator_speech_v1_common_proto_enumTypes[0].Descriptor()
+}
+
+func (AudioContainer) Type() protoreflect.EnumType {
+	return &file_dictator_speech_v1_common_proto_enumTypes[0]
+}
+
+func (x AudioContainer) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AudioContainer.Descriptor instead.
+func (AudioContainer) EnumDescriptor() ([]byte, []int) {
+	return file_dictator_speech_v1_common_proto_rawDescGZIP(), []int{0}
+}
+
+type AudioCodec int32
+
+const (
+	AudioCodec_AUDIO_CODEC_UNSPECIFIED AudioCodec = 0
+	AudioCodec_AUDIO_CODEC_PCM_S16LE   AudioCodec = 1
+)
+
+// Enum value maps for AudioCodec.
+var (
+	AudioCodec_name = map[int32]string{
+		0: "AUDIO_CODEC_UNSPECIFIED",
+		1: "AUDIO_CODEC_PCM_S16LE",
+	}
+	AudioCodec_value = map[string]int32{
+		"AUDIO_CODEC_UNSPECIFIED": 0,
+		"AUDIO_CODEC_PCM_S16LE":   1,
+	}
+)
+
+func (x AudioCodec) Enum() *AudioCodec {
+	p := new(AudioCodec)
+	*p = x
+	return p
+}
+
+func (x AudioCodec) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AudioCodec) Descriptor() protoreflect.EnumDescriptor {
+	return file_dictator_speech_v1_common_proto_enumTypes[1].Descriptor()
+}
+
+func (AudioCodec) Type() protoreflect.EnumType {
+	return &file_dictator_speech_v1_common_proto_enumTypes[1]
+}
+
+func (x AudioCodec) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AudioCodec.Descriptor instead.
+func (AudioCodec) EnumDescriptor() ([]byte, []int) {
+	return file_dictator_speech_v1_common_proto_rawDescGZIP(), []int{1}
+}
+
 type ArtifactRef struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ArtifactId    string                 `protobuf:"bytes,1,opt,name=artifact_id,json=artifactId,proto3" json:"artifact_id,omitempty"`
@@ -97,6 +189,82 @@ func (x *ArtifactRef) GetSha256() string {
 	return ""
 }
 
+type AudioFormat struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Container     AudioContainer         `protobuf:"varint,1,opt,name=container,proto3,enum=dictator.speech.v1.AudioContainer" json:"container,omitempty"`
+	Codec         AudioCodec             `protobuf:"varint,2,opt,name=codec,proto3,enum=dictator.speech.v1.AudioCodec" json:"codec,omitempty"`
+	SampleRateHz  int32                  `protobuf:"varint,3,opt,name=sample_rate_hz,json=sampleRateHz,proto3" json:"sample_rate_hz,omitempty"`
+	ChannelCount  int32                  `protobuf:"varint,4,opt,name=channel_count,json=channelCount,proto3" json:"channel_count,omitempty"`
+	BitDepth      int32                  `protobuf:"varint,5,opt,name=bit_depth,json=bitDepth,proto3" json:"bit_depth,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AudioFormat) Reset() {
+	*x = AudioFormat{}
+	mi := &file_dictator_speech_v1_common_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AudioFormat) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AudioFormat) ProtoMessage() {}
+
+func (x *AudioFormat) ProtoReflect() protoreflect.Message {
+	mi := &file_dictator_speech_v1_common_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AudioFormat.ProtoReflect.Descriptor instead.
+func (*AudioFormat) Descriptor() ([]byte, []int) {
+	return file_dictator_speech_v1_common_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *AudioFormat) GetContainer() AudioContainer {
+	if x != nil {
+		return x.Container
+	}
+	return AudioContainer_AUDIO_CONTAINER_UNSPECIFIED
+}
+
+func (x *AudioFormat) GetCodec() AudioCodec {
+	if x != nil {
+		return x.Codec
+	}
+	return AudioCodec_AUDIO_CODEC_UNSPECIFIED
+}
+
+func (x *AudioFormat) GetSampleRateHz() int32 {
+	if x != nil {
+		return x.SampleRateHz
+	}
+	return 0
+}
+
+func (x *AudioFormat) GetChannelCount() int32 {
+	if x != nil {
+		return x.ChannelCount
+	}
+	return 0
+}
+
+func (x *AudioFormat) GetBitDepth() int32 {
+	if x != nil {
+		return x.BitDepth
+	}
+	return 0
+}
+
 type WordSegment struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Content       string                 `protobuf:"bytes,1,opt,name=content,proto3" json:"content,omitempty"`
@@ -108,7 +276,7 @@ type WordSegment struct {
 
 func (x *WordSegment) Reset() {
 	*x = WordSegment{}
-	mi := &file_dictator_speech_v1_common_proto_msgTypes[1]
+	mi := &file_dictator_speech_v1_common_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -120,7 +288,7 @@ func (x *WordSegment) String() string {
 func (*WordSegment) ProtoMessage() {}
 
 func (x *WordSegment) ProtoReflect() protoreflect.Message {
-	mi := &file_dictator_speech_v1_common_proto_msgTypes[1]
+	mi := &file_dictator_speech_v1_common_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -133,7 +301,7 @@ func (x *WordSegment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WordSegment.ProtoReflect.Descriptor instead.
 func (*WordSegment) Descriptor() ([]byte, []int) {
-	return file_dictator_speech_v1_common_proto_rawDescGZIP(), []int{1}
+	return file_dictator_speech_v1_common_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *WordSegment) GetContent() string {
@@ -168,7 +336,7 @@ type TimelineSegment struct {
 
 func (x *TimelineSegment) Reset() {
 	*x = TimelineSegment{}
-	mi := &file_dictator_speech_v1_common_proto_msgTypes[2]
+	mi := &file_dictator_speech_v1_common_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -180,7 +348,7 @@ func (x *TimelineSegment) String() string {
 func (*TimelineSegment) ProtoMessage() {}
 
 func (x *TimelineSegment) ProtoReflect() protoreflect.Message {
-	mi := &file_dictator_speech_v1_common_proto_msgTypes[2]
+	mi := &file_dictator_speech_v1_common_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -193,7 +361,7 @@ func (x *TimelineSegment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TimelineSegment.ProtoReflect.Descriptor instead.
 func (*TimelineSegment) Descriptor() ([]byte, []int) {
-	return file_dictator_speech_v1_common_proto_rawDescGZIP(), []int{2}
+	return file_dictator_speech_v1_common_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *TimelineSegment) GetContent() string {
@@ -230,7 +398,13 @@ const file_dictator_speech_v1_common_proto_rawDesc = "" +
 	"media_type\x18\x03 \x01(\tR\tmediaType\x12\x1d\n" +
 	"\n" +
 	"size_bytes\x18\x04 \x01(\x03R\tsizeBytes\x12\x16\n" +
-	"\x06sha256\x18\x05 \x01(\tR\x06sha256\"m\n" +
+	"\x06sha256\x18\x05 \x01(\tR\x06sha256\"\xed\x01\n" +
+	"\vAudioFormat\x12@\n" +
+	"\tcontainer\x18\x01 \x01(\x0e2\".dictator.speech.v1.AudioContainerR\tcontainer\x124\n" +
+	"\x05codec\x18\x02 \x01(\x0e2\x1e.dictator.speech.v1.AudioCodecR\x05codec\x12$\n" +
+	"\x0esample_rate_hz\x18\x03 \x01(\x05R\fsampleRateHz\x12#\n" +
+	"\rchannel_count\x18\x04 \x01(\x05R\fchannelCount\x12\x1b\n" +
+	"\tbit_depth\x18\x05 \x01(\x05R\bbitDepth\"m\n" +
 	"\vWordSegment\x12\x18\n" +
 	"\acontent\x18\x01 \x01(\tR\acontent\x12#\n" +
 	"\rstart_seconds\x18\x02 \x01(\x01R\fstartSeconds\x12\x1f\n" +
@@ -240,7 +414,14 @@ const file_dictator_speech_v1_common_proto_rawDesc = "" +
 	"\acontent\x18\x01 \x01(\tR\acontent\x12#\n" +
 	"\rstart_seconds\x18\x02 \x01(\x01R\fstartSeconds\x12\x1f\n" +
 	"\vend_seconds\x18\x03 \x01(\x01R\n" +
-	"endSecondsBGZEgithub.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1b\x06proto3"
+	"endSeconds*J\n" +
+	"\x0eAudioContainer\x12\x1f\n" +
+	"\x1bAUDIO_CONTAINER_UNSPECIFIED\x10\x00\x12\x17\n" +
+	"\x13AUDIO_CONTAINER_WAV\x10\x01*D\n" +
+	"\n" +
+	"AudioCodec\x12\x1b\n" +
+	"\x17AUDIO_CODEC_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15AUDIO_CODEC_PCM_S16LE\x10\x01BGZEgithub.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1b\x06proto3"
 
 var (
 	file_dictator_speech_v1_common_proto_rawDescOnce sync.Once
@@ -254,18 +435,24 @@ func file_dictator_speech_v1_common_proto_rawDescGZIP() []byte {
 	return file_dictator_speech_v1_common_proto_rawDescData
 }
 
-var file_dictator_speech_v1_common_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_dictator_speech_v1_common_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_dictator_speech_v1_common_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_dictator_speech_v1_common_proto_goTypes = []any{
-	(*ArtifactRef)(nil),     // 0: dictator.speech.v1.ArtifactRef
-	(*WordSegment)(nil),     // 1: dictator.speech.v1.WordSegment
-	(*TimelineSegment)(nil), // 2: dictator.speech.v1.TimelineSegment
+	(AudioContainer)(0),     // 0: dictator.speech.v1.AudioContainer
+	(AudioCodec)(0),         // 1: dictator.speech.v1.AudioCodec
+	(*ArtifactRef)(nil),     // 2: dictator.speech.v1.ArtifactRef
+	(*AudioFormat)(nil),     // 3: dictator.speech.v1.AudioFormat
+	(*WordSegment)(nil),     // 4: dictator.speech.v1.WordSegment
+	(*TimelineSegment)(nil), // 5: dictator.speech.v1.TimelineSegment
 }
 var file_dictator_speech_v1_common_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	0, // 0: dictator.speech.v1.AudioFormat.container:type_name -> dictator.speech.v1.AudioContainer
+	1, // 1: dictator.speech.v1.AudioFormat.codec:type_name -> dictator.speech.v1.AudioCodec
+	2, // [2:2] is the sub-list for method output_type
+	2, // [2:2] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_dictator_speech_v1_common_proto_init() }
@@ -278,13 +465,14 @@ func file_dictator_speech_v1_common_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dictator_speech_v1_common_proto_rawDesc), len(file_dictator_speech_v1_common_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   3,
+			NumEnums:      2,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_dictator_speech_v1_common_proto_goTypes,
 		DependencyIndexes: file_dictator_speech_v1_common_proto_depIdxs,
+		EnumInfos:         file_dictator_speech_v1_common_proto_enumTypes,
 		MessageInfos:      file_dictator_speech_v1_common_proto_msgTypes,
 	}.Build()
 	File_dictator_speech_v1_common_proto = out.File

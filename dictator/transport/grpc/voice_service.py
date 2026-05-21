@@ -12,8 +12,8 @@ from dictator.runtime.jobs import (
     PreparedExtractReferenceSampleJob,
     validate_extract_reference_sample_job_id,
 )
-from dictator.speech.v1 import voice_pb2, voice_pb2_grpc
-from dictator.synthesis.models import SynthesisEngine, SynthesisRequest
+from dictator.speech.v1 import common_pb2, voice_pb2, voice_pb2_grpc
+from dictator.synthesis.models import DEFAULT_SYNTHESIS_AUDIO_FORMAT, SynthesisAudioFormat, SynthesisEngine
 from dictator.synthesis.workflow import (
     execute_synthesis_request,
     prepare_synthesis_request,
@@ -23,6 +23,45 @@ from .base import BaseServicer
 
 
 class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
+    def _synthesis_audio_format_pb(self, audio_format: SynthesisAudioFormat) -> common_pb2.AudioFormat:
+        container = {
+            "wav": common_pb2.AUDIO_CONTAINER_WAV,
+        }.get(audio_format.container, common_pb2.AUDIO_CONTAINER_UNSPECIFIED)
+        codec = {
+            "pcm_s16le": common_pb2.AUDIO_CODEC_PCM_S16LE,
+        }.get(audio_format.codec, common_pb2.AUDIO_CODEC_UNSPECIFIED)
+        return common_pb2.AudioFormat(
+            container=container,
+            codec=codec,
+            sample_rate_hz=audio_format.sample_rate_hz,
+            channel_count=audio_format.channel_count,
+            bit_depth=audio_format.bit_depth,
+        )
+
+    def _resolve_synthesis_audio_format(self, request) -> SynthesisAudioFormat:
+        if not request.HasField("audio_format"):
+            return DEFAULT_SYNTHESIS_AUDIO_FORMAT
+
+        requested = request.audio_format
+        resolved_container = requested.container or common_pb2.AUDIO_CONTAINER_WAV
+        resolved_codec = requested.codec or common_pb2.AUDIO_CODEC_PCM_S16LE
+        resolved_sample_rate_hz = requested.sample_rate_hz or DEFAULT_SYNTHESIS_AUDIO_FORMAT.sample_rate_hz
+        resolved_channel_count = requested.channel_count or DEFAULT_SYNTHESIS_AUDIO_FORMAT.channel_count
+        resolved_bit_depth = requested.bit_depth or DEFAULT_SYNTHESIS_AUDIO_FORMAT.bit_depth
+
+        if (
+            resolved_container != common_pb2.AUDIO_CONTAINER_WAV
+            or resolved_codec != common_pb2.AUDIO_CODEC_PCM_S16LE
+            or resolved_sample_rate_hz != DEFAULT_SYNTHESIS_AUDIO_FORMAT.sample_rate_hz
+            or resolved_channel_count != DEFAULT_SYNTHESIS_AUDIO_FORMAT.channel_count
+            or resolved_bit_depth != DEFAULT_SYNTHESIS_AUDIO_FORMAT.bit_depth
+        ):
+            raise ValidationError(
+                "dictator.grpc.voice.unsupported_audio_format",
+                "unsupported synthesis audio_format; supported format is WAV pcm_s16le 24000 Hz mono 16-bit",
+            )
+        return DEFAULT_SYNTHESIS_AUDIO_FORMAT
+
     def _resolve_synthesis_engine(self, engine_value: int) -> SynthesisEngine:
         if engine_value == voice_pb2.SYNTHESIS_ENGINE_QWEN3:
             return SynthesisEngine.QWEN3
@@ -45,6 +84,7 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
             include_timeline=request.include_timeline,
             engine=self._resolve_synthesis_engine(request.synthesis_engine),
             speaker_transcript_text=self._resolve_speaker_transcript_text(request),
+            audio_format=self._resolve_synthesis_audio_format(request),
         )
 
     def _job_state_value(self, state: SynthesisJobState) -> int:
@@ -76,6 +116,8 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
             response.audio_artifact.CopyFrom(
                 self._artifact_ref(self.service_context.artifact_store.get_artifact(record.audio_artifact_id))
             )
+        audio_format = record.audio_format or DEFAULT_SYNTHESIS_AUDIO_FORMAT
+        response.resolved_audio_format.CopyFrom(self._synthesis_audio_format_pb(audio_format))
         return response
 
     def _resolve_prepared_reference_extraction_job(self, request) -> PreparedExtractReferenceSampleJob:
@@ -218,6 +260,7 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
             response = voice_pb2.SynthesizeSpeechResponse(
                 audio_artifact=self._artifact_ref(outcome.audio_record),
                 audio_duration_seconds=outcome.audio_duration_seconds,
+                resolved_audio_format=self._synthesis_audio_format_pb(outcome.audio_format),
                 chunk_count=outcome.chunk_count,
             )
             if request.include_timeline:

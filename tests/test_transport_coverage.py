@@ -432,7 +432,10 @@ class TransportCoverageTests(unittest.TestCase):
                 )
 
             with (
-                patch("dictator.audio.ffmpeg_ops.concat_normalise", side_effect=lambda inputs, dst, cap: dst.write_bytes(b"wav")),
+                patch(
+                    "dictator.audio.ffmpeg_ops.concat_normalise",
+                    side_effect=lambda inputs, dst, cap, target_sample_rate=0: dst.write_bytes(b"wav"),
+                ),
                 patch("dictator.synthesis.service.cleanup_synthesis_result") as cleanup,
             ):
                 synth_response = voice_servicer.SynthesizeSpeech(
@@ -445,6 +448,7 @@ class TransportCoverageTests(unittest.TestCase):
                     FakeContext(),
                 )
             self.assertEqual(synth_response.chunk_count, 1)
+            self.assertEqual(synth_response.resolved_audio_format.sample_rate_hz, 24000)
             self.assertEqual(synth_response.timeline[0].content, "hello")
             self.assertTrue(synth_response.timeline_artifact_id)
             cleanup.assert_called_once()
