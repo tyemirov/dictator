@@ -11,6 +11,11 @@ artifact-first flow. It keeps callers on the shared contract by uploading
 complete media as an artifact before invoking speech RPCs such as
 `TranscriptionService.Transcribe`.
 
+Use `Client.UploadArtifact` instead of hand-rolling the upload stream when
+possible. The helper handles early `io.EOF` from `Send` by calling
+`CloseAndRecv`, so callers receive the server's gRPC validation status instead
+of a generic EOF.
+
 To regenerate the contract artifacts from the checked-out proto sources:
 
 ```bash

@@ -9,12 +9,12 @@ from unittest.mock import patch
 
 from dictator.runtime.errors import ServiceRequestError, ValidationError
 from dictator.runtime.inflight import InflightLimiter
-from dictator.runtime.jobs import LocalSynthesisJobStore, SynthesisJobManager, SynthesisJobState
+from dictator.runtime.jobs import LocalSynthesisJobStore, SynthesisJobManager, SynthesisJobRecord, SynthesisJobState
 from dictator.runtime.metrics import MetricsRegistry
 from dictator.runtime.service_runtime import SpeechExecutionRuntime
 from dictator.runtime.timeouts import run_with_timeout
 from dictator.synthesis.config import SynthesisConfig
-from dictator.synthesis.models import SynthesisEngine, SynthesisRequest
+from dictator.synthesis.models import DEFAULT_SYNTHESIS_AUDIO_FORMAT, SynthesisEngine, SynthesisRequest
 from dictator.synthesis.workflow import PreparedSynthesisRequest, execute_synthesis_request, prepare_synthesis_request
 from dictator.synthesis import text as synthesis_text
 from dictator.storage.artifact_store import ArtifactReservation, LocalArtifactStore
@@ -328,6 +328,7 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
             outcome = types.SimpleNamespace(
                 audio_record=speaker,
                 audio_duration_seconds=1.5,
+                audio_format=DEFAULT_SYNTHESIS_AUDIO_FORMAT,
                 timeline_artifact_id="timeline-1",
                 chunk_count=2,
             )
@@ -404,6 +405,21 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "submit failed"):
                     manager.submit(prepared)
 
+    def test_synthesis_job_record_rejects_invalid_audio_format_payload(self):
+        with self.assertRaisesRegex(ValueError, "audio_format"):
+            SynthesisJobRecord.from_json_dict(
+                {
+                    "job_id": "job-1",
+                    "state": "queued",
+                    "engine": "qwen3",
+                    "language_code": "en",
+                    "include_timeline": False,
+                    "speaker_artifact_id": "speaker-1",
+                    "created_at_unix_seconds": 1.0,
+                    "audio_format": "bad",
+                }
+            )
+
     def test_execute_synthesis_request_forwards_progress_callback(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
@@ -448,9 +464,10 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 mark_synthesis_ready=lambda: None,
             )
 
-            def fake_concat_normalise(wav_paths, output_path, cap_seconds):
+            def fake_concat_normalise(wav_paths, output_path, cap_seconds, *, target_sample_rate=0):
                 self.assertEqual(wav_paths, (wav_path,))
                 self.assertIsNone(cap_seconds)
+                self.assertEqual(target_sample_rate, 24000)
                 output_path.write_bytes(b"RIFF")
 
             with patch("dictator.audio.ffmpeg_ops.concat_normalise", side_effect=fake_concat_normalise):
@@ -462,6 +479,9 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 )
         self.assertEqual(progress_updates, [(1, 2)])
         self.assertEqual(outcome.audio_record.media_type, "audio/wav")
+        self.assertEqual(outcome.audio_record.audio_metadata.container, "wav")
+        self.assertEqual(outcome.audio_record.audio_metadata.duration_seconds, 0.4)
+        self.assertEqual(outcome.audio_format, DEFAULT_SYNTHESIS_AUDIO_FORMAT)
         self.assertEqual(outcome.audio_duration_seconds, 0.4)
 
     def test_prepare_synthesis_request_requires_inline_or_artifact_text(self):

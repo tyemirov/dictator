@@ -712,6 +712,7 @@ type SynthesizeSpeechRequest struct {
 	IncludeTimeline       bool                                 `protobuf:"varint,6,opt,name=include_timeline,json=includeTimeline,proto3" json:"include_timeline,omitempty"`
 	SynthesisEngine       SynthesisEngine                      `protobuf:"varint,7,opt,name=synthesis_engine,json=synthesisEngine,proto3,enum=dictator.speech.v1.SynthesisEngine" json:"synthesis_engine,omitempty"`
 	SpeakerTranscriptText string                               `protobuf:"bytes,8,opt,name=speaker_transcript_text,json=speakerTranscriptText,proto3" json:"speaker_transcript_text,omitempty"`
+	AudioFormat           *AudioFormat                         `protobuf:"bytes,9,opt,name=audio_format,json=audioFormat,proto3" json:"audio_format,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -813,6 +814,13 @@ func (x *SynthesizeSpeechRequest) GetSpeakerTranscriptText() string {
 	return ""
 }
 
+func (x *SynthesizeSpeechRequest) GetAudioFormat() *AudioFormat {
+	if x != nil {
+		return x.AudioFormat
+	}
+	return nil
+}
+
 type isSynthesizeSpeechRequest_TextSource interface {
 	isSynthesizeSpeechRequest_TextSource()
 }
@@ -836,6 +844,7 @@ type SynthesizeSpeechResponse struct {
 	Timeline             []*TimelineSegment     `protobuf:"bytes,3,rep,name=timeline,proto3" json:"timeline,omitempty"`
 	TimelineArtifactId   string                 `protobuf:"bytes,4,opt,name=timeline_artifact_id,json=timelineArtifactId,proto3" json:"timeline_artifact_id,omitempty"`
 	ChunkCount           int32                  `protobuf:"varint,5,opt,name=chunk_count,json=chunkCount,proto3" json:"chunk_count,omitempty"`
+	ResolvedAudioFormat  *AudioFormat           `protobuf:"bytes,6,opt,name=resolved_audio_format,json=resolvedAudioFormat,proto3" json:"resolved_audio_format,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -903,6 +912,13 @@ func (x *SynthesizeSpeechResponse) GetChunkCount() int32 {
 		return x.ChunkCount
 	}
 	return 0
+}
+
+func (x *SynthesizeSpeechResponse) GetResolvedAudioFormat() *AudioFormat {
+	if x != nil {
+		return x.ResolvedAudioFormat
+	}
+	return nil
 }
 
 type SubmitSynthesizeSpeechJobResponse struct {
@@ -1016,6 +1032,7 @@ type GetSynthesizeSpeechJobResponse struct {
 	FinishedAtUnixSeconds float64                `protobuf:"fixed64,11,opt,name=finished_at_unix_seconds,json=finishedAtUnixSeconds,proto3" json:"finished_at_unix_seconds,omitempty"`
 	EstimatedTotalChunks  int32                  `protobuf:"varint,12,opt,name=estimated_total_chunks,json=estimatedTotalChunks,proto3" json:"estimated_total_chunks,omitempty"`
 	CompletedChunks       int32                  `protobuf:"varint,13,opt,name=completed_chunks,json=completedChunks,proto3" json:"completed_chunks,omitempty"`
+	ResolvedAudioFormat   *AudioFormat           `protobuf:"bytes,14,opt,name=resolved_audio_format,json=resolvedAudioFormat,proto3" json:"resolved_audio_format,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -1139,6 +1156,13 @@ func (x *GetSynthesizeSpeechJobResponse) GetCompletedChunks() int32 {
 		return x.CompletedChunks
 	}
 	return 0
+}
+
+func (x *GetSynthesizeSpeechJobResponse) GetResolvedAudioFormat() *AudioFormat {
+	if x != nil {
+		return x.ResolvedAudioFormat
+	}
+	return nil
 }
 
 type CancelSynthesizeSpeechJobRequest struct {
@@ -1284,7 +1308,7 @@ const file_dictator_speech_v1_voice_proto_rawDesc = "" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"\x8a\x01\n" +
 	"'CancelExtractReferenceSampleJobResponse\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12H\n" +
-	"\x05state\x18\x02 \x01(\x0e22.dictator.speech.v1.ExtractReferenceSampleJobStateR\x05state\"\xa4\x03\n" +
+	"\x05state\x18\x02 \x01(\x0e22.dictator.speech.v1.ExtractReferenceSampleJobStateR\x05state\"\xe8\x03\n" +
 	"\x17SynthesizeSpeechRequest\x12.\n" +
 	"\x13speaker_artifact_id\x18\x01 \x01(\tR\x11speakerArtifactId\x12\x14\n" +
 	"\x04text\x18\x02 \x01(\tH\x00R\x04text\x12*\n" +
@@ -1293,20 +1317,22 @@ const file_dictator_speech_v1_voice_proto_rawDesc = "" +
 	"\x14max_duration_seconds\x18\x05 \x01(\x01R\x12maxDurationSeconds\x12)\n" +
 	"\x10include_timeline\x18\x06 \x01(\bR\x0fincludeTimeline\x12N\n" +
 	"\x10synthesis_engine\x18\a \x01(\x0e2#.dictator.speech.v1.SynthesisEngineR\x0fsynthesisEngine\x126\n" +
-	"\x17speaker_transcript_text\x18\b \x01(\tR\x15speakerTranscriptTextB\r\n" +
-	"\vtext_source\"\xac\x02\n" +
+	"\x17speaker_transcript_text\x18\b \x01(\tR\x15speakerTranscriptText\x12B\n" +
+	"\faudio_format\x18\t \x01(\v2\x1f.dictator.speech.v1.AudioFormatR\vaudioFormatB\r\n" +
+	"\vtext_source\"\x81\x03\n" +
 	"\x18SynthesizeSpeechResponse\x12F\n" +
 	"\x0eaudio_artifact\x18\x01 \x01(\v2\x1f.dictator.speech.v1.ArtifactRefR\raudioArtifact\x124\n" +
 	"\x16audio_duration_seconds\x18\x02 \x01(\x01R\x14audioDurationSeconds\x12?\n" +
 	"\btimeline\x18\x03 \x03(\v2#.dictator.speech.v1.TimelineSegmentR\btimeline\x120\n" +
 	"\x14timeline_artifact_id\x18\x04 \x01(\tR\x12timelineArtifactId\x12\x1f\n" +
 	"\vchunk_count\x18\x05 \x01(\x05R\n" +
-	"chunkCount\"w\n" +
+	"chunkCount\x12S\n" +
+	"\x15resolved_audio_format\x18\x06 \x01(\v2\x1f.dictator.speech.v1.AudioFormatR\x13resolvedAudioFormat\"w\n" +
 	"!SubmitSynthesizeSpeechJobResponse\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12;\n" +
 	"\x05state\x18\x02 \x01(\x0e2%.dictator.speech.v1.SynthesisJobStateR\x05state\"6\n" +
 	"\x1dGetSynthesizeSpeechJobRequest\x12\x15\n" +
-	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"\x91\x05\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"\xe6\x05\n" +
 	"\x1eGetSynthesizeSpeechJobResponse\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12;\n" +
 	"\x05state\x18\x02 \x01(\x0e2%.dictator.speech.v1.SynthesisJobStateR\x05state\x12\x1d\n" +
@@ -1323,7 +1349,8 @@ const file_dictator_speech_v1_voice_proto_rawDesc = "" +
 	" \x01(\x01R\x14startedAtUnixSeconds\x127\n" +
 	"\x18finished_at_unix_seconds\x18\v \x01(\x01R\x15finishedAtUnixSeconds\x124\n" +
 	"\x16estimated_total_chunks\x18\f \x01(\x05R\x14estimatedTotalChunks\x12)\n" +
-	"\x10completed_chunks\x18\r \x01(\x05R\x0fcompletedChunks\"9\n" +
+	"\x10completed_chunks\x18\r \x01(\x05R\x0fcompletedChunks\x12S\n" +
+	"\x15resolved_audio_format\x18\x0e \x01(\v2\x1f.dictator.speech.v1.AudioFormatR\x13resolvedAudioFormat\"9\n" +
 	" CancelSynthesizeSpeechJobRequest\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"w\n" +
 	"!CancelSynthesizeSpeechJobResponse\x12\x15\n" +
@@ -1389,7 +1416,8 @@ var file_dictator_speech_v1_voice_proto_goTypes = []any{
 	(*CancelSynthesizeSpeechJobRequest)(nil),        // 15: dictator.speech.v1.CancelSynthesizeSpeechJobRequest
 	(*CancelSynthesizeSpeechJobResponse)(nil),       // 16: dictator.speech.v1.CancelSynthesizeSpeechJobResponse
 	(*ArtifactRef)(nil),                             // 17: dictator.speech.v1.ArtifactRef
-	(*TimelineSegment)(nil),                         // 18: dictator.speech.v1.TimelineSegment
+	(*AudioFormat)(nil),                             // 18: dictator.speech.v1.AudioFormat
+	(*TimelineSegment)(nil),                         // 19: dictator.speech.v1.TimelineSegment
 }
 var file_dictator_speech_v1_voice_proto_depIdxs = []int32{
 	17, // 0: dictator.speech.v1.ExtractReferenceSampleResponse.sample_artifact:type_name -> dictator.speech.v1.ArtifactRef
@@ -1398,33 +1426,36 @@ var file_dictator_speech_v1_voice_proto_depIdxs = []int32{
 	17, // 3: dictator.speech.v1.GetExtractReferenceSampleJobResponse.sample_artifact:type_name -> dictator.speech.v1.ArtifactRef
 	2,  // 4: dictator.speech.v1.CancelExtractReferenceSampleJobResponse.state:type_name -> dictator.speech.v1.ExtractReferenceSampleJobState
 	0,  // 5: dictator.speech.v1.SynthesizeSpeechRequest.synthesis_engine:type_name -> dictator.speech.v1.SynthesisEngine
-	17, // 6: dictator.speech.v1.SynthesizeSpeechResponse.audio_artifact:type_name -> dictator.speech.v1.ArtifactRef
-	18, // 7: dictator.speech.v1.SynthesizeSpeechResponse.timeline:type_name -> dictator.speech.v1.TimelineSegment
-	1,  // 8: dictator.speech.v1.SubmitSynthesizeSpeechJobResponse.state:type_name -> dictator.speech.v1.SynthesisJobState
-	1,  // 9: dictator.speech.v1.GetSynthesizeSpeechJobResponse.state:type_name -> dictator.speech.v1.SynthesisJobState
-	17, // 10: dictator.speech.v1.GetSynthesizeSpeechJobResponse.audio_artifact:type_name -> dictator.speech.v1.ArtifactRef
-	1,  // 11: dictator.speech.v1.CancelSynthesizeSpeechJobResponse.state:type_name -> dictator.speech.v1.SynthesisJobState
-	3,  // 12: dictator.speech.v1.VoiceService.ExtractReferenceSample:input_type -> dictator.speech.v1.ExtractReferenceSampleRequest
-	3,  // 13: dictator.speech.v1.VoiceService.SubmitExtractReferenceSampleJob:input_type -> dictator.speech.v1.ExtractReferenceSampleRequest
-	6,  // 14: dictator.speech.v1.VoiceService.GetExtractReferenceSampleJob:input_type -> dictator.speech.v1.GetExtractReferenceSampleJobRequest
-	8,  // 15: dictator.speech.v1.VoiceService.CancelExtractReferenceSampleJob:input_type -> dictator.speech.v1.CancelExtractReferenceSampleJobRequest
-	10, // 16: dictator.speech.v1.VoiceService.SynthesizeSpeech:input_type -> dictator.speech.v1.SynthesizeSpeechRequest
-	10, // 17: dictator.speech.v1.VoiceService.SubmitSynthesizeSpeechJob:input_type -> dictator.speech.v1.SynthesizeSpeechRequest
-	13, // 18: dictator.speech.v1.VoiceService.GetSynthesizeSpeechJob:input_type -> dictator.speech.v1.GetSynthesizeSpeechJobRequest
-	15, // 19: dictator.speech.v1.VoiceService.CancelSynthesizeSpeechJob:input_type -> dictator.speech.v1.CancelSynthesizeSpeechJobRequest
-	4,  // 20: dictator.speech.v1.VoiceService.ExtractReferenceSample:output_type -> dictator.speech.v1.ExtractReferenceSampleResponse
-	5,  // 21: dictator.speech.v1.VoiceService.SubmitExtractReferenceSampleJob:output_type -> dictator.speech.v1.SubmitExtractReferenceSampleJobResponse
-	7,  // 22: dictator.speech.v1.VoiceService.GetExtractReferenceSampleJob:output_type -> dictator.speech.v1.GetExtractReferenceSampleJobResponse
-	9,  // 23: dictator.speech.v1.VoiceService.CancelExtractReferenceSampleJob:output_type -> dictator.speech.v1.CancelExtractReferenceSampleJobResponse
-	11, // 24: dictator.speech.v1.VoiceService.SynthesizeSpeech:output_type -> dictator.speech.v1.SynthesizeSpeechResponse
-	12, // 25: dictator.speech.v1.VoiceService.SubmitSynthesizeSpeechJob:output_type -> dictator.speech.v1.SubmitSynthesizeSpeechJobResponse
-	14, // 26: dictator.speech.v1.VoiceService.GetSynthesizeSpeechJob:output_type -> dictator.speech.v1.GetSynthesizeSpeechJobResponse
-	16, // 27: dictator.speech.v1.VoiceService.CancelSynthesizeSpeechJob:output_type -> dictator.speech.v1.CancelSynthesizeSpeechJobResponse
-	20, // [20:28] is the sub-list for method output_type
-	12, // [12:20] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	18, // 6: dictator.speech.v1.SynthesizeSpeechRequest.audio_format:type_name -> dictator.speech.v1.AudioFormat
+	17, // 7: dictator.speech.v1.SynthesizeSpeechResponse.audio_artifact:type_name -> dictator.speech.v1.ArtifactRef
+	19, // 8: dictator.speech.v1.SynthesizeSpeechResponse.timeline:type_name -> dictator.speech.v1.TimelineSegment
+	18, // 9: dictator.speech.v1.SynthesizeSpeechResponse.resolved_audio_format:type_name -> dictator.speech.v1.AudioFormat
+	1,  // 10: dictator.speech.v1.SubmitSynthesizeSpeechJobResponse.state:type_name -> dictator.speech.v1.SynthesisJobState
+	1,  // 11: dictator.speech.v1.GetSynthesizeSpeechJobResponse.state:type_name -> dictator.speech.v1.SynthesisJobState
+	17, // 12: dictator.speech.v1.GetSynthesizeSpeechJobResponse.audio_artifact:type_name -> dictator.speech.v1.ArtifactRef
+	18, // 13: dictator.speech.v1.GetSynthesizeSpeechJobResponse.resolved_audio_format:type_name -> dictator.speech.v1.AudioFormat
+	1,  // 14: dictator.speech.v1.CancelSynthesizeSpeechJobResponse.state:type_name -> dictator.speech.v1.SynthesisJobState
+	3,  // 15: dictator.speech.v1.VoiceService.ExtractReferenceSample:input_type -> dictator.speech.v1.ExtractReferenceSampleRequest
+	3,  // 16: dictator.speech.v1.VoiceService.SubmitExtractReferenceSampleJob:input_type -> dictator.speech.v1.ExtractReferenceSampleRequest
+	6,  // 17: dictator.speech.v1.VoiceService.GetExtractReferenceSampleJob:input_type -> dictator.speech.v1.GetExtractReferenceSampleJobRequest
+	8,  // 18: dictator.speech.v1.VoiceService.CancelExtractReferenceSampleJob:input_type -> dictator.speech.v1.CancelExtractReferenceSampleJobRequest
+	10, // 19: dictator.speech.v1.VoiceService.SynthesizeSpeech:input_type -> dictator.speech.v1.SynthesizeSpeechRequest
+	10, // 20: dictator.speech.v1.VoiceService.SubmitSynthesizeSpeechJob:input_type -> dictator.speech.v1.SynthesizeSpeechRequest
+	13, // 21: dictator.speech.v1.VoiceService.GetSynthesizeSpeechJob:input_type -> dictator.speech.v1.GetSynthesizeSpeechJobRequest
+	15, // 22: dictator.speech.v1.VoiceService.CancelSynthesizeSpeechJob:input_type -> dictator.speech.v1.CancelSynthesizeSpeechJobRequest
+	4,  // 23: dictator.speech.v1.VoiceService.ExtractReferenceSample:output_type -> dictator.speech.v1.ExtractReferenceSampleResponse
+	5,  // 24: dictator.speech.v1.VoiceService.SubmitExtractReferenceSampleJob:output_type -> dictator.speech.v1.SubmitExtractReferenceSampleJobResponse
+	7,  // 25: dictator.speech.v1.VoiceService.GetExtractReferenceSampleJob:output_type -> dictator.speech.v1.GetExtractReferenceSampleJobResponse
+	9,  // 26: dictator.speech.v1.VoiceService.CancelExtractReferenceSampleJob:output_type -> dictator.speech.v1.CancelExtractReferenceSampleJobResponse
+	11, // 27: dictator.speech.v1.VoiceService.SynthesizeSpeech:output_type -> dictator.speech.v1.SynthesizeSpeechResponse
+	12, // 28: dictator.speech.v1.VoiceService.SubmitSynthesizeSpeechJob:output_type -> dictator.speech.v1.SubmitSynthesizeSpeechJobResponse
+	14, // 29: dictator.speech.v1.VoiceService.GetSynthesizeSpeechJob:output_type -> dictator.speech.v1.GetSynthesizeSpeechJobResponse
+	16, // 30: dictator.speech.v1.VoiceService.CancelSynthesizeSpeechJob:output_type -> dictator.speech.v1.CancelSynthesizeSpeechJobResponse
+	23, // [23:31] is the sub-list for method output_type
+	15, // [15:23] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_dictator_speech_v1_voice_proto_init() }

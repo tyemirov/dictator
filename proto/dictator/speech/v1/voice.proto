@@ -118,6 +118,7 @@ message SynthesizeSpeechRequest {
   bool include_timeline = 6;
   SynthesisEngine synthesis_engine = 7;
   string speaker_transcript_text = 8;
+  AudioFormat audio_format = 9;
 }
 
 message SynthesizeSpeechResponse {
@@ -126,6 +127,7 @@ message SynthesizeSpeechResponse {
   repeated TimelineSegment timeline = 3;
   string timeline_artifact_id = 4;
   int32 chunk_count = 5;
+  AudioFormat resolved_audio_format = 6;
 }
 
 message SubmitSynthesizeSpeechJobResponse {
@@ -151,6 +153,7 @@ message GetSynthesizeSpeechJobResponse {
   double finished_at_unix_seconds = 11;
   int32 estimated_total_chunks = 12;
   int32 completed_chunks = 13;
+  AudioFormat resolved_audio_format = 14;
 }
 
 message CancelSynthesizeSpeechJobRequest {

@@ -125,13 +125,25 @@ class BaseServicer:
             self.service_context.metrics.record_finish(success, time.monotonic() - started_at)
 
     def _artifact_ref(self, record: ArtifactRecord) -> common_pb2.ArtifactRef:
-        return common_pb2.ArtifactRef(
+        artifact = common_pb2.ArtifactRef(
             artifact_id=record.artifact_id,
             filename=record.filename,
             media_type=record.media_type,
             size_bytes=record.size_bytes,
             sha256=record.sha256,
         )
+        if record.audio_metadata is not None:
+            artifact.audio_metadata.CopyFrom(
+                common_pb2.AudioMetadata(
+                    container=record.audio_metadata.container,
+                    codec=record.audio_metadata.codec,
+                    sample_rate_hz=record.audio_metadata.sample_rate_hz,
+                    channel_count=record.audio_metadata.channel_count,
+                    bit_depth=record.audio_metadata.bit_depth,
+                    duration_seconds=record.audio_metadata.duration_seconds or 0.0,
+                )
+            )
+        return artifact
 
     def _word_segment(self, payload: dict[str, object]) -> common_pb2.WordSegment:
         return common_pb2.WordSegment(

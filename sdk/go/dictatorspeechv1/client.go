@@ -2,7 +2,9 @@ package dictatorspeechv1
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"google.golang.org/grpc"
@@ -77,6 +79,11 @@ func NewClient(conn grpc.ClientConnInterface, cfg ClientConfig) *Client {
 	}
 }
 
+// UploadArtifact uploads one complete artifact and returns the stored reference.
+//
+// If the server closes the client stream early, Send may return io.EOF before
+// the final gRPC status is available. This helper calls CloseAndRecv in that
+// case so callers receive the server-side validation status and message.
 func (c *Client) UploadArtifact(ctx context.Context, request UploadArtifactContentRequest) (*ArtifactRef, error) {
 	artifactStream, err := c.artifactClient.UploadArtifact(c.contextWithAuth(ctx))
 	if err != nil {
@@ -91,7 +98,11 @@ func (c *Client) UploadArtifact(ctx context.Context, request UploadArtifactConte
 			},
 		},
 	}); err != nil {
-		return nil, fmt.Errorf("dictator.artifact_upload_failed: %w", err)
+		response, closeErr := closeUploadStreamAfterSendError(artifactStream, err)
+		if closeErr != nil {
+			return nil, fmt.Errorf("dictator.artifact_upload_failed: %w", closeErr)
+		}
+		return response.GetArtifact(), nil
 	}
 
 	for start := 0; start < len(request.Content); start += c.uploadChunkBytes {
@@ -104,7 +115,11 @@ func (c *Client) UploadArtifact(ctx context.Context, request UploadArtifactConte
 				Content: request.Content[start:end],
 			},
 		}); err != nil {
-			return nil, fmt.Errorf("dictator.artifact_upload_failed: %w", err)
+			response, closeErr := closeUploadStreamAfterSendError(artifactStream, err)
+			if closeErr != nil {
+				return nil, fmt.Errorf("dictator.artifact_upload_failed: %w", closeErr)
+			}
+			return response.GetArtifact(), nil
 		}
 	}
 
@@ -113,6 +128,23 @@ func (c *Client) UploadArtifact(ctx context.Context, request UploadArtifactConte
 		return nil, fmt.Errorf("dictator.artifact_upload_failed: %w", err)
 	}
 	return artifactResponse.GetArtifact(), nil
+}
+
+func closeUploadStreamAfterSendError(
+	stream grpc.ClientStreamingClient[UploadArtifactChunk, UploadArtifactResponse],
+	sendErr error,
+) (*UploadArtifactResponse, error) {
+	if !errors.Is(sendErr, io.EOF) {
+		return nil, sendErr
+	}
+	response, closeErr := stream.CloseAndRecv()
+	if closeErr != nil {
+		return nil, closeErr
+	}
+	if response != nil {
+		return response, nil
+	}
+	return nil, sendErr
 }
 
 func (c *Client) TranscribeUploadedArtifact(ctx context.Context, request TranscribeUploadedArtifactRequest) (*TranscribeResponse, error) {

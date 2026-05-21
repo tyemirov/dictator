@@ -10,6 +10,34 @@ message ArtifactRef {
   string media_type = 3;
   int64 size_bytes = 4;
   string sha256 = 5;
+  AudioMetadata audio_metadata = 6;
+}
+
+enum AudioContainer {
+  AUDIO_CONTAINER_UNSPECIFIED = 0;
+  AUDIO_CONTAINER_WAV = 1;
+}
+
+enum AudioCodec {
+  AUDIO_CODEC_UNSPECIFIED = 0;
+  AUDIO_CODEC_PCM_S16LE = 1;
+}
+
+message AudioFormat {
+  AudioContainer container = 1;
+  AudioCodec codec = 2;
+  int32 sample_rate_hz = 3;
+  int32 channel_count = 4;
+  int32 bit_depth = 5;
+}
+
+message AudioMetadata {
+  string container = 1;
+  string codec = 2;
+  int32 sample_rate_hz = 3;
+  int32 channel_count = 4;
+  int32 bit_depth = 5;
+  double duration_seconds = 6;
 }
 
 message WordSegment {

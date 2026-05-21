@@ -8,10 +8,19 @@ from typing import Sequence
 
 import grpc
 
-from dictator.speech.v1 import artifacts_pb2_grpc, voice_pb2, voice_pb2_grpc
+from dictator.speech.v1 import artifacts_pb2_grpc, common_pb2, voice_pb2, voice_pb2_grpc
 
 from ._jobs import wait_for_job
 from ._uploads import DEFAULT_CHUNK_BYTES, DEFAULT_MEDIA_TYPE, upload_audio_artifact
+
+
+@dataclass(frozen=True)
+class AudioFormat:
+    container: str
+    codec: str
+    sample_rate_hz: int
+    channel_count: int
+    bit_depth: int
 
 
 @dataclass(frozen=True)
@@ -20,6 +29,7 @@ class SynthesisResult:
     audio_duration_seconds: float
     timeline_artifact_id: str = ""
     chunk_count: int = 0
+    resolved_audio_format: AudioFormat | None = None
 
 
 @dataclass(frozen=True)
@@ -81,6 +91,7 @@ class SynthesisClient:
         include_timeline: bool = False,
         synthesis_engine: int = voice_pb2.SYNTHESIS_ENGINE_QWEN3,
         speaker_transcript_text: str = "",
+        audio_format: common_pb2.AudioFormat | None = None,
         timeout_seconds: float | None = None,
         poll_interval_seconds: float = 1.0,
     ) -> SynthesisResult:
@@ -93,6 +104,7 @@ class SynthesisClient:
             include_timeline=include_timeline,
             synthesis_engine=synthesis_engine,
             speaker_transcript_text=speaker_transcript_text,
+            audio_format=audio_format,
         )
         finished = self.wait_for_synthesis_job(
             submitted.job_id,
@@ -114,6 +126,7 @@ class SynthesisClient:
         include_timeline: bool = False,
         synthesis_engine: int = voice_pb2.SYNTHESIS_ENGINE_QWEN3,
         speaker_transcript_text: str = "",
+        audio_format: common_pb2.AudioFormat | None = None,
     ) -> SynthesisJob:
         request = voice_pb2.SynthesizeSpeechRequest(
             speaker_artifact_id=speaker_artifact_id,
@@ -123,6 +136,8 @@ class SynthesisClient:
             synthesis_engine=synthesis_engine,
             speaker_transcript_text=speaker_transcript_text,
         )
+        if audio_format is not None:
+            request.audio_format.CopyFrom(audio_format)
         if text_artifact_id:
             request.text_artifact_id = text_artifact_id
         else:
@@ -146,6 +161,7 @@ class SynthesisClient:
             result = SynthesisResult(
                 audio_artifact_id=response.audio_artifact.artifact_id,
                 audio_duration_seconds=response.audio_duration_seconds,
+                resolved_audio_format=_audio_format_from_pb(response.resolved_audio_format),
                 timeline_artifact_id=response.timeline_artifact_id,
                 chunk_count=response.chunk_count,
             )
@@ -184,6 +200,34 @@ class SynthesisClient:
             timeout_seconds=timeout_seconds,
             poll_interval_seconds=poll_interval_seconds,
         )
+
+
+def _audio_format_from_pb(payload: common_pb2.AudioFormat) -> AudioFormat | None:
+    if (
+        payload.container == common_pb2.AUDIO_CONTAINER_UNSPECIFIED
+        and payload.codec == common_pb2.AUDIO_CODEC_UNSPECIFIED
+        and payload.sample_rate_hz == 0
+        and payload.channel_count == 0
+        and payload.bit_depth == 0
+    ):
+        return None
+    container = {
+        common_pb2.AUDIO_CONTAINER_WAV: "wav",
+    }.get(payload.container, _unknown_enum_name("audio_container", payload.container))
+    codec = {
+        common_pb2.AUDIO_CODEC_PCM_S16LE: "pcm_s16le",
+    }.get(payload.codec, _unknown_enum_name("audio_codec", payload.codec))
+    return AudioFormat(
+        container=container,
+        codec=codec,
+        sample_rate_hz=payload.sample_rate_hz,
+        channel_count=payload.channel_count,
+        bit_depth=payload.bit_depth,
+    )
+
+
+def _unknown_enum_name(prefix: str, value: int) -> str:
+    return f"unknown_{prefix}_{value}"
 
 
 class ReferenceSampleClient:

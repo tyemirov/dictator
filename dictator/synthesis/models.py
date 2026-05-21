@@ -15,6 +15,26 @@ class SynthesisEngine(str, Enum):
 
 
 @dataclass(frozen=True)
+class SynthesisAudioFormat:
+    """Resolved synthesis output-audio contract."""
+
+    container: str
+    codec: str
+    sample_rate_hz: int
+    channel_count: int
+    bit_depth: int
+
+
+DEFAULT_SYNTHESIS_AUDIO_FORMAT = SynthesisAudioFormat(
+    container="wav",
+    codec="pcm_s16le",
+    sample_rate_hz=24_000,
+    channel_count=1,
+    bit_depth=16,
+)
+
+
+@dataclass(frozen=True)
 class SynthesisChunk:
     """A synthesiser-ready text chunk with its atomic sentence units."""
 

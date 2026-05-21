@@ -289,17 +289,22 @@ Important arguments:
 - `include_timeline`
 - `synthesis_engine`
 - `speaker_transcript_text`
+- `audio_format`: optional requested output format; currently supports WAV / PCM signed 16-bit little-endian / 24000 Hz / mono / 16-bit
 
 Rules:
 
 - `speaker_artifact_id` is required
 - set exactly one of `text` or `text_artifact_id`
 - `speaker_transcript_text` should be provided when known for higher quality voice conditioning
+- omitted `audio_format` resolves to the supported default output format
+- unsupported requested output formats fail validation instead of silently returning another format
 
 Result:
 
 - `audio_artifact_id`
 - `audio_duration_seconds`
+- `resolved_audio_format`
+- `audio_artifact.audio_metadata` on the raw protobuf response includes the resolved container, codec, sample rate, channel count, bit depth, and duration
 - optional `timeline_artifact_id`
 - `chunk_count`
 

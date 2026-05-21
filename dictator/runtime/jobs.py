@@ -19,6 +19,7 @@ from dictator.diarization.models import DiarizeAudioRequest, DiarizeAudioResult
 from dictator.runtime.errors import DictatorError, ServiceRequestError, ValidationError
 from dictator.storage import LocalArtifactStore
 from dictator.subtitles.models import RenderSubtitlesRequest, SubtitleCue
+from dictator.synthesis.models import SynthesisAudioFormat
 from dictator.synthesis.workflow import PreparedSynthesisRequest, execute_synthesis_request
 from dictator.transcription.models import TranscriptionResult, WordSegment
 
@@ -56,6 +57,7 @@ class SynthesisJobRecord:
     error_message: str | None = None
     audio_artifact_id: str | None = None
     audio_duration_seconds: float | None = None
+    audio_format: SynthesisAudioFormat | None = None
     timeline_artifact_id: str | None = None
     chunk_count: int | None = None
     estimated_total_chunks: int | None = None
@@ -82,6 +84,7 @@ class SynthesisJobRecord:
             error_message=_optional_str(payload.get("error_message")),
             audio_artifact_id=_optional_str(payload.get("audio_artifact_id")),
             audio_duration_seconds=_optional_float(payload.get("audio_duration_seconds")),
+            audio_format=_optional_synthesis_audio_format(payload.get("audio_format")),
             timeline_artifact_id=_optional_str(payload.get("timeline_artifact_id")),
             chunk_count=_optional_int(payload.get("chunk_count")),
             estimated_total_chunks=_optional_int(payload.get("estimated_total_chunks")),
@@ -389,6 +392,22 @@ def _optional_str(value: object) -> str | None:
     return text or None
 
 
+def _optional_synthesis_audio_format(value: object) -> SynthesisAudioFormat | None:
+    if value is None:
+        return None
+    if isinstance(value, SynthesisAudioFormat):
+        return value
+    if not isinstance(value, dict):
+        raise ValueError("synthesis audio_format must be a dict")
+    return SynthesisAudioFormat(
+        container=str(value["container"]),
+        codec=str(value["codec"]),
+        sample_rate_hz=int(value["sample_rate_hz"]),
+        channel_count=int(value["channel_count"]),
+        bit_depth=int(value["bit_depth"]),
+    )
+
+
 def _alignment_words_to_json(words: tuple[AlignedWord, ...]) -> list[dict[str, object]]:
     return [
         {
@@ -596,6 +615,7 @@ class LocalSynthesisJobStore(_LocalJsonJobStore[SynthesisJobRecord]):
                 include_timeline=prepared.include_timeline,
                 speaker_artifact_id=prepared.speaker_record.artifact_id,
                 created_at_unix_seconds=time.time(),
+                audio_format=prepared.audio_format,
                 estimated_total_chunks=0,
                 completed_chunks=0,
             )
@@ -621,6 +641,7 @@ class LocalSynthesisJobStore(_LocalJsonJobStore[SynthesisJobRecord]):
                     error_message=message,
                     audio_artifact_id=record.audio_artifact_id,
                     audio_duration_seconds=record.audio_duration_seconds,
+                    audio_format=record.audio_format,
                     timeline_artifact_id=record.timeline_artifact_id,
                     chunk_count=record.chunk_count,
                     estimated_total_chunks=record.estimated_total_chunks,
@@ -1008,6 +1029,7 @@ class SynthesisJobManager(_QueuedJobManager[PreparedSynthesisRequest, SynthesisJ
                 finished_at_unix_seconds=time.time(),
                 audio_artifact_id=outcome.audio_record.artifact_id,
                 audio_duration_seconds=outcome.audio_duration_seconds,
+                audio_format=outcome.audio_format,
                 timeline_artifact_id=outcome.timeline_artifact_id,
                 chunk_count=outcome.chunk_count,
                 estimated_total_chunks=outcome.chunk_count,

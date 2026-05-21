@@ -18,7 +18,8 @@ from dictator.client import (
     SynthesisClient,
     SubtitleClient,
 )
-from dictator.speech.v1 import alignment_pb2, subtitle_pb2, transcription_pb2, voice_pb2
+from dictator.speech.v1 import alignment_pb2, common_pb2, subtitle_pb2, transcription_pb2, voice_pb2
+from dictator.client.voice import _audio_format_from_pb
 
 
 class _FakeRpcError(grpc.RpcError):
@@ -51,6 +52,13 @@ class ClientJobHelpersTests(unittest.TestCase):
                     error_message="",
                     audio_artifact=types.SimpleNamespace(artifact_id="audio-1"),
                     audio_duration_seconds=4.2,
+                    resolved_audio_format=common_pb2.AudioFormat(
+                        container=common_pb2.AUDIO_CONTAINER_WAV,
+                        codec=common_pb2.AUDIO_CODEC_PCM_S16LE,
+                        sample_rate_hz=24000,
+                        channel_count=1,
+                        bit_depth=16,
+                    ),
                     timeline_artifact_id="timeline-1",
                     chunk_count=3,
                     estimated_total_chunks=3,
@@ -74,6 +82,7 @@ class ClientJobHelpersTests(unittest.TestCase):
                 max_duration_seconds=5.0,
                 include_timeline=True,
                 speaker_transcript_text="sample transcript",
+                audio_format=common_pb2.AudioFormat(sample_rate_hz=24000),
             )
             submitted_with_text = client.submit_synthesize_job(
                 speaker_artifact_id="speaker-2",
@@ -89,6 +98,7 @@ class ClientJobHelpersTests(unittest.TestCase):
         self.assertEqual(request.max_duration_seconds, 5.0)
         self.assertTrue(request.include_timeline)
         self.assertEqual(request.speaker_transcript_text, "sample transcript")
+        self.assertEqual(request.audio_format.sample_rate_hz, 24000)
         self.assertEqual(stub.SubmitSynthesizeSpeechJob.call_args.kwargs["metadata"], (("authorization", "Bearer secret"),))
         self.assertEqual(submitted.job_id, "syn-1")
         self.assertEqual(submitted.state, "SYNTHESIS_JOB_STATE_QUEUED")
@@ -98,10 +108,33 @@ class ClientJobHelpersTests(unittest.TestCase):
         self.assertEqual(submitted_with_text.job_id, "syn-1")
         self.assertEqual(fetched.result.audio_artifact_id, "audio-1")
         self.assertEqual(fetched.result.audio_duration_seconds, 4.2)
+        self.assertEqual(fetched.result.resolved_audio_format.sample_rate_hz, 24000)
+        self.assertEqual(fetched.result.resolved_audio_format.container, "wav")
+        self.assertEqual(fetched.result.resolved_audio_format.codec, "pcm_s16le")
         self.assertEqual(fetched.result.timeline_artifact_id, "timeline-1")
         self.assertEqual(fetched.result.chunk_count, 3)
         self.assertEqual(waited, waited_job)
         wait_for_job.assert_called_once()
+
+    def test_empty_audio_format_returns_none(self):
+        self.assertIsNone(_audio_format_from_pb(common_pb2.AudioFormat()))
+
+    def test_audio_format_handles_unknown_enums(self):
+        audio_format = _audio_format_from_pb(
+            common_pb2.AudioFormat(
+                container=99,
+                codec=98,
+                sample_rate_hz=44100,
+                channel_count=2,
+                bit_depth=24,
+            )
+        )
+
+        self.assertEqual(audio_format.container, "unknown_audio_container_99")
+        self.assertEqual(audio_format.codec, "unknown_audio_codec_98")
+        self.assertEqual(audio_format.sample_rate_hz, 44100)
+        self.assertEqual(audio_format.channel_count, 2)
+        self.assertEqual(audio_format.bit_depth, 24)
 
     def test_synthesis_convenience_helper_waits_and_requires_result(self):
         with patch("dictator.client.voice.voice_pb2_grpc.VoiceServiceStub", return_value=object()):
