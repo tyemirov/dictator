@@ -3,12 +3,15 @@ package dictatorspeechv1
 import (
 	"context"
 	"errors"
+	"io"
 	"reflect"
 	"strings"
 	"testing"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -38,16 +41,21 @@ func (*fakeArtifactClient) DownloadArtifact(context.Context, *DownloadArtifactRe
 
 type fakeUploadStream struct {
 	grpc.ClientStream
-	sendErrAt int
-	sendCount int
-	chunks    []*UploadArtifactChunk
-	response  *UploadArtifactResponse
-	closeErr  error
+	closeCount int
+	sendErr    error
+	sendErrAt  int
+	sendCount  int
+	chunks     []*UploadArtifactChunk
+	response   *UploadArtifactResponse
+	closeErr   error
 }
 
 func (s *fakeUploadStream) Send(chunk *UploadArtifactChunk) error {
 	s.sendCount += 1
 	if s.sendErrAt == s.sendCount {
+		if s.sendErr != nil {
+			return s.sendErr
+		}
 		return errUploadSend
 	}
 	s.chunks = append(s.chunks, chunk)
@@ -55,6 +63,7 @@ func (s *fakeUploadStream) Send(chunk *UploadArtifactChunk) error {
 }
 
 func (s *fakeUploadStream) CloseAndRecv() (*UploadArtifactResponse, error) {
+	s.closeCount += 1
 	if s.closeErr != nil {
 		return nil, s.closeErr
 	}
@@ -245,6 +254,35 @@ func TestUploadArtifactErrors(t *testing.T) {
 				t.Fatalf("error prefix mismatch: %q", got)
 			}
 		})
+	}
+}
+
+func TestUploadArtifactClosesAndPreservesStatusAfterEarlyEOF(t *testing.T) {
+	upstreamErr := status.Error(codes.InvalidArgument, "first upload chunk must contain metadata")
+	stream := &fakeUploadStream{
+		sendErrAt: 2,
+		sendErr:   io.EOF,
+		closeErr:  upstreamErr,
+	}
+	artifactClient := &fakeArtifactClient{stream: stream}
+	client := newTestClient(artifactClient, &fakeTranscriptionClient{})
+
+	_, err := client.UploadArtifact(context.Background(), UploadArtifactContentRequest{
+		Filename:  "sample.wav",
+		MediaType: "audio/wav",
+		Content:   []byte("abcdef"),
+	})
+	if err == nil {
+		t.Fatal("expected UploadArtifact error")
+	}
+	if got := status.Code(err); got != codes.InvalidArgument {
+		t.Fatalf("status code mismatch: %v", got)
+	}
+	if got := err.Error(); !contains(got, "first upload chunk must contain metadata") {
+		t.Fatalf("upstream validation detail missing: %q", got)
+	}
+	if stream.closeCount != 1 {
+		t.Fatalf("expected CloseAndRecv once, got %d", stream.closeCount)
 	}
 }
 

@@ -14,7 +14,7 @@
   - Impact: Consumers that need deterministic media handling must download and inspect artifacts out of band, or hard-code assumptions about Dictator outputs. This makes provider capability reporting and post-processing brittle.
   - Expected: Add optional media metadata, either directly on artifact responses or as an audio-specific metadata message associated with artifacts returned by speech APIs.
 
-- [ ] [SDK-001] Go SDK should preserve streaming upload status details behind a helper.
+- [x] [SDK-001] Go SDK should preserve streaming upload status details behind a helper.
   - Source: MediaOps Dictator provider integration review on 2026-05-21.
   - Finding: Raw `ArtifactService.UploadArtifact` client streams can return `io.EOF` from `Send` before the final gRPC status is observed. Consumers must call `CloseAndRecv` to recover the server-side validation status and message.
   - Impact: Consumers that implement the stream directly can accidentally surface opaque `EOF` errors instead of actionable Dictator validation failures.
