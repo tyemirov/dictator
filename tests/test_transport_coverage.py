@@ -421,6 +421,8 @@ class TransportCoverageTests(unittest.TestCase):
             )
             self.assertEqual(extract_response.dominant_speaker_word_count, 1)
             self.assertEqual(extract_response.sample_artifact.filename, "sample_reference.wav")
+            self.assertEqual(extract_response.sample_artifact.audio_metadata.sample_rate_hz, 24000)
+            self.assertEqual(extract_response.sample_artifact.audio_metadata.duration_seconds, 0.8)
 
             with self.assertRaises(AbortCalled):
                 voice_servicer.SynthesizeSpeech(
@@ -449,6 +451,8 @@ class TransportCoverageTests(unittest.TestCase):
                 )
             self.assertEqual(synth_response.chunk_count, 1)
             self.assertEqual(synth_response.resolved_audio_format.sample_rate_hz, 24000)
+            self.assertEqual(synth_response.audio_artifact.audio_metadata.container, "wav")
+            self.assertEqual(synth_response.audio_artifact.audio_metadata.codec, "pcm_s16le")
             self.assertEqual(synth_response.timeline[0].content, "hello")
             self.assertTrue(synth_response.timeline_artifact_id)
             cleanup.assert_called_once()

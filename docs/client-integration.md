@@ -304,6 +304,7 @@ Result:
 - `audio_artifact_id`
 - `audio_duration_seconds`
 - `resolved_audio_format`
+- `audio_artifact.audio_metadata` on the raw protobuf response includes the resolved container, codec, sample rate, channel count, bit depth, and duration
 - optional `timeline_artifact_id`
 - `chunk_count`
 

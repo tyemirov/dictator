@@ -10,6 +10,7 @@ message ArtifactRef {
   string media_type = 3;
   int64 size_bytes = 4;
   string sha256 = 5;
+  AudioMetadata audio_metadata = 6;
 }
 
 enum AudioContainer {
@@ -28,6 +29,15 @@ message AudioFormat {
   int32 sample_rate_hz = 3;
   int32 channel_count = 4;
   int32 bit_depth = 5;
+}
+
+message AudioMetadata {
+  string container = 1;
+  string codec = 2;
+  int32 sample_rate_hz = 3;
+  int32 channel_count = 4;
+  int32 bit_depth = 5;
+  double duration_seconds = 6;
 }
 
 message WordSegment {

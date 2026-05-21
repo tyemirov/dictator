@@ -479,6 +479,8 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 )
         self.assertEqual(progress_updates, [(1, 2)])
         self.assertEqual(outcome.audio_record.media_type, "audio/wav")
+        self.assertEqual(outcome.audio_record.audio_metadata.container, "wav")
+        self.assertEqual(outcome.audio_record.audio_metadata.duration_seconds, 0.4)
         self.assertEqual(outcome.audio_format, DEFAULT_SYNTHESIS_AUDIO_FORMAT)
         self.assertEqual(outcome.audio_duration_seconds, 0.4)
 

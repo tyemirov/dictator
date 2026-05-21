@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 from dictator.runtime import ValidationError
-from dictator.storage import ArtifactRecord, LocalArtifactStore
+from dictator.storage import ArtifactAudioMetadata, ArtifactRecord, LocalArtifactStore
 
 from .models import DEFAULT_SYNTHESIS_AUDIO_FORMAT, SynthesisAudioFormat, SynthesisEngine, SynthesisRequest
 
@@ -104,7 +104,18 @@ def execute_synthesis_request(
                 prepared.synthesis_request.cap_seconds,
                 target_sample_rate=prepared.audio_format.sample_rate_hz,
             )
-            audio_record = artifact_store.finalize_artifact(audio_reservation)
+            audio_duration_seconds = result.segments[-1].end_seconds if result.segments else 0.0
+            audio_record = artifact_store.finalize_artifact(
+                audio_reservation,
+                audio_metadata=ArtifactAudioMetadata(
+                    container=prepared.audio_format.container,
+                    codec=prepared.audio_format.codec,
+                    sample_rate_hz=prepared.audio_format.sample_rate_hz,
+                    channel_count=prepared.audio_format.channel_count,
+                    bit_depth=prepared.audio_format.bit_depth,
+                    duration_seconds=audio_duration_seconds,
+                ),
+            )
         except Exception:
             artifact_store.discard_reservation(audio_reservation)
             raise
@@ -133,7 +144,7 @@ def execute_synthesis_request(
             timeline_artifact_id = timeline_record.artifact_id
         return SynthesisExecutionOutcome(
             audio_record=audio_record,
-            audio_duration_seconds=result.segments[-1].end_seconds if result.segments else 0.0,
+            audio_duration_seconds=audio_duration_seconds,
             audio_format=prepared.audio_format,
             chunk_count=len(result.wav_paths),
             timeline_artifact_id=timeline_artifact_id,

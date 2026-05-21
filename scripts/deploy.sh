@@ -172,7 +172,7 @@ fi
 
 if [[ "${SKIP_BACKEND}" != "true" ]]; then
   echo "==> [deploy] Deploying Dictator through mprlab-gateway"
-  timeout --foreground -k 1200s -s SIGKILL 1200s make -C "${GATEWAY_DIR}" deploy TARGET=dictator
+  timeout --foreground -k 1200s -s SIGKILL 1200s make -C "${GATEWAY_DIR}" deploy-dictator-backend
 fi
 
 echo "Dictator deploy complete"
