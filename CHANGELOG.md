@@ -17,6 +17,29 @@
 ### Docs 📚
 - _No changes._
 
+## [v1.10.2] - 2026-05-21
+
+### Features ✨
+- Add explicit synthesis audio format contract for speech synthesis requests and responses.
+- Expose detailed audio metadata on artifact references including container, codec, sample rate, channel count, and bit depth.
+- Preserve and return upload stream status details in the Go SDK for improved error handling.
+
+### Improvements ⚙️
+- Update deployment script for improved reliability.
+- Enhanced Go SDK with helper functions to properly handle streaming upload statuses.
+
+### Bug Fixes 🐛
+- Handle unknown audio format enums gracefully in client code.
+- Tolerate nonnumeric ffprobe metadata to prevent failures during media probing.
+
+### Testing 🧪
+- Improve test coverage for artifact store, client job helpers, gRPC services, runtime storage, and transport layers.
+- Add unit tests for Go SDK upload helper methods to ensure proper status preservation.
+
+### Docs 📚
+- Update Go SDK README with new usage notes on streaming uploads.
+- Add client integration documentation describing audio format contract and metadata exposure.
+
 ## [v1.10.1] - 2026-05-07
 
 ### Features ✨
