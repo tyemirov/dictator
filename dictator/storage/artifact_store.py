@@ -41,9 +41,9 @@ class ArtifactAudioMetadata:
         return cls(
             container=str(payload.get("container") or ""),
             codec=str(payload.get("codec") or ""),
-            sample_rate_hz=int(payload.get("sample_rate_hz") or 0),
-            channel_count=int(payload.get("channel_count") or 0),
-            bit_depth=int(payload.get("bit_depth") or 0),
+            sample_rate_hz=_optional_int(payload.get("sample_rate_hz")) or 0,
+            channel_count=_optional_int(payload.get("channel_count")) or 0,
+            bit_depth=_optional_int(payload.get("bit_depth")) or 0,
             duration_seconds=_optional_float(payload.get("duration_seconds")),
         )
 
@@ -225,8 +225,8 @@ class LocalArtifactStore:
                 str(format_payload.get("format_name") or Path(reservation.filename).suffix.lstrip("."))
             ),
             codec=str(audio_stream.get("codec_name") or ""),
-            sample_rate_hz=int(audio_stream.get("sample_rate") or 0),
-            channel_count=int(audio_stream.get("channels") or 0),
+            sample_rate_hz=_optional_int(audio_stream.get("sample_rate")) or 0,
+            channel_count=_optional_int(audio_stream.get("channels")) or 0,
             bit_depth=_resolve_bit_depth(audio_stream),
             duration_seconds=_optional_float(audio_stream.get("duration") or format_payload.get("duration")),
         )
@@ -259,9 +259,9 @@ def _normalise_container(format_name: str) -> str:
 
 def _resolve_bit_depth(audio_stream: dict[str, object]) -> int:
     for key in ("bits_per_sample", "bits_per_raw_sample"):
-        value = audio_stream.get(key)
-        if value not in (None, "", 0, "0"):
-            return int(value)
+        value = _optional_int(audio_stream.get(key))
+        if value not in (None, 0):
+            return value
     codec = str(audio_stream.get("codec_name") or "")
     if codec.startswith("pcm_s16"):
         return 16
@@ -272,7 +272,19 @@ def _resolve_bit_depth(audio_stream: dict[str, object]) -> int:
     return 0
 
 
+def _optional_int(value: object) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _optional_float(value: object) -> float | None:
     if value in (None, ""):
         return None
-    return float(value)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None

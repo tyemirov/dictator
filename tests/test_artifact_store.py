@@ -89,14 +89,45 @@ class LocalArtifactStoreTests(unittest.TestCase):
 
             self.assertIsNone(record.audio_metadata)
 
+    def test_probe_audio_metadata_tolerates_ffprobe_placeholders(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = LocalArtifactStore(Path(tmpdir))
+            fake_ffmpeg = types.SimpleNamespace(
+                probe=lambda _path: {
+                    "streams": [
+                        {
+                            "codec_type": "audio",
+                            "codec_name": "opus",
+                            "sample_rate": "N/A",
+                            "channels": "N/A",
+                            "bits_per_sample": "N/A",
+                            "bits_per_raw_sample": "N/A",
+                            "duration": "N/A",
+                        }
+                    ],
+                    "format": {"format_name": "ogg", "duration": "N/A"},
+                }
+            )
+            with patch.dict(sys.modules, {"ffmpeg": fake_ffmpeg}):
+                record = store.write_artifact([b"OggS"], filename="sample.ogg", media_type="audio/ogg")
+
+            self.assertEqual(record.audio_metadata.container, "ogg")
+            self.assertEqual(record.audio_metadata.codec, "opus")
+            self.assertEqual(record.audio_metadata.sample_rate_hz, 0)
+            self.assertEqual(record.audio_metadata.channel_count, 0)
+            self.assertEqual(record.audio_metadata.bit_depth, 0)
+            self.assertIsNone(record.audio_metadata.duration_seconds)
+
     def test_audio_metadata_parse_helpers(self):
         self.assertEqual(_normalise_container("mp3,mp2"), "mp3")
         self.assertEqual(_normalise_container("matroska,webm"), "matroska")
         self.assertEqual(_resolve_bit_depth({"codec_name": "pcm_s16le"}), 16)
         self.assertEqual(_resolve_bit_depth({"codec_name": "pcm_s24le"}), 24)
         self.assertEqual(_resolve_bit_depth({"codec_name": "pcm_s32le"}), 32)
+        self.assertEqual(_resolve_bit_depth({"bits_per_sample": "N/A", "codec_name": "opus"}), 0)
         self.assertEqual(_resolve_bit_depth({"codec_name": "opus"}), 0)
         self.assertIsNone(_optional_float(""))
+        self.assertIsNone(_optional_float("N/A"))
 
     def test_iter_artifact_chunks_includes_offsets(self):
         with tempfile.TemporaryDirectory() as tmpdir:
