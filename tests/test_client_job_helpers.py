@@ -119,6 +119,23 @@ class ClientJobHelpersTests(unittest.TestCase):
     def test_empty_audio_format_returns_none(self):
         self.assertIsNone(_audio_format_from_pb(common_pb2.AudioFormat()))
 
+    def test_audio_format_handles_unknown_enums(self):
+        audio_format = _audio_format_from_pb(
+            common_pb2.AudioFormat(
+                container=99,
+                codec=98,
+                sample_rate_hz=44100,
+                channel_count=2,
+                bit_depth=24,
+            )
+        )
+
+        self.assertEqual(audio_format.container, "unknown_audio_container_99")
+        self.assertEqual(audio_format.codec, "unknown_audio_codec_98")
+        self.assertEqual(audio_format.sample_rate_hz, 44100)
+        self.assertEqual(audio_format.channel_count, 2)
+        self.assertEqual(audio_format.bit_depth, 24)
+
     def test_synthesis_convenience_helper_waits_and_requires_result(self):
         with patch("dictator.client.voice.voice_pb2_grpc.VoiceServiceStub", return_value=object()):
             client = SynthesisClient(object())

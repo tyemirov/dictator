@@ -213,10 +213,10 @@ def _audio_format_from_pb(payload: common_pb2.AudioFormat) -> AudioFormat | None
         return None
     container = {
         common_pb2.AUDIO_CONTAINER_WAV: "wav",
-    }.get(payload.container, common_pb2.AudioContainer.Name(payload.container))
+    }.get(payload.container, _unknown_enum_name("audio_container", payload.container))
     codec = {
         common_pb2.AUDIO_CODEC_PCM_S16LE: "pcm_s16le",
-    }.get(payload.codec, common_pb2.AudioCodec.Name(payload.codec))
+    }.get(payload.codec, _unknown_enum_name("audio_codec", payload.codec))
     return AudioFormat(
         container=container,
         codec=codec,
@@ -224,6 +224,10 @@ def _audio_format_from_pb(payload: common_pb2.AudioFormat) -> AudioFormat | None
         channel_count=payload.channel_count,
         bit_depth=payload.bit_depth,
     )
+
+
+def _unknown_enum_name(prefix: str, value: int) -> str:
+    return f"unknown_{prefix}_{value}"
 
 
 class ReferenceSampleClient:
