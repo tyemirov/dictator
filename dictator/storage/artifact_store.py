@@ -18,6 +18,37 @@ _DEFAULT_CHUNK_SIZE = 1024 * 1024
 
 
 @dataclass(frozen=True)
+class ArtifactAudioMetadata:
+    container: str
+    codec: str
+    sample_rate_hz: int
+    channel_count: int
+    bit_depth: int
+    duration_seconds: float | None = None
+
+    def to_json_dict(self) -> dict[str, object]:
+        return {
+            "container": self.container,
+            "codec": self.codec,
+            "sample_rate_hz": self.sample_rate_hz,
+            "channel_count": self.channel_count,
+            "bit_depth": self.bit_depth,
+            "duration_seconds": self.duration_seconds,
+        }
+
+    @classmethod
+    def from_json_dict(cls, payload: dict[str, object]) -> "ArtifactAudioMetadata":
+        return cls(
+            container=str(payload.get("container") or ""),
+            codec=str(payload.get("codec") or ""),
+            sample_rate_hz=int(payload.get("sample_rate_hz") or 0),
+            channel_count=int(payload.get("channel_count") or 0),
+            bit_depth=int(payload.get("bit_depth") or 0),
+            duration_seconds=_optional_float(payload.get("duration_seconds")),
+        )
+
+
+@dataclass(frozen=True)
 class ArtifactRecord:
     artifact_id: str
     filename: str
@@ -26,6 +57,7 @@ class ArtifactRecord:
     sha256: str
     path: Path
     metadata_path: Path
+    audio_metadata: ArtifactAudioMetadata | None = None
 
 
 @dataclass(frozen=True)
@@ -81,11 +113,17 @@ class LocalArtifactStore:
             metadata_path=metadata_path,
         )
 
-    def finalize_artifact(self, reservation: ArtifactReservation) -> ArtifactRecord:
+    def finalize_artifact(
+        self,
+        reservation: ArtifactReservation,
+        *,
+        audio_metadata: ArtifactAudioMetadata | None = None,
+    ) -> ArtifactRecord:
         if not reservation.path.exists():
             raise FileNotFoundError(reservation.path)
         sha256 = hashlib.sha256(reservation.path.read_bytes()).hexdigest()
         size_bytes = reservation.path.stat().st_size
+        resolved_audio_metadata = audio_metadata or self._probe_audio_metadata(reservation)
         payload = {
             "artifact_id": reservation.artifact_id,
             "filename": reservation.filename,
@@ -93,6 +131,8 @@ class LocalArtifactStore:
             "size_bytes": size_bytes,
             "sha256": sha256,
         }
+        if resolved_audio_metadata is not None:
+            payload["audio_metadata"] = resolved_audio_metadata.to_json_dict()
         reservation.metadata_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         return ArtifactRecord(
             artifact_id=reservation.artifact_id,
@@ -102,6 +142,7 @@ class LocalArtifactStore:
             sha256=sha256,
             path=reservation.path,
             metadata_path=reservation.metadata_path,
+            audio_metadata=resolved_audio_metadata,
         )
 
     def discard_reservation(self, reservation: ArtifactReservation) -> None:
@@ -125,6 +166,8 @@ class LocalArtifactStore:
         artifact_dir = self.root_dir / artifact_id
         metadata_path = artifact_dir / "metadata.json"
         payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+        audio_payload = payload.get("audio_metadata")
+        audio_metadata = ArtifactAudioMetadata.from_json_dict(audio_payload) if isinstance(audio_payload, dict) else None
         path = artifact_dir / payload["filename"]
         return ArtifactRecord(
             artifact_id=payload["artifact_id"],
@@ -134,6 +177,7 @@ class LocalArtifactStore:
             sha256=payload["sha256"],
             path=path,
             metadata_path=metadata_path,
+            audio_metadata=audio_metadata,
         )
 
     def open_artifact(self, artifact_id: str) -> tuple[ArtifactRecord, BinaryIO]:
@@ -160,3 +204,75 @@ class LocalArtifactStore:
     def read_text(self, artifact_id: str, encoding: str = "utf-8") -> str:
         record = self.get_artifact(artifact_id)
         return record.path.read_text(encoding=encoding)
+
+    def _probe_audio_metadata(self, reservation: ArtifactReservation) -> ArtifactAudioMetadata | None:
+        if not _looks_like_audio(reservation.filename, reservation.media_type):
+            return None
+        try:
+            import ffmpeg
+
+            probe = ffmpeg.probe(str(reservation.path))
+        except Exception:
+            return None
+
+        streams = probe.get("streams") or ()
+        audio_stream = next((stream for stream in streams if stream.get("codec_type") == "audio"), None)
+        if not isinstance(audio_stream, dict):
+            return None
+        format_payload = probe.get("format") if isinstance(probe.get("format"), dict) else {}
+        return ArtifactAudioMetadata(
+            container=_normalise_container(
+                str(format_payload.get("format_name") or Path(reservation.filename).suffix.lstrip("."))
+            ),
+            codec=str(audio_stream.get("codec_name") or ""),
+            sample_rate_hz=int(audio_stream.get("sample_rate") or 0),
+            channel_count=int(audio_stream.get("channels") or 0),
+            bit_depth=_resolve_bit_depth(audio_stream),
+            duration_seconds=_optional_float(audio_stream.get("duration") or format_payload.get("duration")),
+        )
+
+
+def _looks_like_audio(filename: str, media_type: str) -> bool:
+    if media_type.startswith("audio/"):
+        return True
+    return Path(filename).suffix.lower() in {
+        ".aac",
+        ".aiff",
+        ".flac",
+        ".m4a",
+        ".mp3",
+        ".ogg",
+        ".opus",
+        ".wav",
+        ".webm",
+    }
+
+
+def _normalise_container(format_name: str) -> str:
+    first_name = format_name.split(",", 1)[0].strip().lower()
+    if first_name == "wav":
+        return "wav"
+    if first_name in {"mp3", "mp4", "ogg", "webm", "flac", "aiff"}:
+        return first_name
+    return first_name
+
+
+def _resolve_bit_depth(audio_stream: dict[str, object]) -> int:
+    for key in ("bits_per_sample", "bits_per_raw_sample"):
+        value = audio_stream.get(key)
+        if value not in (None, "", 0, "0"):
+            return int(value)
+    codec = str(audio_stream.get("codec_name") or "")
+    if codec.startswith("pcm_s16"):
+        return 16
+    if codec.startswith("pcm_s24"):
+        return 24
+    if codec.startswith("pcm_s32"):
+        return 32
+    return 0
+
+
+def _optional_float(value: object) -> float | None:
+    if value in (None, ""):
+        return None
+    return float(value)

@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1f\x64ictator/speech/v1/common.proto\x12\x12\x64ictator.speech.v1\"l\n\x0b\x41rtifactRef\x12\x13\n\x0b\x61rtifact_id\x18\x01 \x01(\t\x12\x10\n\x08\x66ilename\x18\x02 \x01(\t\x12\x12\n\nmedia_type\x18\x03 \x01(\t\x12\x12\n\nsize_bytes\x18\x04 \x01(\x03\x12\x0e\n\x06sha256\x18\x05 \x01(\t\"\xb5\x01\n\x0b\x41udioFormat\x12\x35\n\tcontainer\x18\x01 \x01(\x0e\x32\".dictator.speech.v1.AudioContainer\x12-\n\x05\x63odec\x18\x02 \x01(\x0e\x32\x1e.dictator.speech.v1.AudioCodec\x12\x16\n\x0esample_rate_hz\x18\x03 \x01(\x05\x12\x15\n\rchannel_count\x18\x04 \x01(\x05\x12\x11\n\tbit_depth\x18\x05 \x01(\x05\"J\n\x0bWordSegment\x12\x0f\n\x07\x63ontent\x18\x01 \x01(\t\x12\x15\n\rstart_seconds\x18\x02 \x01(\x01\x12\x13\n\x0b\x65nd_seconds\x18\x03 \x01(\x01\"N\n\x0fTimelineSegment\x12\x0f\n\x07\x63ontent\x18\x01 \x01(\t\x12\x15\n\rstart_seconds\x18\x02 \x01(\x01\x12\x13\n\x0b\x65nd_seconds\x18\x03 \x01(\x01*J\n\x0e\x41udioContainer\x12\x1f\n\x1b\x41UDIO_CONTAINER_UNSPECIFIED\x10\x00\x12\x17\n\x13\x41UDIO_CONTAINER_WAV\x10\x01*D\n\nAudioCodec\x12\x1b\n\x17\x41UDIO_CODEC_UNSPECIFIED\x10\x00\x12\x19\n\x15\x41UDIO_CODEC_PCM_S16LE\x10\x01\x42GZEgithub.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1f\x64ictator/speech/v1/common.proto\x12\x12\x64ictator.speech.v1\"\xa7\x01\n\x0b\x41rtifactRef\x12\x13\n\x0b\x61rtifact_id\x18\x01 \x01(\t\x12\x10\n\x08\x66ilename\x18\x02 \x01(\t\x12\x12\n\nmedia_type\x18\x03 \x01(\t\x12\x12\n\nsize_bytes\x18\x04 \x01(\x03\x12\x0e\n\x06sha256\x18\x05 \x01(\t\x12\x39\n\x0e\x61udio_metadata\x18\x06 \x01(\x0b\x32!.dictator.speech.v1.AudioMetadata\"\xb5\x01\n\x0b\x41udioFormat\x12\x35\n\tcontainer\x18\x01 \x01(\x0e\x32\".dictator.speech.v1.AudioContainer\x12-\n\x05\x63odec\x18\x02 \x01(\x0e\x32\x1e.dictator.speech.v1.AudioCodec\x12\x16\n\x0esample_rate_hz\x18\x03 \x01(\x05\x12\x15\n\rchannel_count\x18\x04 \x01(\x05\x12\x11\n\tbit_depth\x18\x05 \x01(\x05\"\x8d\x01\n\rAudioMetadata\x12\x11\n\tcontainer\x18\x01 \x01(\t\x12\r\n\x05\x63odec\x18\x02 \x01(\t\x12\x16\n\x0esample_rate_hz\x18\x03 \x01(\x05\x12\x15\n\rchannel_count\x18\x04 \x01(\x05\x12\x11\n\tbit_depth\x18\x05 \x01(\x05\x12\x18\n\x10\x64uration_seconds\x18\x06 \x01(\x01\"J\n\x0bWordSegment\x12\x0f\n\x07\x63ontent\x18\x01 \x01(\t\x12\x15\n\rstart_seconds\x18\x02 \x01(\x01\x12\x13\n\x0b\x65nd_seconds\x18\x03 \x01(\x01\"N\n\x0fTimelineSegment\x12\x0f\n\x07\x63ontent\x18\x01 \x01(\t\x12\x15\n\rstart_seconds\x18\x02 \x01(\x01\x12\x13\n\x0b\x65nd_seconds\x18\x03 \x01(\x01*J\n\x0e\x41udioContainer\x12\x1f\n\x1b\x41UDIO_CONTAINER_UNSPECIFIED\x10\x00\x12\x17\n\x13\x41UDIO_CONTAINER_WAV\x10\x01*D\n\nAudioCodec\x12\x1b\n\x17\x41UDIO_CODEC_UNSPECIFIED\x10\x00\x12\x19\n\x15\x41UDIO_CODEC_PCM_S16LE\x10\x01\x42GZEgithub.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -32,16 +32,18 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'dictator.speech.v1.common_p
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'ZEgithub.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1'
-  _globals['_AUDIOCONTAINER']._serialized_start=505
-  _globals['_AUDIOCONTAINER']._serialized_end=579
-  _globals['_AUDIOCODEC']._serialized_start=581
-  _globals['_AUDIOCODEC']._serialized_end=649
-  _globals['_ARTIFACTREF']._serialized_start=55
-  _globals['_ARTIFACTREF']._serialized_end=163
-  _globals['_AUDIOFORMAT']._serialized_start=166
-  _globals['_AUDIOFORMAT']._serialized_end=347
-  _globals['_WORDSEGMENT']._serialized_start=349
-  _globals['_WORDSEGMENT']._serialized_end=423
-  _globals['_TIMELINESEGMENT']._serialized_start=425
-  _globals['_TIMELINESEGMENT']._serialized_end=503
+  _globals['_AUDIOCONTAINER']._serialized_start=709
+  _globals['_AUDIOCONTAINER']._serialized_end=783
+  _globals['_AUDIOCODEC']._serialized_start=785
+  _globals['_AUDIOCODEC']._serialized_end=853
+  _globals['_ARTIFACTREF']._serialized_start=56
+  _globals['_ARTIFACTREF']._serialized_end=223
+  _globals['_AUDIOFORMAT']._serialized_start=226
+  _globals['_AUDIOFORMAT']._serialized_end=407
+  _globals['_AUDIOMETADATA']._serialized_start=410
+  _globals['_AUDIOMETADATA']._serialized_end=551
+  _globals['_WORDSEGMENT']._serialized_start=553
+  _globals['_WORDSEGMENT']._serialized_end=627
+  _globals['_TIMELINESEGMENT']._serialized_start=629
+  _globals['_TIMELINESEGMENT']._serialized_end=707
 # @@protoc_insertion_point(module_scope)

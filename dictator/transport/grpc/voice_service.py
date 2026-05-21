@@ -13,6 +13,7 @@ from dictator.runtime.jobs import (
     validate_extract_reference_sample_job_id,
 )
 from dictator.speech.v1 import common_pb2, voice_pb2, voice_pb2_grpc
+from dictator.storage import ArtifactAudioMetadata
 from dictator.synthesis.models import DEFAULT_SYNTHESIS_AUDIO_FORMAT, SynthesisAudioFormat, SynthesisEngine
 from dictator.synthesis.workflow import (
     execute_synthesis_request,
@@ -189,7 +190,17 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
                 model=self.service_context.execution_runtime.get_whisper_model(prepared.model_size),
                 diarization_pipeline=self.service_context.execution_runtime.get_diarization_pipeline(),
             )
-            sample_record = self.service_context.artifact_store.finalize_artifact(reservation)
+            sample_record = self.service_context.artifact_store.finalize_artifact(
+                reservation,
+                audio_metadata=ArtifactAudioMetadata(
+                    container="wav",
+                    codec="pcm_s16le",
+                    sample_rate_hz=24_000,
+                    channel_count=1,
+                    bit_depth=16,
+                    duration_seconds=max(0.0, result.trim_end_seconds - result.trim_start_seconds),
+                ),
+            )
             return voice_pb2.ExtractReferenceSampleResponse(
                 sample_artifact=self._artifact_ref(sample_record),
                 trim_start_seconds=result.trim_start_seconds,

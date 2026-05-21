@@ -8,7 +8,7 @@
   - Impact: Downstream capability catalogs cannot honestly advertise multiple Dictator output formats. MediaOps had to restrict Dictator speech synthesis to the observed default provider output instead of exposing `wav_44100` or `wav_48000`.
   - Expected: Add an explicit synthesis output-audio contract, such as a `SynthesisAudioFormat` request field plus resolved output metadata in `SynthesizeSpeechResponse` and `GetSynthesizeSpeechJobResponse`.
 
-- [ ] [API-002] Artifact references do not expose audio properties needed by downstream tools.
+- [x] [API-002] Artifact references do not expose audio properties needed by downstream tools.
   - Source: MediaOps Dictator provider integration review on 2026-05-21.
   - Finding: `ArtifactRef` exposes only generic artifact fields (`artifact_id`, `filename`, `media_type`, `size_bytes`, `sha256`). It does not expose audio-specific metadata such as container, codec, sample rate, channel count, bit depth, or duration.
   - Impact: Consumers that need deterministic media handling must download and inspect artifacts out of band, or hard-code assumptions about Dictator outputs. This makes provider capability reporting and post-processing brittle.
