@@ -15,7 +15,7 @@ from dictator.runtime.jobs import SynthesisJobRecord, SynthesisJobState
 from dictator.runtime import DependencyError, InflightLimiter, MetricsRegistry, ProcessingError, ServiceRequestError, ValidationError
 from dictator.speech.v1 import alignment_pb2, artifacts_pb2, common_pb2, subtitle_pb2, transcription_pb2, voice_pb2
 from dictator.storage import LocalArtifactStore
-from dictator.synthesis.models import DEFAULT_SYNTHESIS_AUDIO_FORMAT, SynthesisEngine
+from dictator.synthesis.models import DEFAULT_SYNTHESIS_AUDIO_FORMAT, SILERO_RU_SYNTHESIS_AUDIO_FORMAT, SynthesisEngine
 from dictator.transport.grpc.services import (
     AlignmentServiceServicer,
     ArtifactServiceServicer,
@@ -398,14 +398,59 @@ class GrpcServicesUnitTests(unittest.TestCase):
     def test_voice_servicer_branches(self):
         servicer = VoiceServiceServicer(self.context)
         self.assertEqual(servicer._resolve_synthesis_engine(voice_pb2.SYNTHESIS_ENGINE_QWEN3), SynthesisEngine.QWEN3)
-        with self.assertRaisesRegex(ValidationError, "synthesis_engine must be set"):
-            servicer._resolve_synthesis_engine(voice_pb2.SYNTHESIS_ENGINE_UNSPECIFIED)
+        self.assertEqual(
+            servicer._resolve_synthesis_engine(voice_pb2.SYNTHESIS_ENGINE_SILERO_RU),
+            SynthesisEngine.SILERO_RU,
+        )
+        self.assertEqual(
+            servicer._resolve_synthesis_engine(voice_pb2.SYNTHESIS_ENGINE_UNSPECIFIED, "ru-RU"),
+            SynthesisEngine.SILERO_RU,
+        )
+        self.assertEqual(
+            servicer._resolve_synthesis_engine(voice_pb2.SYNTHESIS_ENGINE_UNSPECIFIED, "en"),
+            SynthesisEngine.QWEN3,
+        )
+        with self.assertRaisesRegex(ValidationError, "synthesis_engine must be"):
+            servicer._resolve_synthesis_engine(99)
         self.assertEqual(
             servicer._resolve_synthesis_audio_format(
-                voice_pb2.SynthesizeSpeechRequest(audio_format=common_pb2.AudioFormat(sample_rate_hz=24000))
+                voice_pb2.SynthesizeSpeechRequest(audio_format=common_pb2.AudioFormat(sample_rate_hz=24000)),
+                SynthesisEngine.QWEN3,
             ),
             DEFAULT_SYNTHESIS_AUDIO_FORMAT,
         )
+        self.assertEqual(
+            servicer._resolve_synthesis_audio_format(
+                voice_pb2.SynthesizeSpeechRequest(audio_format=common_pb2.AudioFormat(sample_rate_hz=48000)),
+                SynthesisEngine.SILERO_RU,
+            ).sample_rate_hz,
+            48000,
+        )
+        self.assertEqual(SILERO_RU_SYNTHESIS_AUDIO_FORMAT.sample_rate_hz, 24000)
+        self.assertEqual(
+            servicer._resolve_synthesis_audio_format(
+                voice_pb2.SynthesizeSpeechRequest(audio_format=common_pb2.AudioFormat(sample_rate_hz=44100)),
+                SynthesisEngine.QWEN3,
+            ).sample_rate_hz,
+            44100,
+        )
+        self.assertEqual(
+            servicer._resolve_synthesis_audio_format(
+                voice_pb2.SynthesizeSpeechRequest(audio_format=common_pb2.AudioFormat(sample_rate_hz=8000)),
+                SynthesisEngine.SILERO_RU,
+            ).sample_rate_hz,
+            8000,
+        )
+        with self.assertRaisesRegex(ValidationError, "container/codec/channels"):
+            servicer._resolve_synthesis_audio_format(
+                voice_pb2.SynthesizeSpeechRequest(audio_format=common_pb2.AudioFormat(channel_count=2)),
+                SynthesisEngine.SILERO_RU,
+            )
+        with self.assertRaisesRegex(ValidationError, "positive integer"):
+            servicer._resolve_synthesis_audio_format(
+                voice_pb2.SynthesizeSpeechRequest(audio_format=common_pb2.AudioFormat(sample_rate_hz=-16000)),
+                SynthesisEngine.SILERO_RU,
+            )
         self.assertEqual(
             servicer._resolve_speaker_transcript_text(
                 types.SimpleNamespace(
@@ -443,7 +488,7 @@ class GrpcServicesUnitTests(unittest.TestCase):
                     speaker_artifact_id=self.audio_record.artifact_id,
                     text="hello",
                     synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_QWEN3,
-                    audio_format=common_pb2.AudioFormat(sample_rate_hz=48000),
+                    audio_format=common_pb2.AudioFormat(sample_rate_hz=-48000),
                 ),
                 FakeContext(metadata=(("x-dictator-token", "secret"),)),
             )
@@ -503,6 +548,27 @@ class GrpcServicesUnitTests(unittest.TestCase):
             )
         self.assertTrue(response.timeline_artifact_id)
         self.assertEqual(response.timeline[0].content, "hello")
+
+        self.runtime.synthesis_service = FakeSynthesisService(timeline_result)
+        with patch.dict(
+            sys.modules,
+            {
+                "dictator.audio.ffmpeg_ops": fake_ffmpeg_module,
+                "dictator.synthesis.service": fake_synthesis_service,
+            },
+        ):
+            response = servicer.SynthesizeSpeech(
+                voice_pb2.SynthesizeSpeechRequest(
+                    text="привет",
+                    language_code="ru",
+                    include_timeline=True,
+                    preset_speaker="xenia",
+                ),
+                FakeContext(metadata=(("x-dictator-token", "secret"),)),
+            )
+        self.assertEqual(response.resolved_audio_format.sample_rate_hz, 24000)
+        self.assertEqual(self.runtime.synthesis_service.calls[-1].engine, SynthesisEngine.SILERO_RU)
+        self.assertEqual(self.runtime.synthesis_service.calls[-1].preset_speaker, "xenia")
 
     def test_voice_servicer_job_submission_and_lookup(self):
         audio_record = self.context.artifact_store.write_artifact([b"wav"], filename="result.wav", media_type="audio/wav")

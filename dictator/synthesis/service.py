@@ -14,11 +14,16 @@ from dictator.runtime import DependencyError, ValidationError
 
 from .config import (
     DEFAULT_QWEN3_MODEL_ID,
+    DEFAULT_SILERO_RU_DEFAULT_SPEAKER,
+    DEFAULT_SILERO_RU_MODEL_URL,
+    DEFAULT_SILERO_RU_SAMPLE_RATE,
+    DEFAULT_SILERO_RU_TEXT_CHAR_BUDGET,
     DEFAULT_QWEN3_TEXT_TOKEN_BUDGET,
     QWEN3_FAST_ATTENTION_IMPLEMENTATION,
     SynthesisConfig,
 )
 from .models import (
+    SILERO_RU_NATIVE_SAMPLE_RATES,
     SpeechSegment,
     SynthesisedAudioChunk,
     SynthesisChunk,
@@ -41,6 +46,8 @@ QWEN3_LANGUAGE_NAMES = {
     "ru": "Russian",
     "zh": "Chinese",
 }
+SILERO_RU_LANGUAGE_CODE = "ru"
+SILERO_RU_SUPPORTED_SPEAKERS = frozenset(("baya", "xenia"))
 INTER_CHUNK_SILENCE_SECONDS = 0.18
 ProgressCallback = Callable[[int, int], None]
 
@@ -81,6 +88,27 @@ def _qwen3_language_name(language_code: str) -> str:
 
 def _sentence_units(text: str) -> tuple[str, ...]:
     return tuple(sentence.strip() for sentence in split_into_sentences(text) if sentence.strip())
+
+
+def _base_language_code(language_code: str) -> str:
+    normalized = (language_code or "").strip().lower().replace("_", "-")
+    return normalized.split("-", 1)[0]
+
+
+def _pack_text_units_by_chars(units: Sequence[str], char_budget: int) -> tuple[SynthesisChunk, ...]:
+    chunks: list[SynthesisChunk] = []
+    buffer: list[str] = []
+    for unit in units:
+        candidate_units = [*buffer, unit]
+        candidate_text = join_synthesis_units(candidate_units)
+        if buffer and len(candidate_text) > char_budget:
+            chunks.append(SynthesisChunk.from_units(buffer))
+            buffer = [unit]
+            continue
+        buffer = candidate_units
+    if buffer:
+        chunks.append(SynthesisChunk.from_units(buffer))
+    return tuple(chunks)
 
 
 class Qwen3SynthesisSession:
@@ -279,8 +307,155 @@ class Qwen3TTSBackend:
         )
 
 
+class SileroRuSynthesisSession:
+    def __init__(
+        self,
+        model,
+        *,
+        speaker: str,
+        sample_rate: int,
+        text_char_budget: int,
+    ) -> None:
+        self._model = model
+        self._speaker = speaker
+        self._sample_rate = sample_rate
+        self._text_char_budget = text_char_budget
+
+    def build_chunks(self, text: str) -> Sequence[SynthesisChunk]:
+        units = _sentence_units(text) or (text,)
+        chunks = _pack_text_units_by_chars(units, self._text_char_budget)
+        logging.info(
+            "silero_ru packed %d sentence units into %d chunks with char budget=%d",
+            len(units),
+            len(chunks),
+            self._text_char_budget,
+        )
+        return chunks
+
+    def refine_chunk(self, chunk: SynthesisChunk) -> Sequence[SynthesisChunk]:
+        if len(chunk.units) <= 1:
+            return (chunk,)
+        midpoint = len(chunk.units) // 2
+        return (
+            SynthesisChunk.from_units(chunk.units[:midpoint]),
+            SynthesisChunk.from_units(chunk.units[midpoint:]),
+        )
+
+    def synthesise_chunk(self, text: str) -> SynthesisedAudioChunk:
+        kwargs = {
+            "text": text,
+            "speaker": self._speaker,
+            "sample_rate": self._sample_rate,
+            "put_accent": True,
+            "put_yo": True,
+        }
+        try:
+            samples = self._model.apply_tts(**kwargs)
+        except TypeError:
+            kwargs.pop("put_accent")
+            kwargs.pop("put_yo")
+            samples = self._model.apply_tts(**kwargs)
+        if hasattr(samples, "detach"):
+            samples = samples.detach().cpu().numpy()
+        duration_seconds = len(samples) / self._sample_rate if self._sample_rate else 0.0
+        return SynthesisedAudioChunk(
+            samples=samples,
+            sample_rate=self._sample_rate,
+            duration_seconds=duration_seconds,
+        )
+
+
+class SileroRuTTSBackend:
+    """Lazy Silero v5 Russian preset-speaker TTS wrapper."""
+
+    engine = SynthesisEngine.SILERO_RU
+
+    def __init__(
+        self,
+        *,
+        model_path: str = "",
+        model_url: str = DEFAULT_SILERO_RU_MODEL_URL,
+        default_speaker: str = DEFAULT_SILERO_RU_DEFAULT_SPEAKER,
+        sample_rate: int = DEFAULT_SILERO_RU_SAMPLE_RATE,
+        text_char_budget: int = DEFAULT_SILERO_RU_TEXT_CHAR_BUDGET,
+    ) -> None:
+        self.model_path = model_path
+        self.model_url = model_url
+        self.default_speaker = default_speaker
+        self.sample_rate = sample_rate
+        self.text_char_budget = text_char_budget
+        self._model = None
+        self._load_lock = threading.Lock()
+
+    def _resolve_speaker(self, preset_speaker: str | None) -> str:
+        speaker = (preset_speaker or self.default_speaker).strip().lower()
+        if speaker not in SILERO_RU_SUPPORTED_SPEAKERS:
+            supported = ", ".join(sorted(SILERO_RU_SUPPORTED_SPEAKERS))
+            raise ValidationError(
+                "dictator.synthesis.silero_ru.speaker_unsupported",
+                f"silero_ru speaker must be one of: {supported}",
+            )
+        return speaker
+
+    def _resolve_sample_rate(self, request: SynthesisRequest) -> int:
+        if request.audio_format is None:
+            return self.sample_rate
+        requested_sample_rate = request.audio_format.sample_rate_hz
+        if requested_sample_rate in SILERO_RU_NATIVE_SAMPLE_RATES:
+            return requested_sample_rate
+        return self.sample_rate
+
+    def _download_model(self, torch, destination: Path) -> Path:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        torch.hub.download_url_to_file(self.model_url, str(destination))
+        return destination
+
+    def _model_cache_path(self) -> Path:
+        return Path.home() / ".cache" / "dictator" / "models" / "silero" / Path(self.model_url).name
+
+    def _ensure_model_path(self, torch) -> Path:
+        if self.model_path:
+            configured = Path(self.model_path)
+            if configured.exists():
+                return configured
+            return self._download_model(torch, configured)
+        cached = self._model_cache_path()
+        if cached.exists():
+            return cached
+        return self._download_model(torch, cached)
+
+    def load(self):
+        if self._model is not None:
+            return self._model
+        with self._load_lock:
+            if self._model is None:
+                import torch
+
+                model_path = self._ensure_model_path(torch)
+                logging.info("loading silero_ru model from %s", model_path)
+                importer = torch.package.PackageImporter(str(model_path))
+                model = importer.load_pickle("tts_models", "model")
+                device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+                model.to(device)
+                self._model = model
+        return self._model
+
+    def open_session(self, request: SynthesisRequest) -> SynthesisSession:
+        if _base_language_code(request.language_code) != SILERO_RU_LANGUAGE_CODE:
+            raise ValidationError(
+                "dictator.synthesis.silero_ru.language_unsupported",
+                f"silero_ru synthesis requires language_code='ru', got {request.language_code!r}",
+            )
+        return SileroRuSynthesisSession(
+            self.load(),
+            speaker=self._resolve_speaker(request.preset_speaker),
+            sample_rate=self._resolve_sample_rate(request),
+            text_char_budget=self.text_char_budget,
+        )
+
+
 class SpeechSynthesisService:
-    """Service layer for request-safe Qwen3 synthesis."""
+    """Service layer for request-safe speech synthesis."""
 
     def __init__(self, backends: Mapping[SynthesisEngine, SynthesisBackend] | None = None) -> None:
         if backends is None:
@@ -290,7 +465,14 @@ class SpeechSynthesisService:
                     model_id=synthesis_config.qwen3_model_id,
                     dtype=synthesis_config.qwen3_dtype,
                     text_token_budget=synthesis_config.qwen3_text_token_budget,
-                )
+                ),
+                SynthesisEngine.SILERO_RU: SileroRuTTSBackend(
+                    model_path=synthesis_config.silero_ru_model_path,
+                    model_url=synthesis_config.silero_ru_model_url,
+                    default_speaker=synthesis_config.silero_ru_default_speaker,
+                    sample_rate=synthesis_config.silero_ru_sample_rate,
+                    text_char_budget=synthesis_config.silero_ru_text_char_budget,
+                ),
             }
         self.backends = dict(backends)
 
@@ -410,6 +592,8 @@ class SpeechSynthesisService:
             cap_seconds=request.cap_seconds,
             speaker_artifact_id=request.speaker_artifact_id,
             speaker_transcript_text=request.speaker_transcript_text,
+            preset_speaker=request.preset_speaker,
+            audio_format=request.audio_format,
         )
         session = self._resolve_backend(normalized_request.engine).open_session(normalized_request)
         chunks = tuple(session.build_chunks(cleaned_text))

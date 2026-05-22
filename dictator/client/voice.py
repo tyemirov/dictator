@@ -83,14 +83,15 @@ class SynthesisClient:
     def synthesize(
         self,
         *,
-        speaker_artifact_id: str,
+        speaker_artifact_id: str = "",
         text: str = "",
         text_artifact_id: str = "",
         language_code: str = "",
         max_duration_seconds: float = 0.0,
         include_timeline: bool = False,
-        synthesis_engine: int = voice_pb2.SYNTHESIS_ENGINE_QWEN3,
+        synthesis_engine: int = voice_pb2.SYNTHESIS_ENGINE_UNSPECIFIED,
         speaker_transcript_text: str = "",
+        preset_speaker: str = "",
         audio_format: common_pb2.AudioFormat | None = None,
         timeout_seconds: float | None = None,
         poll_interval_seconds: float = 1.0,
@@ -104,6 +105,7 @@ class SynthesisClient:
             include_timeline=include_timeline,
             synthesis_engine=synthesis_engine,
             speaker_transcript_text=speaker_transcript_text,
+            preset_speaker=preset_speaker,
             audio_format=audio_format,
         )
         finished = self.wait_for_synthesis_job(
@@ -118,14 +120,15 @@ class SynthesisClient:
     def submit_synthesize_job(
         self,
         *,
-        speaker_artifact_id: str,
+        speaker_artifact_id: str = "",
         text: str = "",
         text_artifact_id: str = "",
         language_code: str = "",
         max_duration_seconds: float = 0.0,
         include_timeline: bool = False,
-        synthesis_engine: int = voice_pb2.SYNTHESIS_ENGINE_QWEN3,
+        synthesis_engine: int = voice_pb2.SYNTHESIS_ENGINE_UNSPECIFIED,
         speaker_transcript_text: str = "",
+        preset_speaker: str = "",
         audio_format: common_pb2.AudioFormat | None = None,
     ) -> SynthesisJob:
         request = voice_pb2.SynthesizeSpeechRequest(
@@ -135,6 +138,7 @@ class SynthesisClient:
             include_timeline=include_timeline,
             synthesis_engine=synthesis_engine,
             speaker_transcript_text=speaker_transcript_text,
+            preset_speaker=preset_speaker,
         )
         if audio_format is not None:
             request.audio_format.CopyFrom(audio_format)

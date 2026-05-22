@@ -82,6 +82,7 @@ class ClientJobHelpersTests(unittest.TestCase):
                 max_duration_seconds=5.0,
                 include_timeline=True,
                 speaker_transcript_text="sample transcript",
+                preset_speaker="xenia",
                 audio_format=common_pb2.AudioFormat(sample_rate_hz=24000),
             )
             submitted_with_text = client.submit_synthesize_job(
@@ -97,7 +98,9 @@ class ClientJobHelpersTests(unittest.TestCase):
         self.assertEqual(request.language_code, "en")
         self.assertEqual(request.max_duration_seconds, 5.0)
         self.assertTrue(request.include_timeline)
+        self.assertEqual(request.synthesis_engine, voice_pb2.SYNTHESIS_ENGINE_UNSPECIFIED)
         self.assertEqual(request.speaker_transcript_text, "sample transcript")
+        self.assertEqual(request.preset_speaker, "xenia")
         self.assertEqual(request.audio_format.sample_rate_hz, 24000)
         self.assertEqual(stub.SubmitSynthesizeSpeechJob.call_args.kwargs["metadata"], (("authorization", "Bearer secret"),))
         self.assertEqual(submitted.job_id, "syn-1")

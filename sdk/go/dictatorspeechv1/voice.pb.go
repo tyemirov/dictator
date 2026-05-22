@@ -26,6 +26,7 @@ type SynthesisEngine int32
 const (
 	SynthesisEngine_SYNTHESIS_ENGINE_UNSPECIFIED SynthesisEngine = 0
 	SynthesisEngine_SYNTHESIS_ENGINE_QWEN3       SynthesisEngine = 1
+	SynthesisEngine_SYNTHESIS_ENGINE_SILERO_RU   SynthesisEngine = 2
 )
 
 // Enum value maps for SynthesisEngine.
@@ -33,10 +34,12 @@ var (
 	SynthesisEngine_name = map[int32]string{
 		0: "SYNTHESIS_ENGINE_UNSPECIFIED",
 		1: "SYNTHESIS_ENGINE_QWEN3",
+		2: "SYNTHESIS_ENGINE_SILERO_RU",
 	}
 	SynthesisEngine_value = map[string]int32{
 		"SYNTHESIS_ENGINE_UNSPECIFIED": 0,
 		"SYNTHESIS_ENGINE_QWEN3":       1,
+		"SYNTHESIS_ENGINE_SILERO_RU":   2,
 	}
 )
 
@@ -713,6 +716,7 @@ type SynthesizeSpeechRequest struct {
 	SynthesisEngine       SynthesisEngine                      `protobuf:"varint,7,opt,name=synthesis_engine,json=synthesisEngine,proto3,enum=dictator.speech.v1.SynthesisEngine" json:"synthesis_engine,omitempty"`
 	SpeakerTranscriptText string                               `protobuf:"bytes,8,opt,name=speaker_transcript_text,json=speakerTranscriptText,proto3" json:"speaker_transcript_text,omitempty"`
 	AudioFormat           *AudioFormat                         `protobuf:"bytes,9,opt,name=audio_format,json=audioFormat,proto3" json:"audio_format,omitempty"`
+	PresetSpeaker         string                               `protobuf:"bytes,10,opt,name=preset_speaker,json=presetSpeaker,proto3" json:"preset_speaker,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -819,6 +823,13 @@ func (x *SynthesizeSpeechRequest) GetAudioFormat() *AudioFormat {
 		return x.AudioFormat
 	}
 	return nil
+}
+
+func (x *SynthesizeSpeechRequest) GetPresetSpeaker() string {
+	if x != nil {
+		return x.PresetSpeaker
+	}
+	return ""
 }
 
 type isSynthesizeSpeechRequest_TextSource interface {
@@ -1308,7 +1319,7 @@ const file_dictator_speech_v1_voice_proto_rawDesc = "" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"\x8a\x01\n" +
 	"'CancelExtractReferenceSampleJobResponse\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12H\n" +
-	"\x05state\x18\x02 \x01(\x0e22.dictator.speech.v1.ExtractReferenceSampleJobStateR\x05state\"\xe8\x03\n" +
+	"\x05state\x18\x02 \x01(\x0e22.dictator.speech.v1.ExtractReferenceSampleJobStateR\x05state\"\x8f\x04\n" +
 	"\x17SynthesizeSpeechRequest\x12.\n" +
 	"\x13speaker_artifact_id\x18\x01 \x01(\tR\x11speakerArtifactId\x12\x14\n" +
 	"\x04text\x18\x02 \x01(\tH\x00R\x04text\x12*\n" +
@@ -1318,7 +1329,9 @@ const file_dictator_speech_v1_voice_proto_rawDesc = "" +
 	"\x10include_timeline\x18\x06 \x01(\bR\x0fincludeTimeline\x12N\n" +
 	"\x10synthesis_engine\x18\a \x01(\x0e2#.dictator.speech.v1.SynthesisEngineR\x0fsynthesisEngine\x126\n" +
 	"\x17speaker_transcript_text\x18\b \x01(\tR\x15speakerTranscriptText\x12B\n" +
-	"\faudio_format\x18\t \x01(\v2\x1f.dictator.speech.v1.AudioFormatR\vaudioFormatB\r\n" +
+	"\faudio_format\x18\t \x01(\v2\x1f.dictator.speech.v1.AudioFormatR\vaudioFormat\x12%\n" +
+	"\x0epreset_speaker\x18\n" +
+	" \x01(\tR\rpresetSpeakerB\r\n" +
 	"\vtext_source\"\x81\x03\n" +
 	"\x18SynthesizeSpeechResponse\x12F\n" +
 	"\x0eaudio_artifact\x18\x01 \x01(\v2\x1f.dictator.speech.v1.ArtifactRefR\raudioArtifact\x124\n" +
@@ -1355,10 +1368,11 @@ const file_dictator_speech_v1_voice_proto_rawDesc = "" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"w\n" +
 	"!CancelSynthesizeSpeechJobResponse\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12;\n" +
-	"\x05state\x18\x02 \x01(\x0e2%.dictator.speech.v1.SynthesisJobStateR\x05state*O\n" +
+	"\x05state\x18\x02 \x01(\x0e2%.dictator.speech.v1.SynthesisJobStateR\x05state*o\n" +
 	"\x0fSynthesisEngine\x12 \n" +
 	"\x1cSYNTHESIS_ENGINE_UNSPECIFIED\x10\x00\x12\x1a\n" +
-	"\x16SYNTHESIS_ENGINE_QWEN3\x10\x01*\xde\x01\n" +
+	"\x16SYNTHESIS_ENGINE_QWEN3\x10\x01\x12\x1e\n" +
+	"\x1aSYNTHESIS_ENGINE_SILERO_RU\x10\x02*\xde\x01\n" +
 	"\x11SynthesisJobState\x12#\n" +
 	"\x1fSYNTHESIS_JOB_STATE_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aSYNTHESIS_JOB_STATE_QUEUED\x10\x01\x12\x1f\n" +

@@ -287,16 +287,19 @@ Important arguments:
 - `language_code`
 - `max_duration_seconds`
 - `include_timeline`
-- `synthesis_engine`
+- `synthesis_engine`: optional; omitted means language-based defaulting
 - `speaker_transcript_text`
-- `audio_format`: optional requested output format; currently supports WAV / PCM signed 16-bit little-endian / 24000 Hz / mono / 16-bit
+- `preset_speaker`: optional preset voice for preset-speaker engines
+- `audio_format`: optional requested output format
 
 Rules:
 
-- `speaker_artifact_id` is required
+- omitted `synthesis_engine` resolves to Silero Russian TTS for `language_code=ru*`; otherwise it resolves to Qwen3
+- Qwen3 voice cloning requires `speaker_artifact_id` and `speaker_transcript_text`
+- Silero Russian TTS uses preset speakers, defaults to `baya`, and also accepts `xenia`
 - set exactly one of `text` or `text_artifact_id`
-- `speaker_transcript_text` should be provided when known for higher quality voice conditioning
-- omitted `audio_format` resolves to the supported default output format
+- omitted `audio_format` resolves to WAV / PCM signed 16-bit little-endian / 24000 Hz / mono / 16-bit
+- Qwen3 and Silero Russian TTS accept a positive `audio_format.sample_rate_hz`; generated chunks are resampled to the requested output rate
 - unsupported requested output formats fail validation instead of silently returning another format
 
 Result:
@@ -345,6 +348,24 @@ result = client.synthesize(
     speaker_transcript_text="The transcript of the reference sample.",
 )
 print(result.audio_artifact_id)
+```
+
+Minimal Russian preset-speaker example:
+
+```python
+import grpc
+
+from dictator.client import SynthesisClient
+
+channel = grpc.insecure_channel("127.0.0.1:50051")
+client = SynthesisClient(channel, metadata=(("x-dictator-token", token),))
+result = client.synthesize(
+    text="Привет от Диктатора.",
+    language_code="ru",
+    preset_speaker="xenia",
+)
+print(result.audio_artifact_id)
+print(result.resolved_audio_format.sample_rate_hz)  # 24000 by default
 ```
 
 ### Alignment

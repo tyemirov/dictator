@@ -33,6 +33,7 @@ service VoiceService {
 enum SynthesisEngine {
   SYNTHESIS_ENGINE_UNSPECIFIED = 0;
   SYNTHESIS_ENGINE_QWEN3 = 1;
+  SYNTHESIS_ENGINE_SILERO_RU = 2;
 }
 
 enum SynthesisJobState {
@@ -119,6 +120,7 @@ message SynthesizeSpeechRequest {
   SynthesisEngine synthesis_engine = 7;
   string speaker_transcript_text = 8;
   AudioFormat audio_format = 9;
+  string preset_speaker = 10;
 }
 
 message SynthesizeSpeechResponse {

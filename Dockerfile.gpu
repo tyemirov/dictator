@@ -56,6 +56,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HOME=/home/app \
     DICTATOR_MODEL_ROOT=/opt/models \
     DICTATOR_QWEN3_TTS_MODEL_ID=/opt/models/qwen3 \
+    DICTATOR_SILERO_RU_MODEL_PATH=/opt/models/silero/v5_5_ru.pt \
     HF_HOME=/home/app/.cache/huggingface \
     HUGGINGFACE_HUB_CACHE=/home/app/.cache/huggingface/hub \
     WHISPER_CACHE_DIR=/home/app/.cache/whisper \

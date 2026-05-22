@@ -18,7 +18,7 @@ from dictator.diarization.models import (
 )
 from dictator.runtime import DependencyError, ProcessingError, ValidationError
 from dictator.subtitles.models import RenderSubtitlesRequest, TimedWord
-from dictator.synthesis.models import SynthesisEngine, SynthesisRequest
+from dictator.synthesis.models import SynthesisAudioFormat, SynthesisEngine, SynthesisRequest
 from dictator.subtitles.service import (
     SubtitleService,
     _coerce_word_bounds as subtitle_coerce_word_bounds,
@@ -254,21 +254,174 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                 text_token_budget=16,
             ).synthesise_chunk("Hello")
 
+        class FakeTensor:
+            def detach(self):
+                return self
+
+            def cpu(self):
+                return self
+
+            def numpy(self):
+                return np.array([0.1, -0.1], dtype=np.float32)
+
+        fake_silero_model = types.SimpleNamespace(
+            to=MagicMock(),
+            apply_tts=MagicMock(return_value=FakeTensor()),
+        )
+
+        class FakePackageImporter:
+            def __init__(self, model_path):
+                self.model_path = model_path
+
+            def load_pickle(self, package_name, object_name):
+                self.package_name = package_name
+                self.object_name = object_name
+                return fake_silero_model
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            model_path = Path(tmpdir) / "v5_5_ru.pt"
+            model_path.write_bytes(b"model")
+            downloaded_path = Path(tmpdir) / "downloaded" / "v5_5_ru.pt"
+            fake_silero_torch = types.SimpleNamespace(
+                cuda=types.SimpleNamespace(is_available=lambda: False),
+                device=lambda name: name,
+                package=types.SimpleNamespace(PackageImporter=FakePackageImporter),
+                hub=types.SimpleNamespace(
+                    download_url_to_file=MagicMock(side_effect=lambda url, dst: Path(dst).write_bytes(b"model"))
+                ),
+            )
+            with patch.dict(sys.modules, {"torch": fake_silero_torch}):
+                silero_backend = backend_module.SileroRuTTSBackend(
+                    model_path=str(model_path),
+                    default_speaker="baya",
+                    sample_rate=48000,
+                    text_char_budget=10,
+                )
+                self.assertIs(silero_backend.load(), fake_silero_model)
+                self.assertIs(silero_backend.load(), fake_silero_model)
+                silero_session = silero_backend.open_session(
+                    SynthesisRequest(
+                        engine=SynthesisEngine.SILERO_RU,
+                        speaker_wav=None,
+                        text="Привет. Еще?",
+                        language_code="ru-RU",
+                        cap_seconds=None,
+                        preset_speaker="xenia",
+                        audio_format=SynthesisAudioFormat("wav", "pcm_s16le", 24000, 1, 16),
+                    )
+                )
+                self.assertEqual([chunk.text for chunk in silero_session.build_chunks("Привет. Еще?")], ["Привет.", "Еще?"])
+                self.assertEqual(
+                    [chunk.text for chunk in silero_session.refine_chunk(backend_module.SynthesisChunk.from_units(("Раз.", "Два.")))],
+                    ["Раз.", "Два."],
+                )
+                self.assertEqual(
+                    [chunk.text for chunk in silero_session.refine_chunk(backend_module.SynthesisChunk.from_text("Раз."))],
+                    ["Раз."],
+                )
+                silero_chunk = silero_session.synthesise_chunk("Привет.")
+                self.assertEqual(silero_chunk.sample_rate, 24000)
+                self.assertGreater(silero_chunk.duration_seconds, 0.0)
+                self.assertEqual(fake_silero_model.apply_tts.call_args.kwargs["speaker"], "xenia")
+                self.assertTrue(fake_silero_model.apply_tts.call_args.kwargs["put_accent"])
+                self.assertTrue(fake_silero_model.apply_tts.call_args.kwargs["put_yo"])
+
+                self.assertEqual(silero_backend._ensure_model_path(fake_silero_torch), model_path)
+                configured_download = backend_module.SileroRuTTSBackend(model_path=str(downloaded_path))
+                self.assertEqual(configured_download._ensure_model_path(fake_silero_torch), downloaded_path)
+                with patch.object(Path, "home", return_value=Path(tmpdir)):
+                    cached_download = backend_module.SileroRuTTSBackend(model_path="")
+                    self.assertEqual(cached_download._ensure_model_path(fake_silero_torch).name, "v5_5_ru.pt")
+                    self.assertEqual(cached_download._ensure_model_path(fake_silero_torch).name, "v5_5_ru.pt")
+                    self.assertEqual(cached_download._model_cache_path().name, "v5_5_ru.pt")
+
+            with self.assertRaisesRegex(ValidationError, "language_code"):
+                silero_backend.open_session(
+                    SynthesisRequest(
+                        engine=SynthesisEngine.SILERO_RU,
+                        speaker_wav=None,
+                        text="Hello",
+                        language_code="en",
+                        cap_seconds=None,
+                    )
+                )
+            with self.assertRaisesRegex(ValidationError, "speaker"):
+                silero_backend._resolve_speaker("unknown")
+            self.assertEqual(
+                silero_backend._resolve_sample_rate(
+                    SynthesisRequest(
+                        engine=SynthesisEngine.SILERO_RU,
+                        speaker_wav=None,
+                        text="Привет",
+                        language_code="ru",
+                        cap_seconds=None,
+                        audio_format=SynthesisAudioFormat("wav", "pcm_s16le", 16000, 1, 16),
+                    )
+                ),
+                48000,
+            )
+            self.assertEqual(
+                silero_backend._resolve_sample_rate(
+                    SynthesisRequest(
+                        engine=SynthesisEngine.SILERO_RU,
+                        speaker_wav=None,
+                        text="Привет",
+                        language_code="ru",
+                        cap_seconds=None,
+                    )
+                ),
+                48000,
+            )
+
+        class FallbackSileroModel:
+            def __init__(self):
+                self.calls = []
+
+            def apply_tts(self, **kwargs):
+                self.calls.append(kwargs)
+                if "put_accent" in kwargs:
+                    raise TypeError("old silero signature")
+                return np.array([0.1, -0.1, 0.2], dtype=np.float32)
+
+        fallback_model = FallbackSileroModel()
+        fallback_chunk = backend_module.SileroRuSynthesisSession(
+            fallback_model,
+            speaker="baya",
+            sample_rate=3,
+            text_char_budget=16,
+        ).synthesise_chunk("Привет.")
+        self.assertEqual(fallback_chunk.duration_seconds, 1.0)
+        self.assertNotIn("put_accent", fallback_model.calls[-1])
+
         fake_config = types.SimpleNamespace(
             qwen3_model_id="default-model",
             qwen3_dtype="float16",
             qwen3_text_token_budget=128,
+            silero_ru_model_path="/models/silero/v5_5_ru.pt",
+            silero_ru_model_url="https://example.invalid/v5_5_ru.pt",
+            silero_ru_default_speaker="xenia",
+            silero_ru_sample_rate=48000,
+            silero_ru_text_char_budget=777,
         )
         with (
             patch.object(backend_module.SynthesisConfig, "from_env", return_value=fake_config),
             patch.object(backend_module, "Qwen3TTSBackend", return_value="default-backend") as backend_ctor,
+            patch.object(backend_module, "SileroRuTTSBackend", return_value="silero-backend") as silero_ctor,
         ):
             default_service = backend_module.SpeechSynthesisService()
         self.assertEqual(default_service.backends[SynthesisEngine.QWEN3], "default-backend")
+        self.assertEqual(default_service.backends[SynthesisEngine.SILERO_RU], "silero-backend")
         backend_ctor.assert_called_once_with(
             model_id="default-model",
             dtype="float16",
             text_token_budget=128,
+        )
+        silero_ctor.assert_called_once_with(
+            model_path="/models/silero/v5_5_ru.pt",
+            model_url="https://example.invalid/v5_5_ru.pt",
+            default_speaker="xenia",
+            sample_rate=48000,
+            text_char_budget=777,
         )
 
         class FakeSession:

@@ -12,6 +12,7 @@ class SynthesisEngine(str, Enum):
     """Supported speech synthesis engines."""
 
     QWEN3 = "qwen3"
+    SILERO_RU = "silero_ru"
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,15 @@ DEFAULT_SYNTHESIS_AUDIO_FORMAT = SynthesisAudioFormat(
     channel_count=1,
     bit_depth=16,
 )
+
+SILERO_RU_SYNTHESIS_AUDIO_FORMAT = SynthesisAudioFormat(
+    container="wav",
+    codec="pcm_s16le",
+    sample_rate_hz=24_000,
+    channel_count=1,
+    bit_depth=16,
+)
+SILERO_RU_NATIVE_SAMPLE_RATES = (8_000, 24_000, 48_000)
 
 
 @dataclass(frozen=True)
@@ -61,12 +71,14 @@ class SynthesisRequest:
     """Engine-aware synthesis input."""
 
     engine: SynthesisEngine
-    speaker_wav: Path
+    speaker_wav: Path | None
     text: str
     language_code: str
     cap_seconds: float | None
     speaker_artifact_id: str | None = None
     speaker_transcript_text: str | None = None
+    preset_speaker: str | None = None
+    audio_format: SynthesisAudioFormat | None = None
 
 
 @dataclass(frozen=True)

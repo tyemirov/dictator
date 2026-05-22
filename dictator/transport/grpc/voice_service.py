@@ -14,7 +14,12 @@ from dictator.runtime.jobs import (
 )
 from dictator.speech.v1 import common_pb2, voice_pb2, voice_pb2_grpc
 from dictator.storage import ArtifactAudioMetadata
-from dictator.synthesis.models import DEFAULT_SYNTHESIS_AUDIO_FORMAT, SynthesisAudioFormat, SynthesisEngine
+from dictator.synthesis.models import (
+    DEFAULT_SYNTHESIS_AUDIO_FORMAT,
+    SILERO_RU_SYNTHESIS_AUDIO_FORMAT,
+    SynthesisAudioFormat,
+    SynthesisEngine,
+)
 from dictator.synthesis.workflow import (
     execute_synthesis_request,
     prepare_synthesis_request,
@@ -39,42 +44,63 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
             bit_depth=audio_format.bit_depth,
         )
 
-    def _resolve_synthesis_audio_format(self, request) -> SynthesisAudioFormat:
+    def _resolve_synthesis_audio_format(self, request, engine: SynthesisEngine) -> SynthesisAudioFormat:
+        default_format = (
+            SILERO_RU_SYNTHESIS_AUDIO_FORMAT
+            if engine == SynthesisEngine.SILERO_RU
+            else DEFAULT_SYNTHESIS_AUDIO_FORMAT
+        )
         if not request.HasField("audio_format"):
-            return DEFAULT_SYNTHESIS_AUDIO_FORMAT
+            return default_format
 
         requested = request.audio_format
         resolved_container = requested.container or common_pb2.AUDIO_CONTAINER_WAV
         resolved_codec = requested.codec or common_pb2.AUDIO_CODEC_PCM_S16LE
-        resolved_sample_rate_hz = requested.sample_rate_hz or DEFAULT_SYNTHESIS_AUDIO_FORMAT.sample_rate_hz
-        resolved_channel_count = requested.channel_count or DEFAULT_SYNTHESIS_AUDIO_FORMAT.channel_count
-        resolved_bit_depth = requested.bit_depth or DEFAULT_SYNTHESIS_AUDIO_FORMAT.bit_depth
+        resolved_sample_rate_hz = requested.sample_rate_hz or default_format.sample_rate_hz
+        resolved_channel_count = requested.channel_count or default_format.channel_count
+        resolved_bit_depth = requested.bit_depth or default_format.bit_depth
 
         if (
             resolved_container != common_pb2.AUDIO_CONTAINER_WAV
             or resolved_codec != common_pb2.AUDIO_CODEC_PCM_S16LE
-            or resolved_sample_rate_hz != DEFAULT_SYNTHESIS_AUDIO_FORMAT.sample_rate_hz
-            or resolved_channel_count != DEFAULT_SYNTHESIS_AUDIO_FORMAT.channel_count
-            or resolved_bit_depth != DEFAULT_SYNTHESIS_AUDIO_FORMAT.bit_depth
+            or resolved_channel_count != default_format.channel_count
+            or resolved_bit_depth != default_format.bit_depth
         ):
             raise ValidationError(
                 "dictator.grpc.voice.unsupported_audio_format",
-                "unsupported synthesis audio_format; supported format is WAV pcm_s16le 24000 Hz mono 16-bit",
+                "unsupported synthesis audio_format; supported container/codec/channels/bit depth is WAV pcm_s16le mono 16-bit",
             )
-        return DEFAULT_SYNTHESIS_AUDIO_FORMAT
+        if resolved_sample_rate_hz <= 0:
+            raise ValidationError(
+                "dictator.grpc.voice.unsupported_audio_format",
+                "unsupported synthesis sample_rate_hz; value must be a positive integer",
+            )
+        return SynthesisAudioFormat(
+            container="wav",
+            codec="pcm_s16le",
+            sample_rate_hz=resolved_sample_rate_hz,
+            channel_count=resolved_channel_count,
+            bit_depth=resolved_bit_depth,
+        )
 
-    def _resolve_synthesis_engine(self, engine_value: int) -> SynthesisEngine:
+    def _resolve_synthesis_engine(self, engine_value: int, language_code: str = "") -> SynthesisEngine:
         if engine_value == voice_pb2.SYNTHESIS_ENGINE_QWEN3:
             return SynthesisEngine.QWEN3
+        if engine_value == voice_pb2.SYNTHESIS_ENGINE_SILERO_RU:
+            return SynthesisEngine.SILERO_RU
+        if engine_value == voice_pb2.SYNTHESIS_ENGINE_UNSPECIFIED:
+            base_language = (language_code or "").strip().lower().replace("_", "-").split("-", 1)[0]
+            return SynthesisEngine.SILERO_RU if base_language == "ru" else SynthesisEngine.QWEN3
         raise ValidationError(
             "dictator.grpc.voice.synthesis_engine_required",
-            "synthesis_engine must be set to QWEN3",
+            "synthesis_engine must be QWEN3, SILERO_RU, or unspecified for language-based defaulting",
         )
 
     def _resolve_speaker_transcript_text(self, request) -> str | None:
         return request.speaker_transcript_text or None
 
     def _resolve_prepared_synthesis_request(self, request):
+        engine = self._resolve_synthesis_engine(request.synthesis_engine, request.language_code)
         return prepare_synthesis_request(
             self.service_context.artifact_store,
             speaker_artifact_id=request.speaker_artifact_id,
@@ -83,9 +109,10 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
             language_code=request.language_code,
             max_duration_seconds=request.max_duration_seconds,
             include_timeline=request.include_timeline,
-            engine=self._resolve_synthesis_engine(request.synthesis_engine),
+            engine=engine,
             speaker_transcript_text=self._resolve_speaker_transcript_text(request),
-            audio_format=self._resolve_synthesis_audio_format(request),
+            preset_speaker=request.preset_speaker or None,
+            audio_format=self._resolve_synthesis_audio_format(request, engine),
         )
 
     def _job_state_value(self, state: SynthesisJobState) -> int:

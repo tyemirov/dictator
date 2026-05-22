@@ -613,7 +613,7 @@ class LocalSynthesisJobStore(_LocalJsonJobStore[SynthesisJobRecord]):
                 engine=prepared.synthesis_request.engine.value,
                 language_code=prepared.synthesis_request.language_code,
                 include_timeline=prepared.include_timeline,
-                speaker_artifact_id=prepared.speaker_record.artifact_id,
+                speaker_artifact_id=prepared.synthesis_request.speaker_artifact_id or "",
                 created_at_unix_seconds=time.time(),
                 audio_format=prepared.audio_format,
                 estimated_total_chunks=0,
