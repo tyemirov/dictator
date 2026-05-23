@@ -17,6 +17,30 @@
 ### Docs 📚
 - _No changes._
 
+## [v1.10.3] - 2026-05-23
+
+### Features ✨
+- Added Silero Russian TTS backend with preset speakers and 24 kHz output as a new synthesis engine option.
+- Introduced `list_synthesis_voices` API to discover available synthesis voices including Silero presets.
+- Enabled gRPC synthesis service to default to Silero `v5_5_ru` for Russian language requests without explicit engine or reference speaker.
+
+### Improvements ⚙️
+- Prefetch Silero Russian `v5_5_ru` model during GPU Docker image build to avoid runtime downloads.
+- Updated synthesis client to support `preset_speaker` parameter for voice selection.
+- Enhanced synthesis runtime to initialize Silero backend alongside Qwen3.
+- Updated documentation and README to reflect Silero model integration and licensing.
+- Improved job handling to ensure empty speaker artifact IDs are handled gracefully.
+
+### Bug Fixes 🐛
+- _No changes._
+
+### Testing 🧪
+- Added and expanded unit tests for gRPC synthesis services and client job helpers covering new Silero integration.
+
+### Docs 📚
+- Updated client integration guide with Silero voice listing and usage instructions.
+- Clarified licensing notes to include Silero model terms.
+
 ## [v1.10.2] - 2026-05-21
 
 ### Features ✨
