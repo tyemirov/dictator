@@ -258,7 +258,7 @@ if [[ "${DRY_RUN}" == "true" ]]; then
 fi
 
 echo "==> [release] Refreshing ${default_branch}"
-timeout -k 120s -s SIGKILL 120s gix cd "${default_branch}"
+timeout -k 120s -s SIGKILL 120s gix sync "${default_branch}"
 
 echo "==> [release] Re-running preflight after refresh"
 "${HELPER}" preflight --default-branch "${default_branch}" --release-timestamp "${release_timestamp}" | tee "${preflight_json}"
