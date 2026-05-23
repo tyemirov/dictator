@@ -33,6 +33,18 @@ class SynthesisResult:
 
 
 @dataclass(frozen=True)
+class SynthesisVoice:
+    synthesis_engine: int
+    language_code: str
+    voice_id: str
+    display_name: str
+    is_default: bool
+    native_sample_rate_hz: tuple[int, ...]
+    default_sample_rate_hz: int
+    requires_reference_audio: bool
+
+
+@dataclass(frozen=True)
 class SynthesisJob:
     job_id: str
     state: str
@@ -80,17 +92,45 @@ class SynthesisClient:
         self._voice_stub = voice_pb2_grpc.VoiceServiceStub(channel)
         self._metadata = tuple(metadata)
 
+    def list_synthesis_voices(
+        self,
+        *,
+        synthesis_engine: int = voice_pb2.SYNTHESIS_ENGINE_UNSPECIFIED,
+        language_code: str = "",
+    ) -> tuple[SynthesisVoice, ...]:
+        response = self._voice_stub.ListSynthesisVoices(
+            voice_pb2.ListSynthesisVoicesRequest(
+                synthesis_engine=synthesis_engine,
+                language_code=language_code,
+            ),
+            metadata=self._metadata,
+        )
+        return tuple(
+            SynthesisVoice(
+                synthesis_engine=voice.synthesis_engine,
+                language_code=voice.language_code,
+                voice_id=voice.voice_id,
+                display_name=voice.display_name,
+                is_default=voice.is_default,
+                native_sample_rate_hz=tuple(voice.native_sample_rate_hz),
+                default_sample_rate_hz=voice.default_sample_rate_hz,
+                requires_reference_audio=voice.requires_reference_audio,
+            )
+            for voice in response.voices
+        )
+
     def synthesize(
         self,
         *,
-        speaker_artifact_id: str,
+        speaker_artifact_id: str = "",
         text: str = "",
         text_artifact_id: str = "",
         language_code: str = "",
         max_duration_seconds: float = 0.0,
         include_timeline: bool = False,
-        synthesis_engine: int = voice_pb2.SYNTHESIS_ENGINE_QWEN3,
+        synthesis_engine: int = voice_pb2.SYNTHESIS_ENGINE_UNSPECIFIED,
         speaker_transcript_text: str = "",
+        preset_speaker: str = "",
         audio_format: common_pb2.AudioFormat | None = None,
         timeout_seconds: float | None = None,
         poll_interval_seconds: float = 1.0,
@@ -104,6 +144,7 @@ class SynthesisClient:
             include_timeline=include_timeline,
             synthesis_engine=synthesis_engine,
             speaker_transcript_text=speaker_transcript_text,
+            preset_speaker=preset_speaker,
             audio_format=audio_format,
         )
         finished = self.wait_for_synthesis_job(
@@ -118,14 +159,15 @@ class SynthesisClient:
     def submit_synthesize_job(
         self,
         *,
-        speaker_artifact_id: str,
+        speaker_artifact_id: str = "",
         text: str = "",
         text_artifact_id: str = "",
         language_code: str = "",
         max_duration_seconds: float = 0.0,
         include_timeline: bool = False,
-        synthesis_engine: int = voice_pb2.SYNTHESIS_ENGINE_QWEN3,
+        synthesis_engine: int = voice_pb2.SYNTHESIS_ENGINE_UNSPECIFIED,
         speaker_transcript_text: str = "",
+        preset_speaker: str = "",
         audio_format: common_pb2.AudioFormat | None = None,
     ) -> SynthesisJob:
         request = voice_pb2.SynthesizeSpeechRequest(
@@ -135,6 +177,7 @@ class SynthesisClient:
             include_timeline=include_timeline,
             synthesis_engine=synthesis_engine,
             speaker_transcript_text=speaker_transcript_text,
+            preset_speaker=preset_speaker,
         )
         if audio_format is not None:
             request.audio_format.CopyFrom(audio_format)

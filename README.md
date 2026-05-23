@@ -230,7 +230,7 @@ The compose setup mounts persistent caches for Hugging Face, Whisper, and Torch 
 * `HF_TOKEN` is required in the container environment and should be exported in your shell before starting Dictator.
 * Both `Dockerfile` and `Dockerfile.gpu` use multi-stage builds so compilers and other build-only packages stay out of the final runtime image.
 * `Dockerfile.gpu` installs the CUDA 12.8 Torch wheel set and is the supported runtime image.
-* `Dockerfile.gpu` now prefetches the default Qwen voice-cloning model, `Qwen/Qwen3-TTS-12Hz-1.7B-Base`, into `/opt/models` during the image build, so the Qwen3 engine does not need to download weights on first container startup.
+* `Dockerfile.gpu` now prefetches the default Qwen voice-cloning model, `Qwen/Qwen3-TTS-12Hz-1.7B-Base`, and the Silero Russian `v5_5_ru` preset-speaker model into `/opt/models` during the image build, so the synthesis engines do not need to download weights on first container startup. The Silero package is verified with `DICTATOR_SILERO_RU_MODEL_SHA256` before it is loaded.
 * That `1.7B` default is the quality-first choice for voice cloning, not the smallest one. Expect a larger GPU image and a slower bake/prefetch step than with the lighter `0.6B` model.
 * `Dockerfile.gpu` also installs the official `flash-attn` wheel for Torch 2.8 / CUDA 12 and the `sox` binary so the baked Qwen3 runtime has its intended acceleration and toolchain available at startup.
 * The published container package is `ghcr.io/tyemirov/dictator`.
@@ -386,6 +386,7 @@ optional arguments
 * Voice cloning now uses **Qwen3-TTS** only.
 * The default model is `Qwen/Qwen3-TTS-12Hz-1.7B-Base`.
 * Qwen3-TTS uses the full speaker sample plus its transcript and packs sentences by tokenizer budget.
+* The gRPC synthesis service defaults `language_code=ru` requests with no explicit engine and no reference-speaker fields to **Silero `v5_5_ru`** at 24 kHz, using preset speaker `baya` unless `preset_speaker` is set to `xenia`; callers can discover Silero preset speakers with `ListSynthesisVoices` and request another positive output sample rate with `audio_format.sample_rate_hz`.
 * Synthesis stops when the next sentence would exceed `--length`.
 * All chunks concatenated with FFmpeg, `dynaudnorm` + –1 dBFS, 24 kHz mono.
 * When `--speech` is provided, a JSON file is written containing:
@@ -420,6 +421,6 @@ optional arguments
 
 This project is proprietary software. All rights reserved by Marco Polo Research Lab.
 
-Qwen3-TTS and Whisper licenses apply to their respective models.
+Qwen3-TTS, Whisper, and Silero licenses apply to their respective models. Review Silero model licensing before commercial use.
 
 See the [LICENSE](./LICENSE) file for details.

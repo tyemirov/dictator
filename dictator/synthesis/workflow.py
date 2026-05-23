@@ -9,14 +9,14 @@ from pathlib import Path
 from dictator.runtime import ValidationError
 from dictator.storage import ArtifactAudioMetadata, ArtifactRecord, LocalArtifactStore
 
-from .models import DEFAULT_SYNTHESIS_AUDIO_FORMAT, SynthesisAudioFormat, SynthesisEngine, SynthesisRequest
+from .models import DEFAULT_SYNTHESIS_AUDIO_FORMAT, SILERO_RU_SYNTHESIS_AUDIO_FORMAT, SynthesisAudioFormat, SynthesisEngine, SynthesisRequest
 
 
 @dataclass(frozen=True)
 class PreparedSynthesisRequest:
     """Validated synthesis request resolved against stored artifacts."""
 
-    speaker_record: ArtifactRecord
+    speaker_record: ArtifactRecord | None
     synthesis_request: SynthesisRequest
     include_timeline: bool
     audio_format: SynthesisAudioFormat = DEFAULT_SYNTHESIS_AUDIO_FORMAT
@@ -45,9 +45,17 @@ def prepare_synthesis_request(
     include_timeline: bool,
     engine: SynthesisEngine,
     speaker_transcript_text: str | None,
+    preset_speaker: str | None = None,
     audio_format: SynthesisAudioFormat | None = None,
 ) -> PreparedSynthesisRequest:
-    speaker = artifact_store.get_artifact(speaker_artifact_id)
+    speaker = None
+    if engine == SynthesisEngine.QWEN3:
+        if not speaker_artifact_id:
+            raise ValidationError(
+                "dictator.grpc.voice.speaker_artifact_required",
+                "speaker_artifact_id is required for qwen3 synthesis",
+            )
+        speaker = artifact_store.get_artifact(speaker_artifact_id)
     resolved_text = text
     if text_artifact_id:
         resolved_text = artifact_store.read_text(text_artifact_id)
@@ -60,15 +68,18 @@ def prepare_synthesis_request(
         speaker_record=speaker,
         synthesis_request=SynthesisRequest(
             engine=engine,
-            speaker_wav=speaker.path,
+            speaker_wav=speaker.path if speaker is not None else None,
             text=resolved_text,
-            language_code=language_code or "en",
+            language_code=language_code or ("ru" if engine == SynthesisEngine.SILERO_RU else "en"),
             cap_seconds=max_duration_seconds or None,
-            speaker_artifact_id=speaker_artifact_id,
+            speaker_artifact_id=speaker_artifact_id or None,
             speaker_transcript_text=speaker_transcript_text,
+            preset_speaker=preset_speaker,
+            audio_format=audio_format,
         ),
         include_timeline=include_timeline,
-        audio_format=audio_format or DEFAULT_SYNTHESIS_AUDIO_FORMAT,
+        audio_format=audio_format
+        or (SILERO_RU_SYNTHESIS_AUDIO_FORMAT if engine == SynthesisEngine.SILERO_RU else DEFAULT_SYNTHESIS_AUDIO_FORMAT),
     )
 
 
@@ -92,8 +103,13 @@ def execute_synthesis_request(
         if hasattr(execution_runtime, "mark_synthesis_ready"):
             execution_runtime.mark_synthesis_ready()
 
+        voice_label = (
+            Path(prepared.speaker_record.filename).stem
+            if prepared.speaker_record is not None
+            else (prepared.synthesis_request.preset_speaker or prepared.synthesis_request.engine.value)
+        )
         audio_reservation = artifact_store.reserve_artifact(
-            f"{Path(prepared.speaker_record.filename).stem}_synth.wav",
+            f"{voice_label}_synth.wav",
             media_type="audio/wav",
             fallback_suffix=".wav",
         )
@@ -123,17 +139,19 @@ def execute_synthesis_request(
         timeline_segments = tuple(segment.to_timeline_dict() for segment in result.segments)
         timeline_artifact_id: str | None = None
         if prepared.include_timeline:
+            voice_entry = {
+                "id": prepared.synthesis_request.speaker_artifact_id or voice_label,
+                "label": voice_label,
+                "engine": prepared.synthesis_request.engine.value,
+            }
+            if prepared.speaker_record is not None:
+                voice_entry["file"] = str(prepared.speaker_record.path)
+            if prepared.synthesis_request.preset_speaker:
+                voice_entry["speaker"] = prepared.synthesis_request.preset_speaker
             timeline_payload = {
                 "textSegments": list(timeline_segments),
                 "imageCues": [],
-                "voices": [
-                    {
-                        "id": prepared.speaker_record.artifact_id,
-                        "label": Path(prepared.speaker_record.filename).stem,
-                        "file": str(prepared.speaker_record.path),
-                        "engine": prepared.synthesis_request.engine.value,
-                    }
-                ],
+                "voices": [voice_entry],
             }
             timeline_record = artifact_store.write_artifact(
                 [json.dumps(timeline_payload, ensure_ascii=False, indent=2).encode("utf-8")],

@@ -7,6 +7,9 @@ option go_package = "github.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictat
 import "dictator/speech/v1/common.proto";
 
 service VoiceService {
+  rpc ListSynthesisVoices(ListSynthesisVoicesRequest)
+      returns (ListSynthesisVoicesResponse);
+
   rpc ExtractReferenceSample(ExtractReferenceSampleRequest)
       returns (ExtractReferenceSampleResponse);
 
@@ -33,6 +36,7 @@ service VoiceService {
 enum SynthesisEngine {
   SYNTHESIS_ENGINE_UNSPECIFIED = 0;
   SYNTHESIS_ENGINE_QWEN3 = 1;
+  SYNTHESIS_ENGINE_SILERO_RU = 2;
 }
 
 enum SynthesisJobState {
@@ -107,6 +111,26 @@ message CancelExtractReferenceSampleJobResponse {
   ExtractReferenceSampleJobState state = 2;
 }
 
+message ListSynthesisVoicesRequest {
+  SynthesisEngine synthesis_engine = 1;
+  string language_code = 2;
+}
+
+message SynthesisVoice {
+  SynthesisEngine synthesis_engine = 1;
+  string language_code = 2;
+  string voice_id = 3;
+  string display_name = 4;
+  bool is_default = 5;
+  repeated int32 native_sample_rate_hz = 6;
+  int32 default_sample_rate_hz = 7;
+  bool requires_reference_audio = 8;
+}
+
+message ListSynthesisVoicesResponse {
+  repeated SynthesisVoice voices = 1;
+}
+
 message SynthesizeSpeechRequest {
   string speaker_artifact_id = 1;
   oneof text_source {
@@ -119,6 +143,7 @@ message SynthesizeSpeechRequest {
   SynthesisEngine synthesis_engine = 7;
   string speaker_transcript_text = 8;
   AudioFormat audio_format = 9;
+  string preset_speaker = 10;
 }
 
 message SynthesizeSpeechResponse {

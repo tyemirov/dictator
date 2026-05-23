@@ -14,7 +14,7 @@ from dictator.runtime.metrics import MetricsRegistry
 from dictator.runtime.service_runtime import SpeechExecutionRuntime
 from dictator.runtime.timeouts import run_with_timeout
 from dictator.synthesis.config import SynthesisConfig
-from dictator.synthesis.models import DEFAULT_SYNTHESIS_AUDIO_FORMAT, SynthesisEngine, SynthesisRequest
+from dictator.synthesis.models import DEFAULT_SYNTHESIS_AUDIO_FORMAT, SILERO_RU_SYNTHESIS_AUDIO_FORMAT, SynthesisEngine, SynthesisRequest
 from dictator.synthesis.workflow import PreparedSynthesisRequest, execute_synthesis_request, prepare_synthesis_request
 from dictator.synthesis import text as synthesis_text
 from dictator.storage.artifact_store import ArtifactReservation, LocalArtifactStore
@@ -222,6 +222,7 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 patch("dictator.transcription.service.TranscriptionService", FakeTranscriptionService),
                 patch("dictator.extraction.service.load_diarization_pipeline", return_value="pipeline"),
                 patch("dictator.synthesis.service.Qwen3TTSBackend", return_value="qwen-backend"),
+                patch("dictator.synthesis.service.SileroRuTTSBackend", return_value="silero-backend"),
                 patch("dictator.synthesis.service.SpeechSynthesisService", FakeSynthesisService),
                 patch("dictator.alignment.whisperx_backend.WhisperXAlignmentBackend", return_value="align-backend"),
                 patch("dictator.alignment.service.AlignmentService", FakeAlignmentService),
@@ -244,11 +245,20 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
 
                 synthesis_service = runtime.get_synthesis_service()
                 self.assertEqual(synthesis_service.backends[SynthesisEngine.QWEN3], "qwen-backend")
+                self.assertEqual(synthesis_service.backends[SynthesisEngine.SILERO_RU], "silero-backend")
                 self.assertIs(synthesis_service, runtime.get_synthesis_service())
                 sys.modules["dictator.synthesis.service"].Qwen3TTSBackend.assert_called_once_with(
                     model_id=runtime._synthesis_config.qwen3_model_id,
                     dtype=runtime._synthesis_config.qwen3_dtype,
                     text_token_budget=runtime._synthesis_config.qwen3_text_token_budget,
+                )
+                sys.modules["dictator.synthesis.service"].SileroRuTTSBackend.assert_called_once_with(
+                    model_path=runtime._synthesis_config.silero_ru_model_path,
+                    model_url=runtime._synthesis_config.silero_ru_model_url,
+                    model_sha256=runtime._synthesis_config.silero_ru_model_sha256,
+                    default_speaker=runtime._synthesis_config.silero_ru_default_speaker,
+                    sample_rate=runtime._synthesis_config.silero_ru_sample_rate,
+                    text_char_budget=runtime._synthesis_config.silero_ru_text_char_budget,
                 )
 
                 alignment_service = runtime.get_alignment_service()
@@ -265,20 +275,42 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 self.assertEqual(subtitle_service.alignment_service.backend, "align-backend")
 
                 self.assertIsInstance(runtime.get_reference_extraction_service(), FakeReferenceExtractionService)
-    def test_synthesis_config_reads_qwen_text_budget(self):
+    def test_synthesis_config_reads_engine_settings(self):
         config = SynthesisConfig.from_env(
             {
+                "DICTATOR_MODEL_ROOT": "/models",
                 "DICTATOR_QWEN3_TTS_TEXT_TOKEN_BUDGET": "256",
                 "DICTATOR_QWEN3_TTS_DTYPE": "float16",
+                "DICTATOR_SILERO_RU_MODEL_SHA256": "abc123",
+                "DICTATOR_SILERO_RU_DEFAULT_SPEAKER": "xenia",
+                "DICTATOR_SILERO_RU_SAMPLE_RATE": "24000",
+                "DICTATOR_SILERO_RU_TEXT_CHAR_BUDGET": "512",
             }
         )
         self.assertEqual(config.qwen3_text_token_budget, 256)
         self.assertEqual(config.qwen3_dtype, "float16")
+        self.assertEqual(config.silero_ru_model_path, "/models/silero/v5_5_ru.pt")
+        self.assertEqual(config.silero_ru_model_sha256, "abc123")
+        self.assertEqual(config.silero_ru_default_speaker, "xenia")
+        self.assertEqual(config.silero_ru_sample_rate, 24000)
+        self.assertEqual(config.silero_ru_text_char_budget, 512)
+
+        explicit_path_config = SynthesisConfig.from_env(
+            {
+                "DICTATOR_MODEL_ROOT": "/models",
+                "DICTATOR_SILERO_RU_MODEL_PATH": "/custom/v5_5_ru.pt",
+                "DICTATOR_SILERO_RU_MODEL_URL": "https://example.invalid/model.pt",
+            }
+        )
+        self.assertEqual(explicit_path_config.silero_ru_model_path, "/custom/v5_5_ru.pt")
+        self.assertEqual(explicit_path_config.silero_ru_model_url, "https://example.invalid/model.pt")
 
         with self.assertRaisesRegex(ValueError, "positive integer"):
             SynthesisConfig.from_env({"DICTATOR_QWEN3_TTS_TEXT_TOKEN_BUDGET": "0"})
         with self.assertRaisesRegex(ValueError, "positive integer"):
             SynthesisConfig.from_env({"DICTATOR_QWEN3_TTS_TEXT_TOKEN_BUDGET": "abc"})
+        with self.assertRaisesRegex(ValueError, "positive integer"):
+            SynthesisConfig.from_env({"DICTATOR_SILERO_RU_SAMPLE_RATE": "0"})
 
     def test_local_synthesis_job_store_and_manager_cover_success_failure_and_restart(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -484,6 +516,63 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
         self.assertEqual(outcome.audio_format, DEFAULT_SYNTHESIS_AUDIO_FORMAT)
         self.assertEqual(outcome.audio_duration_seconds, 0.4)
 
+    def test_execute_silero_synthesis_without_reference_artifact(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            artifact_store = LocalArtifactStore(root / "artifacts")
+            prepared = PreparedSynthesisRequest(
+                speaker_record=None,
+                synthesis_request=SynthesisRequest(
+                    engine=SynthesisEngine.SILERO_RU,
+                    speaker_wav=None,
+                    text="привет",
+                    language_code="ru",
+                    cap_seconds=None,
+                    preset_speaker="xenia",
+                    audio_format=SILERO_RU_SYNTHESIS_AUDIO_FORMAT,
+                ),
+                include_timeline=True,
+                audio_format=SILERO_RU_SYNTHESIS_AUDIO_FORMAT,
+            )
+            temp_dir = root / "tmp"
+            temp_dir.mkdir()
+            wav_path = temp_dir / "0000.wav"
+            wav_path.write_bytes(b"wav")
+
+            class _FakeSynthesisService:
+                def synthesise_text(self, request, *, progress_callback=None):
+                    return types.SimpleNamespace(
+                        temp_dir=temp_dir,
+                        wav_paths=(wav_path,),
+                        segments=(
+                            types.SimpleNamespace(
+                                end_seconds=0.25,
+                                to_timeline_dict=lambda: {"content": "привет", "start": 0.0, "end": 0.25},
+                            ),
+                        ),
+                    )
+
+            runtime = types.SimpleNamespace(
+                get_synthesis_service=lambda: _FakeSynthesisService(),
+                mark_synthesis_ready=lambda: None,
+            )
+
+            def fake_concat_normalise(wav_paths, output_path, cap_seconds, *, target_sample_rate=0):
+                self.assertEqual(target_sample_rate, 24000)
+                output_path.write_bytes(b"RIFF")
+
+            with patch("dictator.audio.ffmpeg_ops.concat_normalise", side_effect=fake_concat_normalise):
+                outcome = execute_synthesis_request(
+                    artifact_store=artifact_store,
+                    execution_runtime=runtime,
+                    prepared=prepared,
+                )
+            timeline = artifact_store.read_text(outcome.timeline_artifact_id)
+        self.assertEqual(outcome.audio_record.filename, "xenia_synth.wav")
+        self.assertEqual(outcome.audio_format, SILERO_RU_SYNTHESIS_AUDIO_FORMAT)
+        self.assertIn('"speaker": "xenia"', timeline)
+        self.assertIn('"engine": "silero_ru"', timeline)
+
     def test_prepare_synthesis_request_requires_inline_or_artifact_text(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             store = LocalArtifactStore(Path(tmpdir))
@@ -500,6 +589,35 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                     engine=SynthesisEngine.QWEN3,
                     speaker_transcript_text=None,
                 )
+            with self.assertRaisesRegex(ValidationError, "speaker_artifact_id"):
+                prepare_synthesis_request(
+                    store,
+                    speaker_artifact_id="",
+                    text="hello",
+                    text_artifact_id="",
+                    language_code="en",
+                    max_duration_seconds=0.0,
+                    include_timeline=False,
+                    engine=SynthesisEngine.QWEN3,
+                    speaker_transcript_text=None,
+                )
+            silero_prepared = prepare_synthesis_request(
+                store,
+                speaker_artifact_id="",
+                text="привет",
+                text_artifact_id="",
+                language_code="",
+                max_duration_seconds=0.0,
+                include_timeline=False,
+                engine=SynthesisEngine.SILERO_RU,
+                speaker_transcript_text=None,
+                preset_speaker="baya",
+            )
+            silero_record = LocalSynthesisJobStore(Path(tmpdir) / "silero-jobs").create(silero_prepared)
+        self.assertIsNone(silero_prepared.speaker_record)
+        self.assertEqual(silero_prepared.synthesis_request.language_code, "ru")
+        self.assertEqual(silero_prepared.audio_format, SILERO_RU_SYNTHESIS_AUDIO_FORMAT)
+        self.assertEqual(silero_record.speaker_artifact_id, "")
 
     def test_synthesis_job_store_rejects_path_traversal_job_ids(self):
         with tempfile.TemporaryDirectory() as tmpdir:

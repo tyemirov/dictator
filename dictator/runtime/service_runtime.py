@@ -72,7 +72,7 @@ class SpeechExecutionRuntime:
                 return self._diarization_pipeline
 
     def get_synthesis_service(self):
-        from dictator.synthesis.service import Qwen3TTSBackend, SpeechSynthesisService
+        from dictator.synthesis.service import Qwen3TTSBackend, SileroRuTTSBackend, SpeechSynthesisService
 
         with self._lock:
             if self._synthesis_service is None:
@@ -81,6 +81,15 @@ class SpeechExecutionRuntime:
                         model_id=self._synthesis_config.qwen3_model_id,
                         dtype=self._synthesis_config.qwen3_dtype,
                         text_token_budget=self._synthesis_config.qwen3_text_token_budget,
+                    )
+                if SynthesisEngine.SILERO_RU not in self._tts_backends:
+                    self._tts_backends[SynthesisEngine.SILERO_RU] = SileroRuTTSBackend(
+                        model_path=self._synthesis_config.silero_ru_model_path,
+                        model_url=self._synthesis_config.silero_ru_model_url,
+                        model_sha256=self._synthesis_config.silero_ru_model_sha256,
+                        default_speaker=self._synthesis_config.silero_ru_default_speaker,
+                        sample_rate=self._synthesis_config.silero_ru_sample_rate,
+                        text_char_budget=self._synthesis_config.silero_ru_text_char_budget,
                     )
                 self._synthesis_service = SpeechSynthesisService(backends=dict(self._tts_backends))
             return self._synthesis_service
