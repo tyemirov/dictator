@@ -16,16 +16,25 @@ from dictator.speech.v1 import common_pb2, voice_pb2, voice_pb2_grpc
 from dictator.storage import ArtifactAudioMetadata
 from dictator.synthesis.models import (
     DEFAULT_SYNTHESIS_AUDIO_FORMAT,
+    SILERO_RU_NATIVE_SAMPLE_RATES,
+    SILERO_RU_SUPPORTED_SPEAKERS,
     SILERO_RU_SYNTHESIS_AUDIO_FORMAT,
     SynthesisAudioFormat,
     SynthesisEngine,
 )
+from dictator.synthesis.config import DEFAULT_SILERO_RU_DEFAULT_SPEAKER
 from dictator.synthesis.workflow import (
     execute_synthesis_request,
     prepare_synthesis_request,
 )
 
 from .base import BaseServicer
+
+
+SILERO_RU_VOICE_DISPLAY_NAMES = {
+    "baya": "Baya",
+    "xenia": "Xenia",
+}
 
 
 class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
@@ -83,12 +92,21 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
             bit_depth=resolved_bit_depth,
         )
 
-    def _resolve_synthesis_engine(self, engine_value: int, language_code: str = "") -> SynthesisEngine:
+    def _resolve_synthesis_engine(
+        self,
+        engine_value: int,
+        language_code: str = "",
+        *,
+        speaker_artifact_id: str = "",
+        speaker_transcript_text: str = "",
+    ) -> SynthesisEngine:
         if engine_value == voice_pb2.SYNTHESIS_ENGINE_QWEN3:
             return SynthesisEngine.QWEN3
         if engine_value == voice_pb2.SYNTHESIS_ENGINE_SILERO_RU:
             return SynthesisEngine.SILERO_RU
         if engine_value == voice_pb2.SYNTHESIS_ENGINE_UNSPECIFIED:
+            if speaker_artifact_id.strip() or speaker_transcript_text.strip():
+                return SynthesisEngine.QWEN3
             base_language = (language_code or "").strip().lower().replace("_", "-").split("-", 1)[0]
             return SynthesisEngine.SILERO_RU if base_language == "ru" else SynthesisEngine.QWEN3
         raise ValidationError(
@@ -99,8 +117,34 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
     def _resolve_speaker_transcript_text(self, request) -> str | None:
         return request.speaker_transcript_text or None
 
+    def _voice_discovery_default_speaker(self) -> str:
+        synthesis_config = getattr(self.service_context.execution_runtime, "_synthesis_config", None)
+        configured = getattr(synthesis_config, "silero_ru_default_speaker", "") if synthesis_config is not None else ""
+        return (configured or DEFAULT_SILERO_RU_DEFAULT_SPEAKER).strip().lower()
+
+    def _matches_voice_discovery_filters(self, request, language_code: str) -> bool:
+        if request.synthesis_engine == voice_pb2.SYNTHESIS_ENGINE_QWEN3:
+            return False
+        if request.synthesis_engine not in (
+            voice_pb2.SYNTHESIS_ENGINE_UNSPECIFIED,
+            voice_pb2.SYNTHESIS_ENGINE_QWEN3,
+            voice_pb2.SYNTHESIS_ENGINE_SILERO_RU,
+        ):
+            raise ValidationError(
+                "dictator.grpc.voice.synthesis_engine_required",
+                "synthesis_engine must be QWEN3, SILERO_RU, or unspecified for voice discovery",
+            )
+        base_language = (request.language_code or "").strip().lower().replace("_", "-").split("-", 1)[0]
+        return not base_language or base_language == language_code
+
     def _resolve_prepared_synthesis_request(self, request):
-        engine = self._resolve_synthesis_engine(request.synthesis_engine, request.language_code)
+        speaker_transcript_text = self._resolve_speaker_transcript_text(request)
+        engine = self._resolve_synthesis_engine(
+            request.synthesis_engine,
+            request.language_code,
+            speaker_artifact_id=request.speaker_artifact_id,
+            speaker_transcript_text=speaker_transcript_text or "",
+        )
         return prepare_synthesis_request(
             self.service_context.artifact_store,
             speaker_artifact_id=request.speaker_artifact_id,
@@ -110,10 +154,31 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
             max_duration_seconds=request.max_duration_seconds,
             include_timeline=request.include_timeline,
             engine=engine,
-            speaker_transcript_text=self._resolve_speaker_transcript_text(request),
+            speaker_transcript_text=speaker_transcript_text,
             preset_speaker=request.preset_speaker or None,
             audio_format=self._resolve_synthesis_audio_format(request, engine),
         )
+
+    def ListSynthesisVoices(self, request, context):
+        with self._request_scope(context, is_inquiry=True):
+            if not self._matches_voice_discovery_filters(request, "ru"):
+                return voice_pb2.ListSynthesisVoicesResponse()
+            default_speaker = self._voice_discovery_default_speaker()
+            return voice_pb2.ListSynthesisVoicesResponse(
+                voices=[
+                    voice_pb2.SynthesisVoice(
+                        synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_SILERO_RU,
+                        language_code="ru",
+                        voice_id=speaker,
+                        display_name=SILERO_RU_VOICE_DISPLAY_NAMES.get(speaker, speaker),
+                        is_default=speaker == default_speaker,
+                        native_sample_rate_hz=SILERO_RU_NATIVE_SAMPLE_RATES,
+                        default_sample_rate_hz=SILERO_RU_SYNTHESIS_AUDIO_FORMAT.sample_rate_hz,
+                        requires_reference_audio=False,
+                    )
+                    for speaker in SILERO_RU_SUPPORTED_SPEAKERS
+                ],
+            )
 
     def _job_state_value(self, state: SynthesisJobState) -> int:
         mapping = {

@@ -281,6 +281,7 @@ class ServiceLogicCoverageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             model_path = Path(tmpdir) / "v5_5_ru.pt"
             model_path.write_bytes(b"model")
+            model_digest = "9372c470eeadd5ecd9c3c74c2b3cb633f8e2f2fad799250a0f70d652b6b825e4"
             downloaded_path = Path(tmpdir) / "downloaded" / "v5_5_ru.pt"
             fake_silero_torch = types.SimpleNamespace(
                 cuda=types.SimpleNamespace(is_available=lambda: False),
@@ -293,6 +294,7 @@ class ServiceLogicCoverageTests(unittest.TestCase):
             with patch.dict(sys.modules, {"torch": fake_silero_torch}):
                 silero_backend = backend_module.SileroRuTTSBackend(
                     model_path=str(model_path),
+                    model_sha256=model_digest,
                     default_speaker="baya",
                     sample_rate=48000,
                     text_char_budget=10,
@@ -327,13 +329,62 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                 self.assertTrue(fake_silero_model.apply_tts.call_args.kwargs["put_yo"])
 
                 self.assertEqual(silero_backend._ensure_model_path(fake_silero_torch), model_path)
-                configured_download = backend_module.SileroRuTTSBackend(model_path=str(downloaded_path))
+                configured_download = backend_module.SileroRuTTSBackend(
+                    model_path=str(downloaded_path),
+                    model_sha256=model_digest,
+                )
                 self.assertEqual(configured_download._ensure_model_path(fake_silero_torch), downloaded_path)
+                with self.assertRaisesRegex(DependencyError, "model digest mismatch"):
+                    backend_module.SileroRuTTSBackend(
+                        model_path=str(model_path),
+                        model_sha256="0" * 64,
+                    )._ensure_model_path(fake_silero_torch)
+                bad_download_path = Path(tmpdir) / "bad-download" / "v5_5_ru.pt"
+                with self.assertRaisesRegex(DependencyError, "model digest mismatch"):
+                    backend_module.SileroRuTTSBackend(
+                        model_path=str(bad_download_path),
+                        model_sha256="0" * 64,
+                    )._ensure_model_path(fake_silero_torch)
+                self.assertFalse(bad_download_path.exists())
+                unchecked_path = Path(tmpdir) / "unchecked" / "v5_5_ru.pt"
+                unchecked_path.parent.mkdir(parents=True, exist_ok=True)
+                unchecked_path.write_bytes(b"unchecked")
+                unchecked_backend = backend_module.SileroRuTTSBackend(
+                    model_path=str(unchecked_path),
+                    model_sha256="",
+                )
+                self.assertEqual(unchecked_backend._ensure_model_path(fake_silero_torch), unchecked_path)
                 with patch.object(Path, "home", return_value=Path(tmpdir)):
-                    cached_download = backend_module.SileroRuTTSBackend(model_path="")
+                    cached_download = backend_module.SileroRuTTSBackend(
+                        model_path="",
+                        model_sha256=model_digest,
+                    )
                     self.assertEqual(cached_download._ensure_model_path(fake_silero_torch).name, "v5_5_ru.pt")
                     self.assertEqual(cached_download._ensure_model_path(fake_silero_torch).name, "v5_5_ru.pt")
                     self.assertEqual(cached_download._model_cache_path().name, "v5_5_ru.pt")
+                repair_home = Path(tmpdir) / "repair-home"
+                with patch.object(Path, "home", return_value=repair_home):
+                    repaired_cache = backend_module.SileroRuTTSBackend(
+                        model_path="",
+                        model_sha256=model_digest,
+                    )
+                    repaired_cache_path = repaired_cache._model_cache_path()
+                    repaired_cache_path.parent.mkdir(parents=True, exist_ok=True)
+                    repaired_cache_path.write_bytes(b"stale")
+                    self.assertEqual(repaired_cache._ensure_model_path(fake_silero_torch), repaired_cache_path)
+                    self.assertEqual(repaired_cache_path.read_bytes(), b"model")
+                bad_cache_home = Path(tmpdir) / "bad-cache-home"
+                with patch.object(Path, "home", return_value=bad_cache_home):
+                    bad_cache = backend_module.SileroRuTTSBackend(
+                        model_path="",
+                        model_sha256="0" * 64,
+                    )
+                    bad_cache_path = bad_cache._model_cache_path()
+                    bad_cache_path.parent.mkdir(parents=True, exist_ok=True)
+                    bad_cache_path.write_bytes(b"stale")
+                    with self.assertRaisesRegex(DependencyError, "model digest mismatch"):
+                        bad_cache._ensure_model_path(fake_silero_torch)
+                    self.assertFalse(bad_cache_path.exists())
 
             with self.assertRaisesRegex(ValidationError, "language_code"):
                 silero_backend.open_session(
@@ -399,6 +450,7 @@ class ServiceLogicCoverageTests(unittest.TestCase):
             qwen3_text_token_budget=128,
             silero_ru_model_path="/models/silero/v5_5_ru.pt",
             silero_ru_model_url="https://example.invalid/v5_5_ru.pt",
+            silero_ru_model_sha256="abc123",
             silero_ru_default_speaker="xenia",
             silero_ru_sample_rate=48000,
             silero_ru_text_char_budget=777,
@@ -419,6 +471,7 @@ class ServiceLogicCoverageTests(unittest.TestCase):
         silero_ctor.assert_called_once_with(
             model_path="/models/silero/v5_5_ru.pt",
             model_url="https://example.invalid/v5_5_ru.pt",
+            model_sha256="abc123",
             default_speaker="xenia",
             sample_rate=48000,
             text_char_budget=777,

@@ -15,6 +15,7 @@ from dictator.runtime import DependencyError, ValidationError
 from .config import (
     DEFAULT_QWEN3_MODEL_ID,
     DEFAULT_SILERO_RU_DEFAULT_SPEAKER,
+    DEFAULT_SILERO_RU_MODEL_SHA256,
     DEFAULT_SILERO_RU_MODEL_URL,
     DEFAULT_SILERO_RU_SAMPLE_RATE,
     DEFAULT_SILERO_RU_TEXT_CHAR_BUDGET,
@@ -24,6 +25,7 @@ from .config import (
 )
 from .models import (
     SILERO_RU_NATIVE_SAMPLE_RATES,
+    SILERO_RU_SUPPORTED_SPEAKERS,
     SpeechSegment,
     SynthesisedAudioChunk,
     SynthesisChunk,
@@ -47,7 +49,6 @@ QWEN3_LANGUAGE_NAMES = {
     "zh": "Chinese",
 }
 SILERO_RU_LANGUAGE_CODE = "ru"
-SILERO_RU_SUPPORTED_SPEAKERS = frozenset(("baya", "xenia"))
 INTER_CHUNK_SILENCE_SECONDS = 0.18
 ProgressCallback = Callable[[int, int], None]
 
@@ -375,12 +376,14 @@ class SileroRuTTSBackend:
         *,
         model_path: str = "",
         model_url: str = DEFAULT_SILERO_RU_MODEL_URL,
+        model_sha256: str = DEFAULT_SILERO_RU_MODEL_SHA256,
         default_speaker: str = DEFAULT_SILERO_RU_DEFAULT_SPEAKER,
         sample_rate: int = DEFAULT_SILERO_RU_SAMPLE_RATE,
         text_char_budget: int = DEFAULT_SILERO_RU_TEXT_CHAR_BUDGET,
     ) -> None:
         self.model_path = model_path
         self.model_url = model_url
+        self.model_sha256 = model_sha256.strip().lower()
         self.default_speaker = default_speaker
         self.sample_rate = sample_rate
         self.text_char_budget = text_char_budget
@@ -410,6 +413,20 @@ class SileroRuTTSBackend:
         torch.hub.download_url_to_file(self.model_url, str(destination))
         return destination
 
+    def _verify_model_file(self, path: Path) -> None:
+        if not self.model_sha256:
+            return
+        hasher = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                hasher.update(chunk)
+        digest = hasher.hexdigest()
+        if digest != self.model_sha256:
+            raise DependencyError(
+                "dictator.synthesis.silero_ru.model_digest_mismatch",
+                f"silero_ru model digest mismatch for {path}: expected {self.model_sha256}, got {digest}",
+            )
+
     def _model_cache_path(self) -> Path:
         return Path.home() / ".cache" / "dictator" / "models" / "silero" / Path(self.model_url).name
 
@@ -417,12 +434,29 @@ class SileroRuTTSBackend:
         if self.model_path:
             configured = Path(self.model_path)
             if configured.exists():
+                self._verify_model_file(configured)
                 return configured
-            return self._download_model(torch, configured)
+            downloaded = self._download_model(torch, configured)
+            try:
+                self._verify_model_file(downloaded)
+            except DependencyError:
+                downloaded.unlink(missing_ok=True)
+                raise
+            return downloaded
         cached = self._model_cache_path()
         if cached.exists():
-            return cached
-        return self._download_model(torch, cached)
+            try:
+                self._verify_model_file(cached)
+                return cached
+            except DependencyError:
+                cached.unlink(missing_ok=True)
+        downloaded = self._download_model(torch, cached)
+        try:
+            self._verify_model_file(downloaded)
+        except DependencyError:
+            downloaded.unlink(missing_ok=True)
+            raise
+        return downloaded
 
     def load(self):
         if self._model is not None:
@@ -469,6 +503,7 @@ class SpeechSynthesisService:
                 SynthesisEngine.SILERO_RU: SileroRuTTSBackend(
                     model_path=synthesis_config.silero_ru_model_path,
                     model_url=synthesis_config.silero_ru_model_url,
+                    model_sha256=synthesis_config.silero_ru_model_sha256,
                     default_speaker=synthesis_config.silero_ru_default_speaker,
                     sample_rate=synthesis_config.silero_ru_sample_rate,
                     text_char_budget=synthesis_config.silero_ru_text_char_budget,

@@ -255,6 +255,7 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 sys.modules["dictator.synthesis.service"].SileroRuTTSBackend.assert_called_once_with(
                     model_path=runtime._synthesis_config.silero_ru_model_path,
                     model_url=runtime._synthesis_config.silero_ru_model_url,
+                    model_sha256=runtime._synthesis_config.silero_ru_model_sha256,
                     default_speaker=runtime._synthesis_config.silero_ru_default_speaker,
                     sample_rate=runtime._synthesis_config.silero_ru_sample_rate,
                     text_char_budget=runtime._synthesis_config.silero_ru_text_char_budget,
@@ -280,6 +281,7 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
                 "DICTATOR_MODEL_ROOT": "/models",
                 "DICTATOR_QWEN3_TTS_TEXT_TOKEN_BUDGET": "256",
                 "DICTATOR_QWEN3_TTS_DTYPE": "float16",
+                "DICTATOR_SILERO_RU_MODEL_SHA256": "abc123",
                 "DICTATOR_SILERO_RU_DEFAULT_SPEAKER": "xenia",
                 "DICTATOR_SILERO_RU_SAMPLE_RATE": "24000",
                 "DICTATOR_SILERO_RU_TEXT_CHAR_BUDGET": "512",
@@ -288,6 +290,7 @@ class RuntimeStorageCoverageTests(unittest.TestCase):
         self.assertEqual(config.qwen3_text_token_budget, 256)
         self.assertEqual(config.qwen3_dtype, "float16")
         self.assertEqual(config.silero_ru_model_path, "/models/silero/v5_5_ru.pt")
+        self.assertEqual(config.silero_ru_model_sha256, "abc123")
         self.assertEqual(config.silero_ru_default_speaker, "xenia")
         self.assertEqual(config.silero_ru_sample_rate, 24000)
         self.assertEqual(config.silero_ru_text_char_budget, 512)

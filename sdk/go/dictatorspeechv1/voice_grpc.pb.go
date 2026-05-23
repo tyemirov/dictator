@@ -19,6 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	VoiceService_ListSynthesisVoices_FullMethodName             = "/dictator.speech.v1.VoiceService/ListSynthesisVoices"
 	VoiceService_ExtractReferenceSample_FullMethodName          = "/dictator.speech.v1.VoiceService/ExtractReferenceSample"
 	VoiceService_SubmitExtractReferenceSampleJob_FullMethodName = "/dictator.speech.v1.VoiceService/SubmitExtractReferenceSampleJob"
 	VoiceService_GetExtractReferenceSampleJob_FullMethodName    = "/dictator.speech.v1.VoiceService/GetExtractReferenceSampleJob"
@@ -33,6 +34,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type VoiceServiceClient interface {
+	ListSynthesisVoices(ctx context.Context, in *ListSynthesisVoicesRequest, opts ...grpc.CallOption) (*ListSynthesisVoicesResponse, error)
 	ExtractReferenceSample(ctx context.Context, in *ExtractReferenceSampleRequest, opts ...grpc.CallOption) (*ExtractReferenceSampleResponse, error)
 	SubmitExtractReferenceSampleJob(ctx context.Context, in *ExtractReferenceSampleRequest, opts ...grpc.CallOption) (*SubmitExtractReferenceSampleJobResponse, error)
 	GetExtractReferenceSampleJob(ctx context.Context, in *GetExtractReferenceSampleJobRequest, opts ...grpc.CallOption) (*GetExtractReferenceSampleJobResponse, error)
@@ -49,6 +51,16 @@ type voiceServiceClient struct {
 
 func NewVoiceServiceClient(cc grpc.ClientConnInterface) VoiceServiceClient {
 	return &voiceServiceClient{cc}
+}
+
+func (c *voiceServiceClient) ListSynthesisVoices(ctx context.Context, in *ListSynthesisVoicesRequest, opts ...grpc.CallOption) (*ListSynthesisVoicesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSynthesisVoicesResponse)
+	err := c.cc.Invoke(ctx, VoiceService_ListSynthesisVoices_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *voiceServiceClient) ExtractReferenceSample(ctx context.Context, in *ExtractReferenceSampleRequest, opts ...grpc.CallOption) (*ExtractReferenceSampleResponse, error) {
@@ -135,6 +147,7 @@ func (c *voiceServiceClient) CancelSynthesizeSpeechJob(ctx context.Context, in *
 // All implementations must embed UnimplementedVoiceServiceServer
 // for forward compatibility.
 type VoiceServiceServer interface {
+	ListSynthesisVoices(context.Context, *ListSynthesisVoicesRequest) (*ListSynthesisVoicesResponse, error)
 	ExtractReferenceSample(context.Context, *ExtractReferenceSampleRequest) (*ExtractReferenceSampleResponse, error)
 	SubmitExtractReferenceSampleJob(context.Context, *ExtractReferenceSampleRequest) (*SubmitExtractReferenceSampleJobResponse, error)
 	GetExtractReferenceSampleJob(context.Context, *GetExtractReferenceSampleJobRequest) (*GetExtractReferenceSampleJobResponse, error)
@@ -153,6 +166,9 @@ type VoiceServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedVoiceServiceServer struct{}
 
+func (UnimplementedVoiceServiceServer) ListSynthesisVoices(context.Context, *ListSynthesisVoicesRequest) (*ListSynthesisVoicesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSynthesisVoices not implemented")
+}
 func (UnimplementedVoiceServiceServer) ExtractReferenceSample(context.Context, *ExtractReferenceSampleRequest) (*ExtractReferenceSampleResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ExtractReferenceSample not implemented")
 }
@@ -196,6 +212,24 @@ func RegisterVoiceServiceServer(s grpc.ServiceRegistrar, srv VoiceServiceServer)
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&VoiceService_ServiceDesc, srv)
+}
+
+func _VoiceService_ListSynthesisVoices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSynthesisVoicesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VoiceServiceServer).ListSynthesisVoices(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VoiceService_ListSynthesisVoices_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VoiceServiceServer).ListSynthesisVoices(ctx, req.(*ListSynthesisVoicesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _VoiceService_ExtractReferenceSample_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -349,6 +383,10 @@ var VoiceService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "dictator.speech.v1.VoiceService",
 	HandlerType: (*VoiceServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListSynthesisVoices",
+			Handler:    _VoiceService_ListSynthesisVoices_Handler,
+		},
 		{
 			MethodName: "ExtractReferenceSample",
 			Handler:    _VoiceService_ExtractReferenceSample_Handler,

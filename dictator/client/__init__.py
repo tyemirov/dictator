@@ -11,6 +11,7 @@ from .voice import (
     SynthesisClient,
     SynthesisJob,
     SynthesisResult,
+    SynthesisVoice,
 )
 from .diarization import DiarizationJob
 
@@ -29,6 +30,7 @@ __all__ = [
     "SynthesisClient",
     "SynthesisJob",
     "SynthesisResult",
+    "SynthesisVoice",
     "SubtitleClient",
     "SubtitleJob",
     "SubtitleResult",

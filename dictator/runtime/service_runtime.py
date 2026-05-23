@@ -86,6 +86,7 @@ class SpeechExecutionRuntime:
                     self._tts_backends[SynthesisEngine.SILERO_RU] = SileroRuTTSBackend(
                         model_path=self._synthesis_config.silero_ru_model_path,
                         model_url=self._synthesis_config.silero_ru_model_url,
+                        model_sha256=self._synthesis_config.silero_ru_model_sha256,
                         default_speaker=self._synthesis_config.silero_ru_default_speaker,
                         sample_rate=self._synthesis_config.silero_ru_sample_rate,
                         text_char_budget=self._synthesis_config.silero_ru_text_char_budget,

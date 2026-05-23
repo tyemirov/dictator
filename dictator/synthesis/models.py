@@ -42,6 +42,7 @@ SILERO_RU_SYNTHESIS_AUDIO_FORMAT = SynthesisAudioFormat(
     bit_depth=16,
 )
 SILERO_RU_NATIVE_SAMPLE_RATES = (8_000, 24_000, 48_000)
+SILERO_RU_SUPPORTED_SPEAKERS = ("baya", "xenia")
 
 
 @dataclass(frozen=True)

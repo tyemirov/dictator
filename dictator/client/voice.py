@@ -33,6 +33,18 @@ class SynthesisResult:
 
 
 @dataclass(frozen=True)
+class SynthesisVoice:
+    synthesis_engine: int
+    language_code: str
+    voice_id: str
+    display_name: str
+    is_default: bool
+    native_sample_rate_hz: tuple[int, ...]
+    default_sample_rate_hz: int
+    requires_reference_audio: bool
+
+
+@dataclass(frozen=True)
 class SynthesisJob:
     job_id: str
     state: str
@@ -79,6 +91,33 @@ class SynthesisClient:
     ) -> None:
         self._voice_stub = voice_pb2_grpc.VoiceServiceStub(channel)
         self._metadata = tuple(metadata)
+
+    def list_synthesis_voices(
+        self,
+        *,
+        synthesis_engine: int = voice_pb2.SYNTHESIS_ENGINE_UNSPECIFIED,
+        language_code: str = "",
+    ) -> tuple[SynthesisVoice, ...]:
+        response = self._voice_stub.ListSynthesisVoices(
+            voice_pb2.ListSynthesisVoicesRequest(
+                synthesis_engine=synthesis_engine,
+                language_code=language_code,
+            ),
+            metadata=self._metadata,
+        )
+        return tuple(
+            SynthesisVoice(
+                synthesis_engine=voice.synthesis_engine,
+                language_code=voice.language_code,
+                voice_id=voice.voice_id,
+                display_name=voice.display_name,
+                is_default=voice.is_default,
+                native_sample_rate_hz=tuple(voice.native_sample_rate_hz),
+                default_sample_rate_hz=voice.default_sample_rate_hz,
+                requires_reference_audio=voice.requires_reference_audio,
+            )
+            for voice in response.voices
+        )
 
     def synthesize(
         self,

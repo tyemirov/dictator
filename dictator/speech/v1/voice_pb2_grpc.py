@@ -34,6 +34,11 @@ class VoiceServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
+        self.ListSynthesisVoices = channel.unary_unary(
+                '/dictator.speech.v1.VoiceService/ListSynthesisVoices',
+                request_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.ListSynthesisVoicesRequest.SerializeToString,
+                response_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.ListSynthesisVoicesResponse.FromString,
+                _registered_method=True)
         self.ExtractReferenceSample = channel.unary_unary(
                 '/dictator.speech.v1.VoiceService/ExtractReferenceSample',
                 request_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.ExtractReferenceSampleRequest.SerializeToString,
@@ -78,6 +83,12 @@ class VoiceServiceStub(object):
 
 class VoiceServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
+
+    def ListSynthesisVoices(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def ExtractReferenceSample(self, request, context):
         """Missing associated documentation comment in .proto file."""
@@ -130,6 +141,11 @@ class VoiceServiceServicer(object):
 
 def add_VoiceServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'ListSynthesisVoices': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListSynthesisVoices,
+                    request_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.ListSynthesisVoicesRequest.FromString,
+                    response_serializer=dictator_dot_speech_dot_v1_dot_voice__pb2.ListSynthesisVoicesResponse.SerializeToString,
+            ),
             'ExtractReferenceSample': grpc.unary_unary_rpc_method_handler(
                     servicer.ExtractReferenceSample,
                     request_deserializer=dictator_dot_speech_dot_v1_dot_voice__pb2.ExtractReferenceSampleRequest.FromString,
@@ -180,6 +196,33 @@ def add_VoiceServiceServicer_to_server(servicer, server):
  # This class is part of an EXPERIMENTAL API.
 class VoiceService(object):
     """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def ListSynthesisVoices(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/dictator.speech.v1.VoiceService/ListSynthesisVoices',
+            dictator_dot_speech_dot_v1_dot_voice__pb2.ListSynthesisVoicesRequest.SerializeToString,
+            dictator_dot_speech_dot_v1_dot_voice__pb2.ListSynthesisVoicesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def ExtractReferenceSample(request,

@@ -38,6 +38,22 @@ class _FakeRpcError(grpc.RpcError):
 class ClientJobHelpersTests(unittest.TestCase):
     def test_synthesis_job_helpers_submit_get_and_wait(self):
         stub = types.SimpleNamespace(
+            ListSynthesisVoices=MagicMock(
+                return_value=voice_pb2.ListSynthesisVoicesResponse(
+                    voices=[
+                        voice_pb2.SynthesisVoice(
+                            synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_SILERO_RU,
+                            language_code="ru",
+                            voice_id="xenia",
+                            display_name="Xenia",
+                            is_default=True,
+                            native_sample_rate_hz=(8000, 24000, 48000),
+                            default_sample_rate_hz=24000,
+                            requires_reference_audio=False,
+                        ),
+                    ],
+                ),
+            ),
             SubmitSynthesizeSpeechJob=MagicMock(
                 return_value=types.SimpleNamespace(
                     job_id="syn-1",
@@ -75,6 +91,10 @@ class ClientJobHelpersTests(unittest.TestCase):
             patch("dictator.client.voice.wait_for_job", return_value=waited_job) as wait_for_job,
         ):
             client = SynthesisClient(object(), metadata=[("authorization", "Bearer secret")])
+            voices = client.list_synthesis_voices(
+                synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_SILERO_RU,
+                language_code="ru",
+            )
             submitted = client.submit_synthesize_job(
                 speaker_artifact_id="speaker-1",
                 text_artifact_id="text-1",
@@ -92,6 +112,17 @@ class ClientJobHelpersTests(unittest.TestCase):
             fetched = client.get_synthesis_job("syn-1")
             waited = client.wait_for_synthesis_job("syn-1", timeout_seconds=9.0, poll_interval_seconds=0.25)
 
+        voice_request = stub.ListSynthesisVoices.call_args.args[0]
+        self.assertEqual(voice_request.synthesis_engine, voice_pb2.SYNTHESIS_ENGINE_SILERO_RU)
+        self.assertEqual(voice_request.language_code, "ru")
+        self.assertEqual(stub.ListSynthesisVoices.call_args.kwargs["metadata"], (("authorization", "Bearer secret"),))
+        self.assertEqual(len(voices), 1)
+        self.assertEqual(voices[0].voice_id, "xenia")
+        self.assertEqual(voices[0].display_name, "Xenia")
+        self.assertTrue(voices[0].is_default)
+        self.assertEqual(voices[0].native_sample_rate_hz, (8000, 24000, 48000))
+        self.assertEqual(voices[0].default_sample_rate_hz, 24000)
+        self.assertFalse(voices[0].requires_reference_audio)
         request = stub.SubmitSynthesizeSpeechJob.call_args_list[0].args[0]
         self.assertEqual(request.speaker_artifact_id, "speaker-1")
         self.assertEqual(request.text_artifact_id, "text-1")
