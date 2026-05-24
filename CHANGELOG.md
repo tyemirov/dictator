@@ -3,19 +3,19 @@
 ## [Unreleased]
 
 ### Features ✨
-- _No changes._
+- Added Silero Russian SSML synthesis support via `SYNTHESIS_TEXT_FORMAT_SSML`, including `<break>`, `<prosody>`, `<p>`, and `<s>` performance controls.
 
 ### Improvements ⚙️
-- _No changes._
+- Preserved plain-text synthesis behavior while allowing Silero to auto-detect a `<speak>` root when `text_format` is unspecified.
 
 ### Bug Fixes 🐛
 - _No changes._
 
 ### Testing 🧪
-- _No changes._
+- Added coverage for Silero SSML routing, client request plumbing, and gRPC text-format mapping.
 
 ### Docs 📚
-- _No changes._
+- Documented Silero SSML request usage in the README and client integration guide.
 
 ## [v1.10.3] - 2026-05-23
 

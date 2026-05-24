@@ -15,6 +15,14 @@ class SynthesisEngine(str, Enum):
     SILERO_RU = "silero_ru"
 
 
+class SynthesisTextFormat(str, Enum):
+    """Caller-declared synthesis text markup format."""
+
+    AUTO = "auto"
+    PLAIN_TEXT = "plain_text"
+    SSML = "ssml"
+
+
 @dataclass(frozen=True)
 class SynthesisAudioFormat:
     """Resolved synthesis output-audio contract."""
@@ -51,19 +59,21 @@ class SynthesisChunk:
 
     text: str
     units: tuple[str, ...]
+    timeline_text: str | None = None
 
     @classmethod
-    def from_text(cls, text: str) -> "SynthesisChunk":
-        return cls.from_units((text,))
+    def from_text(cls, text: str, *, timeline_text: str | None = None) -> "SynthesisChunk":
+        return cls.from_units((text,), timeline_text=timeline_text)
 
     @classmethod
-    def from_units(cls, units: Sequence[str]) -> "SynthesisChunk":
+    def from_units(cls, units: Sequence[str], *, timeline_text: str | None = None) -> "SynthesisChunk":
         normalized_units = tuple(unit.strip() for unit in units if unit.strip())
         if not normalized_units:
             raise ValueError("synthesis chunk units cannot be empty")
         return cls(
             text=" ".join(normalized_units),
             units=normalized_units,
+            timeline_text=timeline_text.strip() if timeline_text and timeline_text.strip() else None,
         )
 
 
@@ -80,6 +90,7 @@ class SynthesisRequest:
     speaker_transcript_text: str | None = None
     preset_speaker: str | None = None
     audio_format: SynthesisAudioFormat | None = None
+    text_format: SynthesisTextFormat = SynthesisTextFormat.AUTO
 
 
 @dataclass(frozen=True)

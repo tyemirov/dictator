@@ -132,6 +132,7 @@ class SynthesisClient:
         speaker_transcript_text: str = "",
         preset_speaker: str = "",
         audio_format: common_pb2.AudioFormat | None = None,
+        text_format: int = voice_pb2.SYNTHESIS_TEXT_FORMAT_UNSPECIFIED,
         timeout_seconds: float | None = None,
         poll_interval_seconds: float = 1.0,
     ) -> SynthesisResult:
@@ -146,6 +147,7 @@ class SynthesisClient:
             speaker_transcript_text=speaker_transcript_text,
             preset_speaker=preset_speaker,
             audio_format=audio_format,
+            text_format=text_format,
         )
         finished = self.wait_for_synthesis_job(
             submitted.job_id,
@@ -169,6 +171,7 @@ class SynthesisClient:
         speaker_transcript_text: str = "",
         preset_speaker: str = "",
         audio_format: common_pb2.AudioFormat | None = None,
+        text_format: int = voice_pb2.SYNTHESIS_TEXT_FORMAT_UNSPECIFIED,
     ) -> SynthesisJob:
         request = voice_pb2.SynthesizeSpeechRequest(
             speaker_artifact_id=speaker_artifact_id,
@@ -178,6 +181,7 @@ class SynthesisClient:
             synthesis_engine=synthesis_engine,
             speaker_transcript_text=speaker_transcript_text,
             preset_speaker=preset_speaker,
+            text_format=text_format,
         )
         if audio_format is not None:
             request.audio_format.CopyFrom(audio_format)

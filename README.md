@@ -386,7 +386,7 @@ optional arguments
 * Voice cloning now uses **Qwen3-TTS** only.
 * The default model is `Qwen/Qwen3-TTS-12Hz-1.7B-Base`.
 * Qwen3-TTS uses the full speaker sample plus its transcript and packs sentences by tokenizer budget.
-* The gRPC synthesis service defaults `language_code=ru` requests with no explicit engine and no reference-speaker fields to **Silero `v5_5_ru`** at 24 kHz, using preset speaker `baya` unless `preset_speaker` is set to `xenia`; callers can discover Silero preset speakers with `ListSynthesisVoices` and request another positive output sample rate with `audio_format.sample_rate_hz`.
+* The gRPC synthesis service defaults `language_code=ru` requests with no explicit engine and no reference-speaker fields to **Silero `v5_5_ru`** at 24 kHz, using preset speaker `baya` unless `preset_speaker` is set to `xenia`; callers can discover Silero preset speakers with `ListSynthesisVoices`, request another positive output sample rate with `audio_format.sample_rate_hz`, and pass Silero-only SSML via `text_format=SYNTHESIS_TEXT_FORMAT_SSML` for `<break>`, `<prosody>`, `<p>`, and `<s>` controls.
 * Synthesis stops when the next sentence would exceed `--length`.
 * All chunks concatenated with FFmpeg, `dynaudnorm` + –1 dBFS, 24 kHz mono.
 * When `--speech` is provided, a JSON file is written containing:

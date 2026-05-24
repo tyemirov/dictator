@@ -15,7 +15,7 @@ from dictator.runtime.jobs import SynthesisJobRecord, SynthesisJobState
 from dictator.runtime import DependencyError, InflightLimiter, MetricsRegistry, ProcessingError, ServiceRequestError, ValidationError
 from dictator.speech.v1 import alignment_pb2, artifacts_pb2, common_pb2, subtitle_pb2, transcription_pb2, voice_pb2
 from dictator.storage import LocalArtifactStore
-from dictator.synthesis.models import DEFAULT_SYNTHESIS_AUDIO_FORMAT, SILERO_RU_SYNTHESIS_AUDIO_FORMAT, SynthesisEngine
+from dictator.synthesis.models import DEFAULT_SYNTHESIS_AUDIO_FORMAT, SILERO_RU_SYNTHESIS_AUDIO_FORMAT, SynthesisEngine, SynthesisTextFormat
 from dictator.transport.grpc.services import (
     AlignmentServiceServicer,
     ArtifactServiceServicer,
@@ -497,6 +497,14 @@ class GrpcServicesUnitTests(unittest.TestCase):
             ).sample_rate_hz,
             8000,
         )
+        self.assertEqual(
+            servicer._resolve_synthesis_text_format(
+                voice_pb2.SynthesizeSpeechRequest(text_format=voice_pb2.SYNTHESIS_TEXT_FORMAT_PLAIN_TEXT)
+            ),
+            SynthesisTextFormat.PLAIN_TEXT,
+        )
+        with self.assertRaisesRegex(ValidationError, "text_format"):
+            servicer._resolve_synthesis_text_format(voice_pb2.SynthesizeSpeechRequest(text_format=99))
         with self.assertRaisesRegex(ValidationError, "container/codec/channels"):
             servicer._resolve_synthesis_audio_format(
                 voice_pb2.SynthesizeSpeechRequest(audio_format=common_pb2.AudioFormat(channel_count=2)),
@@ -625,6 +633,25 @@ class GrpcServicesUnitTests(unittest.TestCase):
         self.assertEqual(response.resolved_audio_format.sample_rate_hz, 24000)
         self.assertEqual(self.runtime.synthesis_service.calls[-1].engine, SynthesisEngine.SILERO_RU)
         self.assertEqual(self.runtime.synthesis_service.calls[-1].preset_speaker, "xenia")
+
+        self.runtime.synthesis_service = FakeSynthesisService(timeline_result)
+        with patch.dict(
+            sys.modules,
+            {
+                "dictator.audio.ffmpeg_ops": fake_ffmpeg_module,
+                "dictator.synthesis.service": fake_synthesis_service,
+            },
+        ):
+            servicer.SynthesizeSpeech(
+                voice_pb2.SynthesizeSpeechRequest(
+                    text='<speak><prosody rate="slow">привет</prosody></speak>',
+                    language_code="ru",
+                    synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_SILERO_RU,
+                    text_format=voice_pb2.SYNTHESIS_TEXT_FORMAT_SSML,
+                ),
+                FakeContext(metadata=(("x-dictator-token", "secret"),)),
+            )
+        self.assertEqual(self.runtime.synthesis_service.calls[-1].text_format, SynthesisTextFormat.SSML)
 
         self.runtime.synthesis_service = FakeSynthesisService(timeline_result)
         with patch.dict(

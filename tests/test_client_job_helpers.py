@@ -104,6 +104,7 @@ class ClientJobHelpersTests(unittest.TestCase):
                 speaker_transcript_text="sample transcript",
                 preset_speaker="xenia",
                 audio_format=common_pb2.AudioFormat(sample_rate_hz=24000),
+                text_format=voice_pb2.SYNTHESIS_TEXT_FORMAT_SSML,
             )
             submitted_with_text = client.submit_synthesize_job(
                 speaker_artifact_id="speaker-2",
@@ -133,6 +134,7 @@ class ClientJobHelpersTests(unittest.TestCase):
         self.assertEqual(request.speaker_transcript_text, "sample transcript")
         self.assertEqual(request.preset_speaker, "xenia")
         self.assertEqual(request.audio_format.sample_rate_hz, 24000)
+        self.assertEqual(request.text_format, voice_pb2.SYNTHESIS_TEXT_FORMAT_SSML)
         self.assertEqual(stub.SubmitSynthesizeSpeechJob.call_args.kwargs["metadata"], (("authorization", "Bearer secret"),))
         self.assertEqual(submitted.job_id, "syn-1")
         self.assertEqual(submitted.state, "SYNTHESIS_JOB_STATE_QUEUED")

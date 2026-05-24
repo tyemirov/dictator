@@ -21,6 +21,7 @@ from dictator.synthesis.models import (
     SILERO_RU_SYNTHESIS_AUDIO_FORMAT,
     SynthesisAudioFormat,
     SynthesisEngine,
+    SynthesisTextFormat,
 )
 from dictator.synthesis.config import DEFAULT_SILERO_RU_DEFAULT_SPEAKER
 from dictator.synthesis.workflow import (
@@ -114,6 +115,18 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
             "synthesis_engine must be QWEN3, SILERO_RU, or unspecified for language-based defaulting",
         )
 
+    def _resolve_synthesis_text_format(self, request) -> SynthesisTextFormat:
+        if request.text_format == voice_pb2.SYNTHESIS_TEXT_FORMAT_UNSPECIFIED:
+            return SynthesisTextFormat.AUTO
+        if request.text_format == voice_pb2.SYNTHESIS_TEXT_FORMAT_PLAIN_TEXT:
+            return SynthesisTextFormat.PLAIN_TEXT
+        if request.text_format == voice_pb2.SYNTHESIS_TEXT_FORMAT_SSML:
+            return SynthesisTextFormat.SSML
+        raise ValidationError(
+            "dictator.grpc.voice.text_format_unsupported",
+            "text_format must be PLAIN_TEXT, SSML, or unspecified for auto-detection",
+        )
+
     def _resolve_speaker_transcript_text(self, request) -> str | None:
         return request.speaker_transcript_text or None
 
@@ -157,6 +170,7 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
             speaker_transcript_text=speaker_transcript_text,
             preset_speaker=request.preset_speaker or None,
             audio_format=self._resolve_synthesis_audio_format(request, engine),
+            text_format=self._resolve_synthesis_text_format(request),
         )
 
     def ListSynthesisVoices(self, request, context):

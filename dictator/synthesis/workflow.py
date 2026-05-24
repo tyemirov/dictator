@@ -9,7 +9,14 @@ from pathlib import Path
 from dictator.runtime import ValidationError
 from dictator.storage import ArtifactAudioMetadata, ArtifactRecord, LocalArtifactStore
 
-from .models import DEFAULT_SYNTHESIS_AUDIO_FORMAT, SILERO_RU_SYNTHESIS_AUDIO_FORMAT, SynthesisAudioFormat, SynthesisEngine, SynthesisRequest
+from .models import (
+    DEFAULT_SYNTHESIS_AUDIO_FORMAT,
+    SILERO_RU_SYNTHESIS_AUDIO_FORMAT,
+    SynthesisAudioFormat,
+    SynthesisEngine,
+    SynthesisRequest,
+    SynthesisTextFormat,
+)
 
 
 @dataclass(frozen=True)
@@ -47,6 +54,7 @@ def prepare_synthesis_request(
     speaker_transcript_text: str | None,
     preset_speaker: str | None = None,
     audio_format: SynthesisAudioFormat | None = None,
+    text_format: SynthesisTextFormat = SynthesisTextFormat.AUTO,
 ) -> PreparedSynthesisRequest:
     speaker = None
     if engine == SynthesisEngine.QWEN3:
@@ -76,6 +84,7 @@ def prepare_synthesis_request(
             speaker_transcript_text=speaker_transcript_text,
             preset_speaker=preset_speaker,
             audio_format=audio_format,
+            text_format=text_format,
         ),
         include_timeline=include_timeline,
         audio_format=audio_format

@@ -9,6 +9,7 @@ import shutil
 import tempfile
 import threading
 from typing import Callable, Mapping, Protocol, Sequence
+import xml.etree.ElementTree as ET
 
 from dictator.runtime import DependencyError, ValidationError
 
@@ -32,6 +33,7 @@ from .models import (
     SynthesisEngine,
     SynthesisRequest,
     SynthesisResult,
+    SynthesisTextFormat,
 )
 from .text import clean, join_synthesis_units, split_into_sentences
 
@@ -51,6 +53,11 @@ QWEN3_LANGUAGE_NAMES = {
 SILERO_RU_LANGUAGE_CODE = "ru"
 INTER_CHUNK_SILENCE_SECONDS = 0.18
 ProgressCallback = Callable[[int, int], None]
+SILERO_SSML_SUPPORTED_TAGS = {"speak", "break", "prosody", "p", "s"}
+SILERO_SSML_SUPPORTED_ATTRIBUTES = {
+    "break": {"time", "strength"},
+    "prosody": {"rate", "pitch"},
+}
 
 
 class SynthesisSession(Protocol):
@@ -110,6 +117,49 @@ def _pack_text_units_by_chars(units: Sequence[str], char_budget: int) -> tuple[S
     if buffer:
         chunks.append(SynthesisChunk.from_units(buffer))
     return tuple(chunks)
+
+
+def _xml_local_name(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1] if tag.startswith("{") else tag
+
+
+def _looks_like_ssml(text: str) -> bool:
+    return text.lstrip().lower().startswith("<speak")
+
+
+def _validate_silero_ssml(text: str) -> ET.Element:
+    try:
+        root = ET.fromstring(text)
+    except ET.ParseError as exc:
+        raise ValidationError(
+            "dictator.synthesis.silero_ru.invalid_ssml",
+            f"silero_ru SSML text is not well-formed XML: {exc}",
+        ) from exc
+    if _xml_local_name(root.tag) != "speak":
+        raise ValidationError(
+            "dictator.synthesis.silero_ru.invalid_ssml",
+            "silero_ru SSML text must use <speak> as the root tag",
+        )
+    for element in root.iter():
+        tag_name = _xml_local_name(element.tag)
+        if tag_name not in SILERO_SSML_SUPPORTED_TAGS:
+            supported = ", ".join(f"<{tag}>" for tag in sorted(SILERO_SSML_SUPPORTED_TAGS))
+            raise ValidationError(
+                "dictator.synthesis.silero_ru.unsupported_ssml",
+                f"silero_ru SSML tag <{tag_name}> is unsupported; supported tags: {supported}",
+            )
+        supported_attributes = SILERO_SSML_SUPPORTED_ATTRIBUTES.get(tag_name, set())
+        unsupported_attributes = sorted(set(element.attrib) - supported_attributes)
+        if unsupported_attributes:
+            raise ValidationError(
+                "dictator.synthesis.silero_ru.unsupported_ssml",
+                f"silero_ru SSML tag <{tag_name}> does not support attributes: {', '.join(unsupported_attributes)}",
+            )
+    return root
+
+
+def _ssml_timeline_text(root: ET.Element) -> str:
+    return " ".join(" ".join(root.itertext()).split())
 
 
 class Qwen3SynthesisSession:
@@ -272,6 +322,11 @@ class Qwen3TTSBackend:
         )
 
     def open_session(self, request: SynthesisRequest) -> SynthesisSession:
+        if request.text_format == SynthesisTextFormat.SSML:
+            raise ValidationError(
+                "dictator.synthesis.qwen3.text_format_unsupported",
+                "qwen3 synthesis does not support SSML text_format",
+            )
         speaker_transcript_text = (request.speaker_transcript_text or "").strip()
         if not speaker_transcript_text:
             raise ValidationError(
@@ -316,13 +371,30 @@ class SileroRuSynthesisSession:
         speaker: str,
         sample_rate: int,
         text_char_budget: int,
+        text_format: SynthesisTextFormat = SynthesisTextFormat.AUTO,
     ) -> None:
         self._model = model
         self._speaker = speaker
         self._sample_rate = sample_rate
         self._text_char_budget = text_char_budget
+        self._text_format = text_format
+
+    def _uses_ssml(self, text: str) -> bool:
+        return self._text_format == SynthesisTextFormat.SSML or (
+            self._text_format == SynthesisTextFormat.AUTO and _looks_like_ssml(text)
+        )
 
     def build_chunks(self, text: str) -> Sequence[SynthesisChunk]:
+        if self._uses_ssml(text):
+            root = _validate_silero_ssml(text)
+            timeline_text = _ssml_timeline_text(root)
+            if not timeline_text:
+                raise ValidationError(
+                    "dictator.synthesis.silero_ru.empty_ssml",
+                    "silero_ru SSML text must contain speakable text",
+                )
+            logging.info("silero_ru using one SSML chunk")
+            return (SynthesisChunk.from_text(text, timeline_text=timeline_text),)
         units = _sentence_units(text) or (text,)
         chunks = _pack_text_units_by_chars(units, self._text_char_budget)
         logging.info(
@@ -343,6 +415,27 @@ class SileroRuSynthesisSession:
         )
 
     def synthesise_chunk(self, text: str) -> SynthesisedAudioChunk:
+        if self._uses_ssml(text):
+            _validate_silero_ssml(text)
+            try:
+                samples = self._model.apply_tts(
+                    ssml_text=text,
+                    speaker=self._speaker,
+                    sample_rate=self._sample_rate,
+                )
+            except TypeError as exc:
+                raise DependencyError(
+                    "dictator.synthesis.silero_ru.ssml_unsupported",
+                    "loaded silero_ru model does not support apply_tts(ssml_text=...)",
+                ) from exc
+            if hasattr(samples, "detach"):
+                samples = samples.detach().cpu().numpy()
+            duration_seconds = len(samples) / self._sample_rate if self._sample_rate else 0.0
+            return SynthesisedAudioChunk(
+                samples=samples,
+                sample_rate=self._sample_rate,
+                duration_seconds=duration_seconds,
+            )
         kwargs = {
             "text": text,
             "speaker": self._speaker,
@@ -485,6 +578,7 @@ class SileroRuTTSBackend:
             speaker=self._resolve_speaker(request.preset_speaker),
             sample_rate=self._resolve_sample_rate(request),
             text_char_budget=self.text_char_budget,
+            text_format=request.text_format,
         )
 
 
@@ -585,7 +679,7 @@ class SpeechSynthesisService:
             wav_paths.append(wav_path)
             segments.append(
                 SpeechSegment(
-                    text=chunk.text,
+                    text=chunk.timeline_text or chunk.text,
                     start_seconds=elapsed + leading_silence_seconds,
                     end_seconds=elapsed + total_duration_seconds,
                 )
@@ -629,6 +723,7 @@ class SpeechSynthesisService:
             speaker_transcript_text=request.speaker_transcript_text,
             preset_speaker=request.preset_speaker,
             audio_format=request.audio_format,
+            text_format=request.text_format,
         )
         session = self._resolve_backend(normalized_request.engine).open_session(normalized_request)
         chunks = tuple(session.build_chunks(cleaned_text))
