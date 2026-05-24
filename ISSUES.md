@@ -2,6 +2,13 @@
 
 ## Open
 
+- [x] [API-004] Silero Russian synthesis needs provider-native performance markup.
+  - Source: Camu Teremok Silero narration review on 2026-05-23.
+  - Finding: Silero `v5_ru` supports SSML controls such as `<break>` and `<prosody>`, but Dictator only called `apply_tts(text=...)`, so callers could not slow or shape Silero Russian narration through the gRPC synthesis contract.
+  - Impact: Russian fairy-tale narration could be intelligible but too fast and flat, with no supported way to request pauses or slower delivery through Dictator.
+  - Expected: Expose an explicit SSML text format for Silero Russian synthesis, keep qwen3/plain-text behavior unchanged, and strip SSML tags from timeline text.
+  - Resolution: Added `SYNTHESIS_TEXT_FORMAT_SSML` to `SynthesizeSpeechRequest`, routed Silero SSML through `apply_tts(ssml_text=...)`, auto-detected `<speak>` roots for backward-compatible Silero requests, and documented the supported tags.
+
 - [x] [API-001] Synthesis output format is implicit and not negotiable.
   - Source: MediaOps Dictator provider integration review on 2026-05-21.
   - Finding: `VoiceService.SynthesizeSpeech` returns an `audio_artifact` and duration, but `SynthesizeSpeechRequest` has no field for requested container, codec, sample rate, channel count, or bit depth. Consumers can only infer the concrete output from current runtime behavior after downloading or probing the artifact.

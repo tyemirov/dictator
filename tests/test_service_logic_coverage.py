@@ -18,7 +18,7 @@ from dictator.diarization.models import (
 )
 from dictator.runtime import DependencyError, ProcessingError, ValidationError
 from dictator.subtitles.models import RenderSubtitlesRequest, TimedWord
-from dictator.synthesis.models import SynthesisAudioFormat, SynthesisEngine, SynthesisRequest
+from dictator.synthesis.models import SynthesisAudioFormat, SynthesisEngine, SynthesisRequest, SynthesisTextFormat
 from dictator.subtitles.service import (
     SubtitleService,
     _coerce_word_bounds as subtitle_coerce_word_bounds,
@@ -171,6 +171,18 @@ class ServiceLogicCoverageTests(unittest.TestCase):
             generated_chunk = qwen_session.synthesise_chunk("Hello.")
             self.assertGreater(generated_chunk.duration_seconds, 0.0)
             self.assertIsNotNone(cached_qwen_session)
+            with self.assertRaisesRegex(ValidationError, "SSML"):
+                qwen_backend.open_session(
+                    SynthesisRequest(
+                        engine=SynthesisEngine.QWEN3,
+                        speaker_wav=Path("speaker.wav"),
+                        text="<speak>Hello.</speak>",
+                        language_code="en",
+                        cap_seconds=None,
+                        speaker_transcript_text="sample transcript",
+                        text_format=SynthesisTextFormat.SSML,
+                    )
+                )
             uncached_request = SynthesisRequest(
                 engine=SynthesisEngine.QWEN3,
                 speaker_wav=Path("speaker.wav"),
@@ -443,6 +455,67 @@ class ServiceLogicCoverageTests(unittest.TestCase):
         ).synthesise_chunk("Привет.")
         self.assertEqual(fallback_chunk.duration_seconds, 1.0)
         self.assertNotIn("put_accent", fallback_model.calls[-1])
+
+        ssml_model = types.SimpleNamespace(apply_tts=MagicMock(return_value=FakeTensor()))
+        ssml_session = backend_module.SileroRuSynthesisSession(
+            ssml_model,
+            speaker="xenia",
+            sample_rate=2,
+            text_char_budget=64,
+            text_format=SynthesisTextFormat.SSML,
+        )
+        ssml_text = '<speak><prosody rate="slow">Стоит в поле терем+ок.</prosody><break time="500ms"/></speak>'
+        ssml_chunks = ssml_session.build_chunks(ssml_text)
+        self.assertEqual(len(ssml_chunks), 1)
+        self.assertEqual(ssml_chunks[0].timeline_text, "Стоит в поле теремок.")
+        ssml_chunk = ssml_session.synthesise_chunk(ssml_text)
+        self.assertEqual(ssml_chunk.duration_seconds, 1.0)
+        self.assertEqual(ssml_model.apply_tts.call_args.kwargs["ssml_text"], ssml_text)
+        self.assertNotIn("text", ssml_model.apply_tts.call_args.kwargs)
+        self.assertNotIn("put_accent", ssml_model.apply_tts.call_args.kwargs)
+        auto_ssml_session = backend_module.SileroRuSynthesisSession(
+            ssml_model,
+            speaker="xenia",
+            sample_rate=2,
+            text_char_budget=16,
+        )
+        self.assertEqual(auto_ssml_session.build_chunks("<speak>Авто.</speak>")[0].timeline_text, "Авто.")
+        plain_ssml_session = backend_module.SileroRuSynthesisSession(
+            ssml_model,
+            speaker="xenia",
+            sample_rate=2,
+            text_char_budget=16,
+            text_format=SynthesisTextFormat.PLAIN_TEXT,
+        )
+        self.assertEqual(plain_ssml_session.build_chunks("<speak>Не SSML.</speak>")[0].text, "<speak>Не SSML.</speak>")
+        with self.assertRaisesRegex(ValidationError, "SSML"):
+            ssml_session.build_chunks("<speak><bad>")
+        with self.assertRaisesRegex(ValidationError, "root"):
+            ssml_session.build_chunks("<p>Привет.</p>")
+        with self.assertRaisesRegex(ValidationError, "unsupported"):
+            ssml_session.build_chunks("<speak><emphasis>Привет.</emphasis></speak>")
+        with self.assertRaisesRegex(ValidationError, "attributes"):
+            ssml_session.build_chunks('<speak><prosody volume="loud">Привет.</prosody></speak>')
+        with self.assertRaisesRegex(ValidationError, "speakable"):
+            ssml_session.build_chunks('<speak><break time="500ms"/></speak>')
+        small_ssml_session = backend_module.SileroRuSynthesisSession(
+            ssml_model,
+            speaker="xenia",
+            sample_rate=2,
+            text_char_budget=16,
+            text_format=SynthesisTextFormat.SSML,
+        )
+        with self.assertRaisesRegex(ValidationError, "char budget"):
+            small_ssml_session.build_chunks("<speak>Очень длинная фраза.</speak>")
+        typeerror_ssml_model = types.SimpleNamespace(apply_tts=MagicMock(side_effect=TypeError("no ssml_text")))
+        with self.assertRaisesRegex(DependencyError, "ssml_text"):
+            backend_module.SileroRuSynthesisSession(
+                typeerror_ssml_model,
+                speaker="xenia",
+                sample_rate=2,
+                text_char_budget=16,
+                text_format=SynthesisTextFormat.SSML,
+            ).synthesise_chunk("<speak>Привет.</speak>")
 
         fake_config = types.SimpleNamespace(
             qwen3_model_id="default-model",

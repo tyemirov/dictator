@@ -39,6 +39,12 @@ enum SynthesisEngine {
   SYNTHESIS_ENGINE_SILERO_RU = 2;
 }
 
+enum SynthesisTextFormat {
+  SYNTHESIS_TEXT_FORMAT_UNSPECIFIED = 0;
+  SYNTHESIS_TEXT_FORMAT_PLAIN_TEXT = 1;
+  SYNTHESIS_TEXT_FORMAT_SSML = 2;
+}
+
 enum SynthesisJobState {
   SYNTHESIS_JOB_STATE_UNSPECIFIED = 0;
   SYNTHESIS_JOB_STATE_QUEUED = 1;
@@ -144,6 +150,7 @@ message SynthesizeSpeechRequest {
   string speaker_transcript_text = 8;
   AudioFormat audio_format = 9;
   string preset_speaker = 10;
+  SynthesisTextFormat text_format = 11;
 }
 
 message SynthesizeSpeechResponse {
