@@ -58,6 +58,7 @@ SILERO_SSML_SUPPORTED_ATTRIBUTES = {
     "break": {"time", "strength"},
     "prosody": {"rate", "pitch"},
 }
+SILERO_RU_VOWELS = frozenset("аеёиоуыэюяАЕЁИОУЫЭЮЯ")
 
 
 class SynthesisSession(Protocol):
@@ -159,7 +160,20 @@ def _validate_silero_ssml(text: str) -> ET.Element:
 
 
 def _ssml_timeline_text(root: ET.Element) -> str:
-    return " ".join(" ".join(root.itertext()).split())
+    return _strip_silero_stress_markers(" ".join(" ".join(root.itertext()).split()))
+
+
+def _strip_silero_stress_markers(text: str) -> str:
+    output: list[str] = []
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char == "+" and index + 1 < len(text) and text[index + 1] in SILERO_RU_VOWELS:
+            index += 1
+            continue
+        output.append(char)
+        index += 1
+    return "".join(output)
 
 
 class Qwen3SynthesisSession:
@@ -392,6 +406,11 @@ class SileroRuSynthesisSession:
                 raise ValidationError(
                     "dictator.synthesis.silero_ru.empty_ssml",
                     "silero_ru SSML text must contain speakable text",
+                )
+            if len(timeline_text) > self._text_char_budget:
+                raise ValidationError(
+                    "dictator.synthesis.silero_ru.ssml_text_too_long",
+                    f"silero_ru SSML speakable text exceeds char budget {self._text_char_budget}",
                 )
             logging.info("silero_ru using one SSML chunk")
             return (SynthesisChunk.from_text(text, timeline_text=timeline_text),)

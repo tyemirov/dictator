@@ -461,10 +461,10 @@ class ServiceLogicCoverageTests(unittest.TestCase):
             ssml_model,
             speaker="xenia",
             sample_rate=2,
-            text_char_budget=16,
+            text_char_budget=64,
             text_format=SynthesisTextFormat.SSML,
         )
-        ssml_text = '<speak><prosody rate="slow">Стоит в поле теремок.</prosody><break time="500ms"/></speak>'
+        ssml_text = '<speak><prosody rate="slow">Стоит в поле терем+ок.</prosody><break time="500ms"/></speak>'
         ssml_chunks = ssml_session.build_chunks(ssml_text)
         self.assertEqual(len(ssml_chunks), 1)
         self.assertEqual(ssml_chunks[0].timeline_text, "Стоит в поле теремок.")
@@ -498,6 +498,15 @@ class ServiceLogicCoverageTests(unittest.TestCase):
             ssml_session.build_chunks('<speak><prosody volume="loud">Привет.</prosody></speak>')
         with self.assertRaisesRegex(ValidationError, "speakable"):
             ssml_session.build_chunks('<speak><break time="500ms"/></speak>')
+        small_ssml_session = backend_module.SileroRuSynthesisSession(
+            ssml_model,
+            speaker="xenia",
+            sample_rate=2,
+            text_char_budget=16,
+            text_format=SynthesisTextFormat.SSML,
+        )
+        with self.assertRaisesRegex(ValidationError, "char budget"):
+            small_ssml_session.build_chunks("<speak>Очень длинная фраза.</speak>")
         typeerror_ssml_model = types.SimpleNamespace(apply_tts=MagicMock(side_effect=TypeError("no ssml_text")))
         with self.assertRaisesRegex(DependencyError, "ssml_text"):
             backend_module.SileroRuSynthesisSession(
