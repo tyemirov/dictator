@@ -10,6 +10,8 @@ numpy
 torchcodec==0.7.*
 openai-whisper
 pyannote.audio==3.4.*
+# pyannote.audio 3.4 passes use_auth_token into SpeechBrain; 1.1.0 removed it.
+speechbrain==1.0.3
 librosa
 qwen-tts==0.1.1
 whisperx
