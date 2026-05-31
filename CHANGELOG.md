@@ -17,6 +17,23 @@
 ### Docs 📚
 - Documented Silero SSML request usage in the README and client integration guide.
 
+## [v1.10.5] - 2026-05-30
+
+### Features ✨
+- _No changes._
+
+### Improvements ⚙️
+- Updated `speechbrain` dependency to version 1.0.3 for compatibility with pyannote.audio 3.4.
+
+### Bug Fixes 🐛
+- _No changes._
+
+### Testing 🧪
+- _No changes._
+
+### Docs 📚
+- _No changes._
+
 ## [v1.10.4] - 2026-05-23
 
 ### Features ✨
