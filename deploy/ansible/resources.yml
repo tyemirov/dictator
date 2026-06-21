@@ -1,0 +1,34 @@
+---
+mprlab_resources:
+  schema_version: 1
+  repo:
+    id: dictator
+    directory: dictator
+    dispatch_target: dictator
+  resources:
+    - type: make_workflow
+      name: dictator
+      targets:
+        release: release
+        publish: publish
+        deploy: deploy
+    - type: container_service
+      name: dictator
+      host_group: computercat
+      image_variable: DICTATOR_IMAGE
+      container_port: 50051
+      host_port: 50002
+      host_port_variable: DICTATOR_HOST_PORT
+      compose_file: docker-compose.computercat.yml
+      compose_project: mprlab-gateway
+      gpu: true
+      external_volumes:
+        - dictator_dictator-artifacts
+        - dictator_huggingface-cache
+        - dictator_whisper-cache
+        - dictator_torch-cache
+    - type: caddy_route
+      name: dictator
+      host: dictator.mprlab.com
+      upstream: h2c://computercat:50002
+      snippet: dictator.caddy
