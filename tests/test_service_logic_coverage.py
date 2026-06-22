@@ -323,6 +323,32 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                 self.assertIs(silero_backend.load(), fake_silero_model)
                 self.assertIs(silero_backend.load(), fake_silero_model)
                 self.assertEqual(silero_load_order, ["unpack", "to:cpu"])
+                already_unpacked_package = types.SimpleNamespace(
+                    q_model_unpacked=True,
+                    unpack_q_model=MagicMock(),
+                )
+                silero_backend._unpack_quantized_accentor_before_device_move(
+                    types.SimpleNamespace(packages=[already_unpacked_package])
+                )
+                already_unpacked_package.unpack_q_model.assert_not_called()
+
+                class ReadOnlyUnpackedPackage:
+                    def __init__(self):
+                        self.unpack_q_model = MagicMock()
+
+                    @property
+                    def q_model_unpacked(self):
+                        return False
+
+                    @q_model_unpacked.setter
+                    def q_model_unpacked(self, _value):
+                        raise RuntimeError("read-only")
+
+                read_only_package = ReadOnlyUnpackedPackage()
+                silero_backend._unpack_quantized_accentor_before_device_move(
+                    types.SimpleNamespace(packages=[read_only_package])
+                )
+                read_only_package.unpack_q_model.assert_called_once_with()
                 silero_session = silero_backend.open_session(
                     SynthesisRequest(
                         engine=SynthesisEngine.SILERO_RU,
