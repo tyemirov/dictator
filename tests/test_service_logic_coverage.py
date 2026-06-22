@@ -276,8 +276,17 @@ class ServiceLogicCoverageTests(unittest.TestCase):
             def numpy(self):
                 return np.array([0.1, -0.1], dtype=np.float32)
 
+        silero_load_order = []
+        fake_silero_package = types.SimpleNamespace(q_model_unpacked=False)
+        fake_silero_package.unpack_q_model = MagicMock(
+            side_effect=lambda: (
+                silero_load_order.append("unpack"),
+                setattr(fake_silero_package, "q_model_unpacked", True),
+            )
+        )
         fake_silero_model = types.SimpleNamespace(
-            to=MagicMock(),
+            packages=[fake_silero_package],
+            to=MagicMock(side_effect=lambda device: silero_load_order.append(f"to:{device}")),
             apply_tts=MagicMock(return_value=FakeTensor()),
         )
 
@@ -313,6 +322,7 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                 )
                 self.assertIs(silero_backend.load(), fake_silero_model)
                 self.assertIs(silero_backend.load(), fake_silero_model)
+                self.assertEqual(silero_load_order, ["unpack", "to:cpu"])
                 silero_session = silero_backend.open_session(
                     SynthesisRequest(
                         engine=SynthesisEngine.SILERO_RU,
