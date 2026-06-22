@@ -8,13 +8,16 @@ Usage: scripts/test-docker-image.sh [options]
 
 Build or reuse a Docker image and run the in-image blackbox probe.
 The default probe verifies baked model assets, dependency imports, and gRPC
-startup. Full Qwen3 synthesis is opt-in because it requires suitable GPU/RAM.
+startup, and a live Silero Russian synthesis roundtrip. The default run requires
+Docker GPU access because Dictator is a GPU service. Full Qwen3 synthesis is
+opt-in because it requires more GPU/RAM.
 
 Options:
   --image IMAGE       Probe an existing image instead of building one
   --tag TAG           Local tag to use when building (default: dictator:blackbox)
   --platform PLATFORM Docker platform to build/run (default: linux/amd64)
   --full-synthesis    Run full Qwen3 synthesis roundtrip inside the image
+  --no-gpu            Do not pass --gpus all or require CUDA in the probe
   --dockerfile PATH   Dockerfile to build (default: Dockerfile.gpu)
   --context PATH      Docker build context (default: repo root)
   -h, --help          Show this help
@@ -36,6 +39,7 @@ IMAGE_NAME=""
 LOCAL_TAG="dictator:blackbox"
 PLATFORM="${PLATFORM:-linux/amd64}"
 FULL_SYNTHESIS=0
+USE_GPU=1
 DOCKERFILE_PATH="Dockerfile.gpu"
 BUILD_CONTEXT="${REPO_ROOT}"
 
@@ -58,6 +62,9 @@ while [[ $# -gt 0 ]]; do
       ;;
     --full-synthesis)
       FULL_SYNTHESIS=1
+      ;;
+    --no-gpu)
+      USE_GPU=0
       ;;
     --dockerfile)
       shift
@@ -96,6 +103,9 @@ docker_run=(
   --rm
   --platform "${PLATFORM}"
 )
+if [[ "${USE_GPU}" -eq 1 ]]; then
+  docker_run+=(--gpus all -e DICTATOR_DOCKER_PROBE_REQUIRE_CUDA=1)
+fi
 if [[ "${FULL_SYNTHESIS}" -eq 1 ]]; then
   docker_run+=(-e DICTATOR_DOCKER_PROBE_FULL_SYNTHESIS=1)
 fi

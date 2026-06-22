@@ -27,6 +27,7 @@ from dictator.speech.v1 import artifacts_pb2, artifacts_pb2_grpc, voice_pb2, voi
 
 AUTH_TOKEN = "docker-image-blackbox-secret"
 FULL_SYNTHESIS_ENV = "DICTATOR_DOCKER_PROBE_FULL_SYNTHESIS"
+REQUIRE_CUDA_ENV = "DICTATOR_DOCKER_PROBE_REQUIRE_CUDA"
 PROBE_SAMPLE_TEXT = (
     "The quick brown fox jumped over the lazy dog. "
     "Eleven benevolent elephants balanced on bright blue bicycles. "
@@ -61,6 +62,14 @@ def assert_dependency_imports() -> None:
     assert pyannote.audio.__version__.startswith("3.4."), pyannote.audio.__version__
     assert importlib.util.find_spec("flash_attn") is not None, "flash_attn is not installed"
     subprocess.run(["sox", "--version"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def assert_cuda_runtime_if_required() -> None:
+    if not _env_flag(REQUIRE_CUDA_ENV):
+        return
+    import torch
+
+    assert torch.cuda.is_available(), f"{REQUIRE_CUDA_ENV}=1 but torch.cuda.is_available() is false"
 
 
 def assert_default_entrypoint_starts() -> None:
@@ -254,11 +263,55 @@ def assert_grpc_voice_roundtrip() -> None:
                 assert len(payload) > 44, "synthesized WAV payload is empty"
 
 
+def assert_grpc_silero_ru_roundtrip() -> None:
+    metadata = (("authorization", f"Bearer {AUTH_TOKEN}"),)
+
+    with running_default_entrypoint() as port:
+        with contextlib.closing(grpc.insecure_channel(f"127.0.0.1:{port}")) as channel:
+            grpc.channel_ready_future(channel).result(timeout=5)
+            artifact_stub = artifacts_pb2_grpc.ArtifactServiceStub(channel)
+            voice_stub = voice_pb2_grpc.VoiceServiceStub(channel)
+
+            voices = voice_stub.ListSynthesisVoices(
+                voice_pb2.ListSynthesisVoicesRequest(
+                    language_code="ru",
+                    synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_SILERO_RU,
+                ),
+                metadata=metadata,
+            ).voices
+            voice_ids = {voice.voice_id for voice in voices}
+            assert {"baya", "xenia"} <= voice_ids, f"silero_ru voices missing from discovery: {sorted(voice_ids)}"
+
+            synthesis = voice_stub.SynthesizeSpeech(
+                voice_pb2.SynthesizeSpeechRequest(
+                    text="Привет.",
+                    language_code="ru",
+                    preset_speaker="xenia",
+                    synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_SILERO_RU,
+                    include_timeline=True,
+                ),
+                metadata=metadata,
+            )
+            assert synthesis.audio_artifact.artifact_id
+            assert synthesis.resolved_audio_format.sample_rate_hz == 24_000
+            assert synthesis.chunk_count == 1
+            assert synthesis.timeline and synthesis.timeline[0].content == "Привет."
+            payload = download_artifact(
+                artifact_stub,
+                synthesis.audio_artifact.artifact_id,
+                metadata=metadata,
+            )
+            assert payload.startswith(b"RIFF"), "silero_ru payload is not a WAV file"
+            assert len(payload) > 44, "silero_ru WAV payload is empty"
+
+
 def main() -> int:
     assert_baked_model_paths()
     assert_dependency_imports()
+    assert_cuda_runtime_if_required()
     assert_default_entrypoint_starts()
     assert_whisper_loader_call_shape()
+    assert_grpc_silero_ru_roundtrip()
     if _env_flag(FULL_SYNTHESIS_ENV):
         assert_grpc_voice_roundtrip()
     else:
