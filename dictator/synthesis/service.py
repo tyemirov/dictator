@@ -570,16 +570,18 @@ class SileroRuTTSBackend:
             raise
         return downloaded
 
-    def _unpack_quantized_accentor_before_device_move(self, model) -> None:
+    def _unpack_quantized_accentor_before_device_move(self, model, torch) -> None:
         # Silero v5 keeps accentor quantization scale/zero_point as plain CPU
         # tensors, not registered buffers. Unpack before moving to CUDA so the
         # package does not mix CUDA embedding weights with CPU quantization attrs
-        # on first apply_tts().
+        # on first apply_tts(). Keep Silero's lazy-unpack TorchScript profiling
+        # side effect too; CUDA inference can fail on later calls without it.
         packages = getattr(model, "packages", ())
         for package in packages:
             unpack = getattr(package, "unpack_q_model", None)
             if not callable(unpack) or getattr(package, "q_model_unpacked", True):
                 continue
+            torch._C._jit_set_profiling_mode(False)
             unpack()
             try:
                 package.q_model_unpacked = True
@@ -597,7 +599,7 @@ class SileroRuTTSBackend:
                 logging.info("loading silero_ru model from %s", model_path)
                 importer = torch.package.PackageImporter(str(model_path))
                 model = importer.load_pickle("tts_models", "model")
-                self._unpack_quantized_accentor_before_device_move(model)
+                self._unpack_quantized_accentor_before_device_move(model, torch)
                 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
                 model.to(device)
                 self._model = model
