@@ -282,27 +282,28 @@ def assert_grpc_silero_ru_roundtrip() -> None:
             voice_ids = {voice.voice_id for voice in voices}
             assert {"baya", "xenia"} <= voice_ids, f"silero_ru voices missing from discovery: {sorted(voice_ids)}"
 
-            synthesis = voice_stub.SynthesizeSpeech(
-                voice_pb2.SynthesizeSpeechRequest(
-                    text="Привет.",
-                    language_code="ru",
-                    preset_speaker="xenia",
-                    synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_SILERO_RU,
-                    include_timeline=True,
-                ),
-                metadata=metadata,
-            )
-            assert synthesis.audio_artifact.artifact_id
-            assert synthesis.resolved_audio_format.sample_rate_hz == 24_000
-            assert synthesis.chunk_count == 1
-            assert synthesis.timeline and synthesis.timeline[0].content == "Привет."
-            payload = download_artifact(
-                artifact_stub,
-                synthesis.audio_artifact.artifact_id,
-                metadata=metadata,
-            )
-            assert payload.startswith(b"RIFF"), "silero_ru payload is not a WAV file"
-            assert len(payload) > 44, "silero_ru WAV payload is empty"
+            for attempt in (1, 2):
+                synthesis = voice_stub.SynthesizeSpeech(
+                    voice_pb2.SynthesizeSpeechRequest(
+                        text="Привет.",
+                        language_code="ru",
+                        preset_speaker="xenia",
+                        synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_SILERO_RU,
+                        include_timeline=True,
+                    ),
+                    metadata=metadata,
+                )
+                assert synthesis.audio_artifact.artifact_id, f"silero_ru attempt {attempt} returned no artifact"
+                assert synthesis.resolved_audio_format.sample_rate_hz == 24_000
+                assert synthesis.chunk_count == 1
+                assert synthesis.timeline and synthesis.timeline[0].content == "Привет."
+                payload = download_artifact(
+                    artifact_stub,
+                    synthesis.audio_artifact.artifact_id,
+                    metadata=metadata,
+                )
+                assert payload.startswith(b"RIFF"), f"silero_ru attempt {attempt} payload is not a WAV file"
+                assert len(payload) > 44, f"silero_ru attempt {attempt} WAV payload is empty"
 
 
 def main() -> int:
