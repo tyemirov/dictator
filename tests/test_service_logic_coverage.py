@@ -353,6 +353,28 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                     )
                 )
                 self.assertTrue(legacy_warmup_package.q_model_unpacked)
+                bad_defaults_package = types.SimpleNamespace(q_model_unpacked=False, unpack_q_model=MagicMock())
+
+                def bad_defaults_apply_tts(**kwargs):
+                    bad_defaults_package.q_model_unpacked = True
+                    return FakeTensor()
+
+                bad_defaults_model = types.SimpleNamespace(
+                    packages=[bad_defaults_package],
+                    apply_tts=MagicMock(side_effect=bad_defaults_apply_tts),
+                )
+                backend_module.SileroRuTTSBackend(
+                    default_speaker="invalid-default",
+                    sample_rate=12345,
+                )._warm_up_quantized_accentor_before_cuda_move(bad_defaults_model)
+                self.assertEqual(
+                    bad_defaults_model.apply_tts.call_args.kwargs["speaker"],
+                    backend_module.SILERO_RU_WARMUP_SPEAKER,
+                )
+                self.assertEqual(
+                    bad_defaults_model.apply_tts.call_args.kwargs["sample_rate"],
+                    backend_module.SILERO_RU_WARMUP_SAMPLE_RATE,
+                )
                 stuck_package = types.SimpleNamespace(q_model_unpacked=False, unpack_q_model=MagicMock())
                 with self.assertRaisesRegex(DependencyError, "did not unpack"):
                     silero_backend._warm_up_quantized_accentor_before_cuda_move(
