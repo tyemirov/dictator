@@ -305,6 +305,11 @@ class ServiceLogicCoverageTests(unittest.TestCase):
             model_digest = "9372c470eeadd5ecd9c3c74c2b3cb633f8e2f2fad799250a0f70d652b6b825e4"
             downloaded_path = Path(tmpdir) / "downloaded" / "v5_5_ru.pt"
             fake_silero_torch = types.SimpleNamespace(
+                _C=types.SimpleNamespace(
+                    _jit_set_profiling_mode=MagicMock(
+                        side_effect=lambda enabled: silero_load_order.append(f"jit_profiling:{enabled}")
+                    )
+                ),
                 cuda=types.SimpleNamespace(is_available=lambda: False),
                 device=lambda name: name,
                 package=types.SimpleNamespace(PackageImporter=FakePackageImporter),
@@ -322,13 +327,14 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                 )
                 self.assertIs(silero_backend.load(), fake_silero_model)
                 self.assertIs(silero_backend.load(), fake_silero_model)
-                self.assertEqual(silero_load_order, ["unpack", "to:cpu"])
+                self.assertEqual(silero_load_order, ["jit_profiling:False", "unpack", "to:cpu"])
                 already_unpacked_package = types.SimpleNamespace(
                     q_model_unpacked=True,
                     unpack_q_model=MagicMock(),
                 )
                 silero_backend._unpack_quantized_accentor_before_device_move(
-                    types.SimpleNamespace(packages=[already_unpacked_package])
+                    types.SimpleNamespace(packages=[already_unpacked_package]),
+                    fake_silero_torch,
                 )
                 already_unpacked_package.unpack_q_model.assert_not_called()
 
@@ -346,7 +352,8 @@ class ServiceLogicCoverageTests(unittest.TestCase):
 
                 read_only_package = ReadOnlyUnpackedPackage()
                 silero_backend._unpack_quantized_accentor_before_device_move(
-                    types.SimpleNamespace(packages=[read_only_package])
+                    types.SimpleNamespace(packages=[read_only_package]),
+                    fake_silero_torch,
                 )
                 read_only_package.unpack_q_model.assert_called_once_with()
                 silero_session = silero_backend.open_session(
