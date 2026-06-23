@@ -51,6 +51,9 @@ QWEN3_LANGUAGE_NAMES = {
     "zh": "Chinese",
 }
 SILERO_RU_LANGUAGE_CODE = "ru"
+SILERO_RU_WARMUP_TEXT = "Привет."
+SILERO_RU_WARMUP_SPEAKER = SILERO_RU_SUPPORTED_SPEAKERS[0]
+SILERO_RU_WARMUP_SAMPLE_RATE = 24_000
 INTER_CHUNK_SILENCE_SECONDS = 0.18
 ProgressCallback = Callable[[int, int], None]
 SILERO_SSML_SUPPORTED_TAGS = {"speak", "break", "prosody", "p", "s"}
@@ -594,17 +597,17 @@ class SileroRuTTSBackend:
         logging.info("warming silero_ru quantized accentor on CPU before CUDA move")
         try:
             apply_tts(
-                text="Привет.",
-                speaker=self.default_speaker,
-                sample_rate=self.sample_rate,
+                text=SILERO_RU_WARMUP_TEXT,
+                speaker=SILERO_RU_WARMUP_SPEAKER,
+                sample_rate=SILERO_RU_WARMUP_SAMPLE_RATE,
                 put_accent=True,
                 put_yo=True,
             )
         except TypeError:
             apply_tts(
-                text="Привет.",
-                speaker=self.default_speaker,
-                sample_rate=self.sample_rate,
+                text=SILERO_RU_WARMUP_TEXT,
+                speaker=SILERO_RU_WARMUP_SPEAKER,
+                sample_rate=SILERO_RU_WARMUP_SAMPLE_RATE,
             )
         if self._packages_requiring_quantized_unpack(model):
             raise DependencyError(
