@@ -17,6 +17,27 @@
 ### Docs 📚
 - Documented Silero SSML request usage in the README and client integration guide.
 
+## [v1.10.7] - 2026-06-22
+
+### Features ✨
+- _No changes._
+
+### Improvements ⚙️
+- Warm up quantized accentor on CPU before moving Silero RU model to CUDA for consistent synthesis.
+- Use consistent constants for Silero RU warmup parameters to improve reliability.
+- Retry Silero RU synthesis twice in tests to reduce flakiness.
+
+### Bug Fixes 🐛
+- Fix passing torch instance to unpack quantized accentor before device move in Silero RU backend.
+
+### Testing 🧪
+- Add coverage for default speaker and sample rate fallback in Silero RU warm-up logic.
+- Enhance Silero backend tests with profiling mode mock and error case coverage.
+- Update Silero backend tests to cover warm-up logic and retry synthesis for stability.
+
+### Docs 📚
+- _No changes._
+
 ## [v1.10.6] - 2026-06-22
 
 ### Features ✨
