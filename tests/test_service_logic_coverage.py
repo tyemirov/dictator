@@ -278,16 +278,18 @@ class ServiceLogicCoverageTests(unittest.TestCase):
 
         silero_load_order = []
         fake_silero_package = types.SimpleNamespace(q_model_unpacked=False)
-        fake_silero_package.unpack_q_model = MagicMock(
-            side_effect=lambda: (
-                silero_load_order.append("unpack"),
-                setattr(fake_silero_package, "q_model_unpacked", True),
-            )
-        )
+        fake_silero_package.unpack_q_model = MagicMock()
+
+        def fake_silero_apply_tts(**_kwargs):
+            if not fake_silero_package.q_model_unpacked:
+                silero_load_order.append("warmup")
+                fake_silero_package.q_model_unpacked = True
+            return FakeTensor()
+
         fake_silero_model = types.SimpleNamespace(
             packages=[fake_silero_package],
             to=MagicMock(side_effect=lambda device: silero_load_order.append(f"to:{device}")),
-            apply_tts=MagicMock(return_value=FakeTensor()),
+            apply_tts=MagicMock(side_effect=fake_silero_apply_tts),
         )
 
         class FakePackageImporter:
@@ -305,7 +307,7 @@ class ServiceLogicCoverageTests(unittest.TestCase):
             model_digest = "9372c470eeadd5ecd9c3c74c2b3cb633f8e2f2fad799250a0f70d652b6b825e4"
             downloaded_path = Path(tmpdir) / "downloaded" / "v5_5_ru.pt"
             fake_silero_torch = types.SimpleNamespace(
-                cuda=types.SimpleNamespace(is_available=lambda: False),
+                cuda=types.SimpleNamespace(is_available=lambda: True),
                 device=lambda name: name,
                 package=types.SimpleNamespace(PackageImporter=FakePackageImporter),
                 hub=types.SimpleNamespace(
@@ -322,33 +324,66 @@ class ServiceLogicCoverageTests(unittest.TestCase):
                 )
                 self.assertIs(silero_backend.load(), fake_silero_model)
                 self.assertIs(silero_backend.load(), fake_silero_model)
-                self.assertEqual(silero_load_order, ["unpack", "to:cpu"])
+                self.assertEqual(silero_load_order, ["warmup", "to:cuda:0"])
+                fake_silero_package.unpack_q_model.assert_not_called()
                 already_unpacked_package = types.SimpleNamespace(
                     q_model_unpacked=True,
                     unpack_q_model=MagicMock(),
                 )
-                silero_backend._unpack_quantized_accentor_before_device_move(
-                    types.SimpleNamespace(packages=[already_unpacked_package])
+                already_unpacked_model = types.SimpleNamespace(
+                    packages=[already_unpacked_package],
+                    apply_tts=MagicMock(),
                 )
+                silero_backend._warm_up_quantized_accentor_before_cuda_move(already_unpacked_model)
                 already_unpacked_package.unpack_q_model.assert_not_called()
+                already_unpacked_model.apply_tts.assert_not_called()
 
-                class ReadOnlyUnpackedPackage:
-                    def __init__(self):
-                        self.unpack_q_model = MagicMock()
+                legacy_warmup_package = types.SimpleNamespace(q_model_unpacked=False, unpack_q_model=MagicMock())
 
-                    @property
-                    def q_model_unpacked(self):
-                        return False
+                def legacy_apply_tts(**kwargs):
+                    if "put_accent" in kwargs:
+                        raise TypeError("old signature")
+                    legacy_warmup_package.q_model_unpacked = True
+                    return FakeTensor()
 
-                    @q_model_unpacked.setter
-                    def q_model_unpacked(self, _value):
-                        raise RuntimeError("read-only")
-
-                read_only_package = ReadOnlyUnpackedPackage()
-                silero_backend._unpack_quantized_accentor_before_device_move(
-                    types.SimpleNamespace(packages=[read_only_package])
+                silero_backend._warm_up_quantized_accentor_before_cuda_move(
+                    types.SimpleNamespace(
+                        packages=[legacy_warmup_package],
+                        apply_tts=MagicMock(side_effect=legacy_apply_tts),
+                    )
                 )
-                read_only_package.unpack_q_model.assert_called_once_with()
+                self.assertTrue(legacy_warmup_package.q_model_unpacked)
+                bad_defaults_package = types.SimpleNamespace(q_model_unpacked=False, unpack_q_model=MagicMock())
+
+                def bad_defaults_apply_tts(**kwargs):
+                    bad_defaults_package.q_model_unpacked = True
+                    return FakeTensor()
+
+                bad_defaults_model = types.SimpleNamespace(
+                    packages=[bad_defaults_package],
+                    apply_tts=MagicMock(side_effect=bad_defaults_apply_tts),
+                )
+                backend_module.SileroRuTTSBackend(
+                    default_speaker="invalid-default",
+                    sample_rate=12345,
+                )._warm_up_quantized_accentor_before_cuda_move(bad_defaults_model)
+                self.assertEqual(
+                    bad_defaults_model.apply_tts.call_args.kwargs["speaker"],
+                    backend_module.SILERO_RU_WARMUP_SPEAKER,
+                )
+                self.assertEqual(
+                    bad_defaults_model.apply_tts.call_args.kwargs["sample_rate"],
+                    backend_module.SILERO_RU_WARMUP_SAMPLE_RATE,
+                )
+                stuck_package = types.SimpleNamespace(q_model_unpacked=False, unpack_q_model=MagicMock())
+                with self.assertRaisesRegex(DependencyError, "did not unpack"):
+                    silero_backend._warm_up_quantized_accentor_before_cuda_move(
+                        types.SimpleNamespace(packages=[stuck_package], apply_tts=MagicMock(return_value=FakeTensor()))
+                    )
+                with self.assertRaisesRegex(DependencyError, "does not expose apply_tts"):
+                    silero_backend._warm_up_quantized_accentor_before_cuda_move(
+                        types.SimpleNamespace(packages=[types.SimpleNamespace(q_model_unpacked=False, unpack_q_model=MagicMock())])
+                    )
                 silero_session = silero_backend.open_session(
                     SynthesisRequest(
                         engine=SynthesisEngine.SILERO_RU,
