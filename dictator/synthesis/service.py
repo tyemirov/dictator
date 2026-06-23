@@ -570,23 +570,47 @@ class SileroRuTTSBackend:
             raise
         return downloaded
 
-    def _unpack_quantized_accentor_before_device_move(self, model, torch) -> None:
+    def _packages_requiring_quantized_unpack(self, model):
+        return tuple(
+            package
+            for package in getattr(model, "packages", ())
+            if callable(getattr(package, "unpack_q_model", None))
+            and not getattr(package, "q_model_unpacked", True)
+        )
+
+    def _warm_up_quantized_accentor_before_cuda_move(self, model) -> None:
         # Silero v5 keeps accentor quantization scale/zero_point as plain CPU
-        # tensors, not registered buffers. Unpack before moving to CUDA so the
-        # package does not mix CUDA embedding weights with CPU quantization attrs
-        # on first apply_tts(). Keep Silero's lazy-unpack TorchScript profiling
-        # side effect too; CUDA inference can fail on later calls without it.
-        packages = getattr(model, "packages", ())
-        for package in packages:
-            unpack = getattr(package, "unpack_q_model", None)
-            if not callable(unpack) or getattr(package, "q_model_unpacked", True):
-                continue
-            torch._C._jit_set_profiling_mode(False)
-            unpack()
-            try:
-                package.q_model_unpacked = True
-            except Exception:
-                logging.debug("silero_ru could not mark package q_model_unpacked", exc_info=True)
+        # tensors, not registered buffers. Let Silero's own lazy apply_tts()
+        # path unpack and configure its TorchScript state while still on CPU,
+        # then move the warmed model to CUDA.
+        if not self._packages_requiring_quantized_unpack(model):
+            return
+        apply_tts = getattr(model, "apply_tts", None)
+        if not callable(apply_tts):
+            raise DependencyError(
+                "dictator.synthesis.silero_ru.model_unpack_unavailable",
+                "loaded silero_ru model requires quantized unpacking but does not expose apply_tts",
+            )
+        logging.info("warming silero_ru quantized accentor on CPU before CUDA move")
+        try:
+            apply_tts(
+                text="Привет.",
+                speaker=self.default_speaker,
+                sample_rate=self.sample_rate,
+                put_accent=True,
+                put_yo=True,
+            )
+        except TypeError:
+            apply_tts(
+                text="Привет.",
+                speaker=self.default_speaker,
+                sample_rate=self.sample_rate,
+            )
+        if self._packages_requiring_quantized_unpack(model):
+            raise DependencyError(
+                "dictator.synthesis.silero_ru.model_unpack_failed",
+                "loaded silero_ru model did not unpack its quantized accentor during CPU warmup",
+            )
 
     def load(self):
         if self._model is not None:
@@ -599,8 +623,9 @@ class SileroRuTTSBackend:
                 logging.info("loading silero_ru model from %s", model_path)
                 importer = torch.package.PackageImporter(str(model_path))
                 model = importer.load_pickle("tts_models", "model")
-                self._unpack_quantized_accentor_before_device_move(model, torch)
                 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+                if str(device).startswith("cuda"):
+                    self._warm_up_quantized_accentor_before_cuda_move(model)
                 model.to(device)
                 self._model = model
         return self._model
