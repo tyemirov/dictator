@@ -17,6 +17,28 @@
 ### Docs 📚
 - Documented Silero SSML request usage in the README and client integration guide.
 
+## [v1.10.6] - 2026-06-22
+
+### Features ✨
+- Add Ansible resource configuration for Dictator deployment.
+- Add Silero Russian synthesis and optional GPU probe to test Docker image.
+- Add coverage tests for unpacking quantized accentor edge cases and Silero model load order.
+
+### Improvements ⚙️
+- Unpack quantized accentor before moving Silero RU model to device to avoid mixing CUDA and CPU tensors.
+- Enhance test-docker-image.sh to support running without GPU and require CUDA conditionally in probe.
+- Add live Silero Russian synthesis roundtrip to Docker image blackbox probe.
+
+### Bug Fixes 🐛
+- Fix Silero RU model loading to properly unpack quantized accentor before device move.
+
+### Testing 🧪
+- Verify Silero model load order and unpacking behavior in unit tests.
+- Add Silero RU roundtrip synthesis test in Docker image blackbox probe.
+
+### Docs 📚
+- Update test-docker-image.sh usage to document GPU requirements and new options.
+
 ## [v1.10.5] - 2026-05-30
 
 ### Features ✨
