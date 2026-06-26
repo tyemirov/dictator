@@ -402,9 +402,9 @@ class GrpcServicesUnitTests(unittest.TestCase):
             voice_pb2.ListSynthesisVoicesRequest(language_code="ru-RU"),
             FakeContext(metadata=(("x-dictator-token", "secret"),)),
         ).voices
-        self.assertEqual([voice.voice_id for voice in voices], ["baya", "xenia"])
-        self.assertEqual([voice.display_name for voice in voices], ["Baya", "Xenia"])
-        self.assertEqual([voice.is_default for voice in voices], [False, True])
+        self.assertEqual([voice.voice_id for voice in voices], ["aidar", "baya", "kseniya", "eugene", "xenia"])
+        self.assertEqual([voice.display_name for voice in voices], ["Aidar", "Baya", "Kseniya", "Eugene", "Xenia"])
+        self.assertEqual([voice.is_default for voice in voices], [False, False, False, False, True])
         self.assertEqual(tuple(voices[0].native_sample_rate_hz), (8000, 24000, 48000))
         self.assertEqual(voices[0].default_sample_rate_hz, 24000)
         self.assertFalse(voices[0].requires_reference_audio)
@@ -436,7 +436,7 @@ class GrpcServicesUnitTests(unittest.TestCase):
             voice_pb2.ListSynthesisVoicesRequest(synthesis_engine=voice_pb2.SYNTHESIS_ENGINE_SILERO_RU),
             FakeContext(metadata=(("x-dictator-token", "secret"),)),
         ).voices
-        self.assertEqual([voice.is_default for voice in default_voices], [True, False])
+        self.assertEqual([voice.is_default for voice in default_voices], [False, True, False, False, False])
         self.assertEqual(servicer._resolve_synthesis_engine(voice_pb2.SYNTHESIS_ENGINE_QWEN3), SynthesisEngine.QWEN3)
         self.assertEqual(
             servicer._resolve_synthesis_engine(voice_pb2.SYNTHESIS_ENGINE_SILERO_RU),
