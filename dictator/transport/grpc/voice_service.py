@@ -33,7 +33,10 @@ from .base import BaseServicer
 
 
 SILERO_RU_VOICE_DISPLAY_NAMES = {
+    "aidar": "Aidar",
     "baya": "Baya",
+    "kseniya": "Kseniya",
+    "eugene": "Eugene",
     "xenia": "Xenia",
 }
 
