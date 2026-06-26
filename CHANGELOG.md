@@ -17,6 +17,33 @@
 ### Docs 📚
 - Documented Silero SSML request usage in the README and client integration guide.
 
+## [v1.10.8] - 2026-06-26
+
+### Features ✨
+- Add new Silero RU speakers: aidar, kseniya, eugene, expanding preset options.
+- Update Silero RU warmup speaker to the new default.
+- Introduce AGENTS.md defining forward-only contract discipline.
+
+### Improvements ⚙️
+- Update gRPC synthesis service default behavior for Russian TTS to support all new Silero speakers.
+- Enhance documentation with comprehensive maintenance recurring issues in ISSUES.md.
+- Update Silero preset speaker options in gRPC synthesis service description and client integration docs.
+- Improve README to reflect expanded Silero Russian TTS speaker list and default selection logic.
+
+### Bug Fixes 🐛
+- _No changes._
+
+### Testing 🧪
+- Expand expected Silero RU voices in gRPC discovery unit tests to include all new speakers.
+- Update expected voice lists and default flags in gRPC unit tests accordingly.
+
+### Docs 📚
+- Add AGENTS.md to define forward-only contract discipline.
+- Add detailed maintenance recurring issues to ISSUES.md.
+- Update Silero Russian TTS preset speakers list in documentation.
+- Revise client integration docs to list all supported Silero RU speakers.
+- Adjust README and client integration examples to reflect new Silero speaker presets.
+
 ## [v1.10.7] - 2026-06-22
 
 ### Features ✨
