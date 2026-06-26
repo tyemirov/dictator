@@ -280,7 +280,8 @@ def assert_grpc_silero_ru_roundtrip() -> None:
                 metadata=metadata,
             ).voices
             voice_ids = {voice.voice_id for voice in voices}
-            assert {"baya", "xenia"} <= voice_ids, f"silero_ru voices missing from discovery: {sorted(voice_ids)}"
+            expected_voice_ids = {"aidar", "baya", "kseniya", "eugene", "xenia"}
+            assert expected_voice_ids <= voice_ids, f"silero_ru voices missing from discovery: {sorted(voice_ids)}"
 
             for attempt in (1, 2):
                 synthesis = voice_stub.SynthesizeSpeech(

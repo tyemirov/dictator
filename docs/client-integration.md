@@ -298,7 +298,7 @@ Rules:
 
 - omitted `synthesis_engine` resolves to Qwen3 when reference-speaker fields are supplied; otherwise it resolves to Silero Russian TTS for `language_code=ru*` and Qwen3 for other languages
 - Qwen3 voice cloning requires `speaker_artifact_id` and `speaker_transcript_text`
-- Silero Russian TTS uses preset speakers returned by `list_synthesis_voices(...)`, defaults to `baya`, and currently accepts `baya` or `xenia`
+- Silero Russian TTS uses preset speakers returned by `list_synthesis_voices(...)`, defaults to `baya`, and currently accepts `aidar`, `baya`, `kseniya`, `eugene`, or `xenia`
 - Silero Russian TTS accepts SSML text with `<speak>`, `<break>`, `<prosody>`, `<p>`, and `<s>`; SSML can be requested explicitly with `text_format=SYNTHESIS_TEXT_FORMAT_SSML`, and omitted text format auto-detects a `<speak>` root for Silero only
 - set exactly one of `text` or `text_artifact_id`
 - omitted `audio_format` resolves to WAV / PCM signed 16-bit little-endian / 24000 Hz / mono / 16-bit
@@ -364,7 +364,7 @@ from dictator.speech.v1 import voice_pb2
 channel = grpc.insecure_channel("127.0.0.1:50051")
 client = SynthesisClient(channel, metadata=(("x-dictator-token", token),))
 voices = client.list_synthesis_voices(language_code="ru")
-print([voice.voice_id for voice in voices])  # ["baya", "xenia"]
+print([voice.voice_id for voice in voices])  # ["aidar", "baya", "kseniya", "eugene", "xenia"]
 result = client.synthesize(
     text="Привет от Диктатора.",
     language_code="ru",
