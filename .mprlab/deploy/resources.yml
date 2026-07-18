@@ -16,9 +16,10 @@ mprlab_resources:
       name: dictator
       host_group: computercat
       image_variable: DICTATOR_IMAGE
-      container_port: 50051
-      host_port: 50002
-      host_port_variable: DICTATOR_HOST_PORT
+      ports:
+        - container_port: 50051
+          host_port: 50002
+          host_port_variable: DICTATOR_HOST_PORT
       compose_file: docker-compose.computercat.yml
       compose_project: mprlab-gateway
       gpu: true
@@ -27,6 +28,13 @@ mprlab_resources:
         - dictator_huggingface-cache
         - dictator_whisper-cache
         - dictator_torch-cache
+      runtime_assets:
+        - path: .mprlab/deploy/.env
+          example_path: dictator.env.example
+          destination: configs/.env.dictator
+          mode: "0600"
+        - path: config.yml
+          destination: configs/config.dictator.computercat.yml
     - type: caddy_route
       name: dictator
       host: dictator.mprlab.com

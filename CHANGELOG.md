@@ -7,15 +7,18 @@
 
 ### Improvements ⚙️
 - Preserved plain-text synthesis behavior while allowing Silero to auto-detect a `<speak>` root when `text_format` is unspecified.
+- Made release preparation, GitHub publication, and container artifact publication repository-owned and immutable, with deployment remaining a separate operator action.
 
 ### Bug Fixes 🐛
 - _No changes._
 
 ### Testing 🧪
 - Added coverage for Silero SSML routing, client request plumbing, and gRPC text-format mapping.
+- Added black-box release-contract coverage for the repository-owned entrypoints, container artifact preparation, and publication wiring.
 
 ### Docs 📚
 - Documented Silero SSML request usage in the README and client integration guide.
+- Documented the canonical release, publish, and deploy lifecycle and the exact container tags produced by publication.
 
 ## [v1.10.8] - 2026-06-26
 

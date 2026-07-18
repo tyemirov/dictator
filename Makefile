@@ -13,13 +13,14 @@ PROTO_GRPCIO_VERSION ?= 1.78.0
 PROTO_GRPCIO_TOOLS_VERSION ?= 1.78.0
 PROTO_PROTOBUF_VERSION ?= 6.33.6
 RELEASE_ARGS ?=
-RELEASE_HELPER ?=
-PUBLISH_ARGS ?=
+PUBLISH_RELEASE_ARGS ?=
 DEPLOY_ARGS ?=
 GATEWAY_DIR ?=
 DICTATOR_IMAGE_REPOSITORY ?= ghcr.io/tyemirov/dictator
+RELEASE_ARTIFACT_TARGETS ?= container-artifacts
+RELEASE_TOOL_DIR := $(abspath $(CURDIR)/scripts/release)
 
-.PHONY: test coverage ci release publish publish-gpu-image deploy test-docker-image proto proto-python proto-go proto-check proto-python-tools
+.PHONY: test coverage ci release container-artifacts publish-release publish deploy test-docker-image proto proto-python proto-go proto-check proto-python-tools
 
 test:
 	$(PYTHON) -m unittest discover -s tests -p 'test_*.py'
@@ -32,7 +33,13 @@ coverage:
 ci: proto-check coverage
 
 release:
-	RELEASE_HELPER="$(RELEASE_HELPER)" bash scripts/release.sh $(RELEASE_ARGS)
+	RELEASE_ARTIFACT_TARGETS="$(RELEASE_ARTIFACT_TARGETS)" bash scripts/release.sh $(RELEASE_ARGS)
+
+container-artifacts:
+	"$(RELEASE_TOOL_DIR)/prepare_container_artifact.sh" --name dictator --image "$(DICTATOR_IMAGE_REPOSITORY)" --file Dockerfile.gpu --context . --platforms linux/amd64
+
+publish-release:
+	bash scripts/publish-release.sh $(PUBLISH_RELEASE_ARGS)
 
 test-docker-image:
 	./scripts/test-docker-image.sh
@@ -69,10 +76,8 @@ proto-check:
 		exit 1; \
 	fi
 
-publish:
-	./scripts/docker-gh-deploy.sh --image-name "$(DICTATOR_IMAGE_REPOSITORY)" $(PUBLISH_ARGS)
-
-publish-gpu-image: publish
+publish: publish-release
+	"$(RELEASE_TOOL_DIR)/publish_container_artifacts.sh"
 
 deploy:
 	GATEWAY_DIR="$(GATEWAY_DIR)" DICTATOR_IMAGE_REPOSITORY="$(DICTATOR_IMAGE_REPOSITORY)" bash scripts/deploy.sh $(DEPLOY_ARGS)

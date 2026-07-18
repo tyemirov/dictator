@@ -2,6 +2,13 @@
 
 ## Open
 
+- [x] [OPS-001] Release, publication, and deployment ownership was split across mutable external tooling and a legacy manifest path.
+  - Source: MPR Lab fleet ownership audit on 2026-07-18.
+  - Finding: Dictator's release entrypoint searched for mutable helper installations, publication rebuilt and pushed images directly, deployment exposed a CI bypass, and the gateway consumed a manifest outside the canonical app-owned path.
+  - Impact: The orchestrator could not prove that a release, published container, and deployment all came from one immutable repository-owned contract.
+  - Resolution: Added repository-owned prepared-release and container-artifact pipelines, made publication consume the hashed prepared artifact without rebuilding, removed the deploy CI bypass, moved the manifest to `.mprlab/deploy/resources.yml`, and declared the app-owned runtime assets there.
+  - Validation: `make ci` covers the owned toolchain and release contract; `mprlab-gateway make ci` consumes only the committed canonical manifest.
+
 - [x] [API-004] Silero Russian synthesis needs provider-native performance markup.
   - Source: Camu Teremok Silero narration review on 2026-05-23.
   - Finding: Silero `v5_ru` supports SSML controls such as `<break>` and `<prosody>`, but Dictator only called `apply_tts(text=...)`, so callers could not slow or shape Silero Russian narration through the gRPC synthesis contract.
