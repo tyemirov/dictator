@@ -14,7 +14,6 @@ Options:
   --gateway-dir <path>     Gateway checkout. Default: $GATEWAY_DIR or sibling ../mprlab-gateway
   --image <value>          Image repository without tag. Default: $DICTATOR_IMAGE_REPOSITORY or ghcr.io/tyemirov/dictator
   --tag <value>            Release tag to verify. Default: latest v* tag at HEAD
-  --skip-ci                Skip local make ci deployment gate
   --skip-image-verify      Skip release tag/latest image digest verification
   --skip-backend           Skip gateway deployment
   --help                   Show this help text
@@ -38,7 +37,6 @@ env_or_default() {
 GATEWAY_DIR="$(env_or_default GATEWAY_DIR "")"
 IMAGE_REPOSITORY="$(env_or_default DICTATOR_IMAGE_REPOSITORY ghcr.io/tyemirov/dictator)"
 TAG="$(env_or_default DEPLOY_TAG "")"
-SKIP_CI="false"
 SKIP_IMAGE_VERIFY="false"
 SKIP_BACKEND="false"
 DEFAULT_BRANCH="master"
@@ -64,10 +62,6 @@ while [[ $# -gt 0 ]]; do
       [[ $# -ge 2 ]] || { echo "error: --tag requires a value" >&2; exit 1; }
       TAG="$2"
       shift 2
-      ;;
-    --skip-ci)
-      SKIP_CI="true"
-      shift
       ;;
     --skip-image-verify)
       SKIP_IMAGE_VERIFY="true"
@@ -149,11 +143,6 @@ fi
 
 if [[ -z "${TAG}" && "${SKIP_IMAGE_VERIFY}" != "true" ]]; then
   TAG="$(git tag --points-at HEAD --list 'v*' --sort=-version:refname | head -n 1)"
-fi
-
-if [[ "${SKIP_CI}" != "true" && "${SKIP_BACKEND}" != "true" ]]; then
-  echo "==> [deploy] Running make ci before deployment"
-  timeout -k 1200s -s SIGKILL 1200s make ci
 fi
 
 if [[ "${SKIP_IMAGE_VERIFY}" != "true" && "${SKIP_BACKEND}" != "true" ]]; then

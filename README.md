@@ -82,13 +82,13 @@ docker build -f Dockerfile.gpu -t dictator:gpu .
 
 Dictator follows the deployed-app Makefile contract used by `mprlab-gateway`:
 
-* `make release` cuts and verifies a SemVer repository release from `master`.
-* `make publish` validates the release state and pushes the GPU image to GHCR.
-* `make deploy` verifies the published image and deploys the backend through `mprlab-gateway`.
+* `make release` runs CI and prepares the local SemVer tag plus GPU image archive under `.git/mprlab-release`; it performs no remote write.
+* `make publish` pushes the exact prepared Git refs, GitHub Release metadata, and GPU image archive without rebuilding.
+* `make deploy` verifies the published version and `:latest` digests, then deploys the backend through `mprlab-gateway` without building or publishing.
 
 Pushing a semver Git tag like `1.2.3` or `v1.2.3` also triggers a GitHub Actions validation workflow that verifies the tagged commit is contained in `master` and reruns the unit test workflow on that tagged commit.
 
-The actual GPU image build and push now happens locally so Buildx layer cache can be reused across releases.
+The GPU image build happens during local release preparation so Buildx layer cache can be reused. Publication later loads and pushes that exact archive.
 
 To publish the GPU image for the latest release tag:
 
@@ -100,27 +100,21 @@ make release
 make publish
 ```
 
-The publish script:
+The release and publish pipelines together:
 
-* requires a clean working tree
-* verifies the current branch is `master`
-* verifies there are no open PRs
-* verifies `HEAD` carries the latest SemVer release tag
-* verifies the latest release tag resolves to a commit contained in `origin/master`
-* autodetects the release tag and uses it for image publishing
-* runs `make ci` before publishing
-* reuses a persistent local Buildx cache in `.buildx-cache-gpu`
-* derives the default GHCR image as `ghcr.io/<owner>/<repo>`
+* require a clean `master` worktree
+* run `make ci` before preparing artifacts
+* create a hashed local release manifest
+* reject publication if remote `master` changed after preparation
+* reject publication while open pull requests target `master`
+* push only the container archive recorded by the local manifest
 
 For a stable release tag like `v1.2.3`, it publishes:
 
-* `:1.2.3`
-* `:1.2`
-* `:1`
 * `:latest`
 * `:v1.2.3`
 
-For prerelease tags like `v1.2.3-rc.1`, it only publishes the exact prerelease tags and does not move `:latest`.
+For prerelease tags like `v1.2.3-rc.1`, it publishes the exact prerelease tag and does not move `:latest`.
 
 If you are not already logged into `ghcr.io`, either run `docker login ghcr.io` first or set `GHCR_USERNAME` and `GHCR_TOKEN` before running the script.
 
