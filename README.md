@@ -120,10 +120,10 @@ If you are not already logged into `ghcr.io`, either run `docker login ghcr.io` 
 
 ### Run with Compose
 
-If you want Docker Compose to load service environment from a file, create a local `.env` from `dictator.env.example`, then start the service:
+If you want Docker Compose to load service environment from a file, create a private local `.env` explicitly. Use `dictator.env.example` only to review variable names; its values are intentionally unusable and the file must never be copied or sourced.
 
 ```bash
-cp dictator.env.example .env
+install -m 0600 /dev/null .env
 # edit .env and set DICTATOR_GRPC_AUTH_TOKEN
 # leave HF_TOKEN as ${HF_TOKEN} so Compose reads it from your shell
 export HF_TOKEN=...
