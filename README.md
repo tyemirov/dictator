@@ -80,43 +80,29 @@ docker build -f Dockerfile.gpu -t dictator:gpu .
 
 ### GPU Release Flow
 
-Dictator follows the deployed-app Makefile contract used by `mprlab-gateway`:
+Dictator owns one production declaration at
+`.mprlab/deploy/resources.yml`. It declares the GPU image, ComputerCat service,
+retained model and artifact volumes, private runtime values, versioned
+`dictator.grpc` capability, and the public `dictator.mprlab.com` route. The
+application contains no production controller implementation.
 
-* `make release` runs CI and prepares the local SemVer tag plus GPU image archive under `.git/mprlab-release`; it performs no remote write.
-* `make publish` pushes the exact prepared Git refs, GitHub Release metadata, and GPU image archive without rebuilding.
-* `make deploy` verifies the published version and `:latest` digests, then deploys the backend through `mprlab-gateway` without building or publishing.
-
-Pushing a semver Git tag like `1.2.3` or `v1.2.3` also triggers a GitHub Actions validation workflow that verifies the tagged commit is contained in `master` and reruns the unit test workflow on that tagged commit.
-
-The GPU image build happens during local release preparation so Buildx layer cache can be reused. Publication later loads and pushes that exact archive.
-
-To publish the GPU image for the latest release tag:
+The complete production lifecycle is:
 
 ```bash
-git fetch --tags origin
-git checkout master
-git pull --ff-only origin master
-make release
-make publish
+make release && make publish && make deploy
 ```
 
-The release and publish pipelines together:
+Each target resolves the physical sibling gateway at exactly
+`../mprlab-gateway` and delegates to its selected-application lifecycle.
+Release runs Dictator CI and seals the exact Linux AMD64 GPU image. Publication
+publishes that sealed image without rebuilding. Deployment consumes the sealed
+publication receipt, reconciles only Dictator-owned resources, admits no
+provider source checkout, and verifies the declared runtime capability and
+public route.
 
-* require a clean `master` worktree
-* run `make ci` before preparing artifacts
-* create a hashed local release manifest
-* reject publication if remote `master` changed after preparation
-* reject publication while open pull requests target `master`
-* push only the container archive recorded by the local manifest
-
-For a stable release tag like `v1.2.3`, it publishes:
-
-* `:latest`
-* `:v1.2.3`
-
-For prerelease tags like `v1.2.3-rc.1`, it publishes the exact prerelease tag and does not move `:latest`.
-
-If you are not already logged into `ghcr.io`, either run `docker login ghcr.io` first or set `GHCR_USERNAME` and `GHCR_TOKEN` before running the script.
+Deployment reads `DICTATOR_GRPC_AUTH_TOKEN` and `HF_TOKEN` only from the
+ignored mode-`0600` `.mprlab/deploy/.env`. Release and publication do not read
+that private file.
 
 ### Run with Compose
 
