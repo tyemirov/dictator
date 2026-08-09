@@ -1,42 +1,104 @@
 ---
 mprlab_resources:
-  schema_version: 1
-  repo:
-    id: dictator
-    directory: dictator
-    dispatch_target: dictator
+  schema_version: 3
+  owner: dictator
   resources:
-    - type: make_workflow
-      name: dictator
-      targets:
-        release: release
-        publish: publish
-        deploy: deploy
-    - type: container_service
-      name: dictator
-      host_group: computercat
-      image_variable: DICTATOR_IMAGE
-      ports:
-        - container_port: 50051
-          host_port: 50002
-          host_port_variable: DICTATOR_HOST_PORT
-      compose_file: docker-compose.computercat.yml
-      compose_project: mprlab-gateway
-      gpu: true
-      external_volumes:
-        - dictator_dictator-artifacts
-        - dictator_huggingface-cache
-        - dictator_whisper-cache
-        - dictator_torch-cache
-      runtime_assets:
-        - path: .mprlab/deploy/.env
-          example_path: dictator.env.example
-          destination: configs/.env.dictator
-          mode: "0600"
-        - path: config.yml
-          destination: configs/config.dictator.computercat.yml
-    - type: caddy_route
-      name: dictator
-      host: dictator.mprlab.com
-      upstream: h2c://computercat:50002
-      snippet: dictator.caddy
+    - kind: private_values
+      id: private
+      bindings:
+        grpc-auth-token: DICTATOR_GRPC_AUTH_TOKEN
+        huggingface-token: HF_TOKEN
+    - kind: compose_project
+      id: computercat-runtime
+      retired_services:
+        - project: mprlab-gateway
+          service: dictator
+      images:
+        - id: backend-image
+          repository: ghcr.io/tyemirov/dictator
+          visibility: public
+          build:
+            context: .
+            dockerfile: Dockerfile.gpu
+            platforms:
+              - linux/amd64
+      services:
+        - id: dictator
+          image: backend-image
+          placement:
+            group: computercat
+            cardinality: one
+          command:
+            - python
+            - serve.py
+            - --config
+            - /app/config.yml
+          environment:
+            DICTATOR_GRPC_AUTH_TOKEN:
+              resource: private
+              output: grpc-auth-token
+            HF_TOKEN:
+              resource: private
+              output: huggingface-token
+            NVIDIA_DRIVER_CAPABILITIES:
+              value: compute,utility
+            NVIDIA_VISIBLE_DEVICES:
+              value: all
+          mounts:
+            - volume: artifacts
+              target: /app/.dictator-artifacts
+              read_only: false
+            - volume: huggingface-cache
+              target: /home/app/.cache/huggingface
+              read_only: false
+            - volume: whisper-cache
+              target: /home/app/.cache/whisper
+              read_only: false
+            - volume: torch-cache
+              target: /home/app/.cache/torch
+              read_only: false
+          ports:
+            - container_port: 50051
+              host_port: 50002
+              scope: private_lan
+          gpu: true
+      volumes:
+        - id: artifacts
+          name: dictator_dictator-artifacts
+          retention: retain
+        - id: huggingface-cache
+          name: dictator_huggingface-cache
+          retention: retain
+        - id: whisper-cache
+          name: dictator_whisper-cache
+          retention: retain
+        - id: torch-cache
+          name: dictator_torch-cache
+          retention: retain
+    - kind: runtime_capability
+      id: grpc
+      name: dictator.grpc
+      version: 1
+      project: computercat-runtime
+      service: dictator
+      endpoint:
+        scope: private_lan
+        scheme: grpc
+        port: 50002
+      health:
+        protocol: tcp
+    - kind: caddy_route
+      id: public-grpc
+      hostname: dictator.mprlab.com
+      listener: https
+      handlers:
+        - id: default
+          path_prefix: /
+          upstream: dictator.grpc
+          transport:
+            protocol: h2c
+            dial_timeout_seconds: 10
+            response_header_timeout_seconds: 30
+            read_timeout_seconds: 600
+      tls:
+        mode: automatic
