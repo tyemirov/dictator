@@ -20,3 +20,7 @@ bin/
 .buildx-cache-gpu/
 .buildx-cache-gpu-new/
 .claude/
+
+# BEGIN MPRLAB-GOVERNANCE
+/.mprlab/*-PLAN.md
+# END MPRLAB-GOVERNANCE
