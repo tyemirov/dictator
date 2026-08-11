@@ -1,7 +1,9 @@
 ---
 mprlab_resources:
-  schema_version: 3
+  schema_version: 4
   owner: dictator
+  release:
+    scheme: semver
   resources:
     - kind: private_values
       id: private
@@ -16,7 +18,6 @@ mprlab_resources:
       images:
         - id: backend-image
           repository: ghcr.io/tyemirov/dictator
-          visibility: public
           build:
             context: .
             dockerfile: Dockerfile.gpu
