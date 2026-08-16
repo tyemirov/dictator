@@ -11,6 +11,40 @@ Format: `- [ ] [B042] (P1) {I007} Title`
 
 ## BugFixes
 
+- [ ] [B001] (P0) The hosted diarization route must return valid gRPC results.
+  Goal:
+  A valid authenticated `DiarizeAudio` request reached
+  `dictator.mprlab.com:443`.
+  The hosted route returned HTTP 504 without a gRPC content type.
+  The client received no typed gRPC status and no diarization artifact.
+  The route must return a valid gRPC result for each documented RPC.
+
+  Requirements:
+  - Reproduce operation `mediaops-20260816T065915-000001` with a test audio
+    file.
+  - Identify the service, route, or upstream deadline that produced HTTP 504.
+  - Return a typed gRPC status when a synchronous request cannot complete.
+  - Keep `SubmitDiarizeAudioJob`, `GetDiarizeAudioJob`, and
+    `CancelDiarizeAudioJob` available through the hosted route.
+  - Make the hosted job path complete without a plain HTTP response.
+  - Preserve artifact identity and final job state across each status query.
+  - Do not increase a timeout as the primary repair.
+
+  Deliverables:
+  - Repair the Dictator runtime or its declared hosted route contract.
+  - Add a public-route regression for gRPC content type and typed status
+    behavior.
+  - Record a successful hosted job receipt and diarization artifact.
+
+  Validation:
+  - Verify hosted gRPC health and authenticated metrics.
+  - Submit a live diarization job through the hosted TLS route.
+  - Query the job until it reaches `DIARIZATION_JOB_STATE_SUCCEEDED`.
+  - Download or read the persisted diarization artifact.
+  - Run the MediaOps live canary with `mediaops.audio.speech.diarize`.
+  - Run the Creative Director accepted-audio canary through `accepted-assets`.
+  - Run `make ci`.
+
 ## Improvements
 
 - [ ] [I001] (P1) {P001} Build the Higgs TTS 3 qualification harness
