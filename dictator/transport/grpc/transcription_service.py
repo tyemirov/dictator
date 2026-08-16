@@ -157,7 +157,7 @@ class TranscriptionServiceServicer(BaseServicer, transcription_pb2_grpc.Transcri
             return response
 
     def DiarizeAudio(self, request, context):
-        with self._request_scope(context):
+        with self._request_scope(context, is_inquiry=True):
             self._abort(
                 context,
                 grpc.StatusCode.FAILED_PRECONDITION,
