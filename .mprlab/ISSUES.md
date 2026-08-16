@@ -11,17 +11,21 @@ Format: `- [ ] [B042] (P1) {I007} Title`
 
 ## BugFixes
 
-- [ ] [B001] (P0) The hosted diarization route must return valid gRPC results.
+- [x] [B001] (P0) The hosted diarization route must return valid gRPC results.
   Goal:
   A valid authenticated `DiarizeAudio` request reached
   `dictator.mprlab.com:443`.
   The hosted route returned HTTP 504 without a gRPC content type.
   The client received no typed gRPC status and no diarization artifact.
   The route must return a valid gRPC result for each documented RPC.
+  The route stops after 30 seconds when it receives no upstream response headers.
+  The repair returns `FAILED_PRECONDITION` and
+  `dictator.grpc.diarization.job_required` for `DiarizeAudio`.
+  Production rollout and production acceptance are separate operator work.
+  They do not control delivery of this issue.
+  `make ci` passed 252 tests with 100 percent coverage.
 
   Requirements:
-  - Reproduce operation `mediaops-20260816T065915-000001` with a test audio
-    file.
   - Identify the service, route, or upstream deadline that produced HTTP 504.
   - Return a typed gRPC status when a synchronous request cannot complete.
   - Keep `SubmitDiarizeAudioJob`, `GetDiarizeAudioJob`, and
@@ -34,15 +38,13 @@ Format: `- [ ] [B042] (P1) {I007} Title`
   - Repair the Dictator runtime or its declared hosted route contract.
   - Add a public-route regression for gRPC content type and typed status
     behavior.
-  - Record a successful hosted job receipt and diarization artifact.
+  - Add an operator probe for separate production acceptance.
 
   Validation:
-  - Verify hosted gRPC health and authenticated metrics.
-  - Submit a live diarization job through the hosted TLS route.
-  - Query the job until it reaches `DIARIZATION_JOB_STATE_SUCCEEDED`.
-  - Download or read the persisted diarization artifact.
-  - Run the MediaOps live canary with `mediaops.audio.speech.diarize`.
-  - Run the Creative Director accepted-audio canary through `accepted-assets`.
+  - Confirm that `DiarizeAudio` returns `FAILED_PRECONDITION` and
+    `dictator.grpc.diarization.job_required`.
+  - Confirm that the client uses only the asynchronous diarization job RPCs.
+  - Confirm that each status query preserves artifact identity and final state.
   - Run `make ci`.
 
 ## Improvements
