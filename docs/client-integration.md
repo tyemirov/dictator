@@ -129,8 +129,6 @@ The following convenience methods first try the async contract and fall back to 
 
 - `DictationClient.dictate_file(...)`
 - `DictationClient.dictate_bytes(...)`
-- `DiarizationClient.diarize_file(...)`
-- `DiarizationClient.diarize_bytes(...)`
 - `SubtitleClient.render_file(...)`
 - `SubtitleClient.render_bytes(...)`
 - `AlignmentClient.align_file(...)`
@@ -206,6 +204,13 @@ Important arguments:
 - `include_speaker_segments`
 - `utterance_gap_seconds`
 - `persist_json_artifact`
+
+Rules:
+
+- Use the job RPCs for all diarization work.
+- Do not call `DiarizeAudio` for diarization work.
+- `DiarizeAudio` returns `FAILED_PRECONDITION` and `dictator.grpc.diarization.job_required`.
+- `diarize_file(...)` and `diarize_bytes(...)` use only the job RPCs.
 
 Best practice:
 
