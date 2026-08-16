@@ -37,6 +37,7 @@ type TranscriptionServiceClient interface {
 	SubmitTranscribeJob(ctx context.Context, in *TranscribeRequest, opts ...grpc.CallOption) (*SubmitTranscribeJobResponse, error)
 	GetTranscribeJob(ctx context.Context, in *GetTranscribeJobRequest, opts ...grpc.CallOption) (*GetTranscribeJobResponse, error)
 	CancelTranscribeJob(ctx context.Context, in *CancelTranscribeJobRequest, opts ...grpc.CallOption) (*CancelTranscribeJobResponse, error)
+	// Returns FAILED_PRECONDITION. Use SubmitDiarizeAudioJob for diarization work.
 	DiarizeAudio(ctx context.Context, in *DiarizeAudioRequest, opts ...grpc.CallOption) (*DiarizeAudioResponse, error)
 	SubmitDiarizeAudioJob(ctx context.Context, in *DiarizeAudioRequest, opts ...grpc.CallOption) (*SubmitDiarizeAudioJobResponse, error)
 	GetDiarizeAudioJob(ctx context.Context, in *GetDiarizeAudioJobRequest, opts ...grpc.CallOption) (*GetDiarizeAudioJobResponse, error)
@@ -139,6 +140,7 @@ type TranscriptionServiceServer interface {
 	SubmitTranscribeJob(context.Context, *TranscribeRequest) (*SubmitTranscribeJobResponse, error)
 	GetTranscribeJob(context.Context, *GetTranscribeJobRequest) (*GetTranscribeJobResponse, error)
 	CancelTranscribeJob(context.Context, *CancelTranscribeJobRequest) (*CancelTranscribeJobResponse, error)
+	// Returns FAILED_PRECONDITION. Use SubmitDiarizeAudioJob for diarization work.
 	DiarizeAudio(context.Context, *DiarizeAudioRequest) (*DiarizeAudioResponse, error)
 	SubmitDiarizeAudioJob(context.Context, *DiarizeAudioRequest) (*SubmitDiarizeAudioJobResponse, error)
 	GetDiarizeAudioJob(context.Context, *GetDiarizeAudioJobRequest) (*GetDiarizeAudioJobResponse, error)
