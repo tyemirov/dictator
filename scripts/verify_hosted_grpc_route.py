@@ -29,6 +29,22 @@ def _required_auth_token() -> str:
     return token
 
 
+def _verify_authentication_required(channel: grpc.Channel) -> None:
+    stub = runtime_pb2_grpc.RuntimeServiceStub(channel)
+    try:
+        stub.GetMetrics(
+            runtime_pb2.GetMetricsRequest(),
+            timeout=RPC_TIMEOUT_SECONDS,
+        )
+    except grpc.RpcError as error:
+        if error.code() != grpc.StatusCode.UNAUTHENTICATED:
+            raise AssertionError(
+                f"GetMetrics without authentication returned {error.code().name}, not UNAUTHENTICATED"
+            ) from error
+        return
+    raise AssertionError("GetMetrics succeeded without authentication")
+
+
 def _verify_sync_diarization_status(channel: grpc.Channel, metadata: tuple[tuple[str, str], ...]) -> None:
     stub = transcription_pb2_grpc.TranscriptionServiceStub(channel)
     try:
@@ -63,6 +79,7 @@ def main() -> int:
         )
         if health.status != health_pb2.HealthCheckResponse.SERVING:
             raise AssertionError(f"hosted gRPC health returned status {health.status}")
+        _verify_authentication_required(channel)
         runtime_pb2_grpc.RuntimeServiceStub(channel).GetMetrics(
             runtime_pb2.GetMetricsRequest(),
             metadata=metadata,
