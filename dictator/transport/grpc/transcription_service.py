@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
+import grpc
 from google.protobuf import json_format, struct_pb2
 
-from dictator.diarization.models import DiarizeAudioRequest
 from dictator.runtime import ValidationError
 from dictator.runtime.jobs import (
     DiarizationJobRecord,
@@ -22,6 +19,9 @@ from dictator.runtime.jobs import (
 from dictator.speech.v1 import common_pb2, transcription_pb2, transcription_pb2_grpc
 
 from .base import BaseServicer, DEFAULT_MODEL_SIZE
+
+DIARIZATION_JOB_REQUIRED_ERROR_CODE = "dictator.grpc.diarization.job_required"
+DIARIZATION_JOB_REQUIRED_MESSAGE = "use SubmitDiarizeAudioJob for diarization requests"
 
 
 class TranscriptionServiceServicer(BaseServicer, transcription_pb2_grpc.TranscriptionServiceServicer):
@@ -158,46 +158,12 @@ class TranscriptionServiceServicer(BaseServicer, transcription_pb2_grpc.Transcri
 
     def DiarizeAudio(self, request, context):
         with self._request_scope(context):
-            prepared = self._resolve_prepared_diarization_job(request)
-            diarization_service = self.service_context.execution_runtime.get_diarization_service()
-            result = diarization_service.diarize(
-                DiarizeAudioRequest(
-                    input_path=prepared.audio_record.path,
-                    language=prepared.language_code,
-                    model_size=prepared.model_size,
-                    include_words=prepared.include_words,
-                    include_utterances=prepared.include_utterances,
-                    include_speakers=prepared.include_speakers,
-                    include_speaker_segments=prepared.include_speaker_segments,
-                    utterance_gap_seconds=prepared.utterance_gap_seconds,
-                ),
-                model=self.service_context.execution_runtime.get_whisper_model(
-                    prepared.model_size
-                ),
-                diarization_pipeline=self.service_context.execution_runtime.get_diarization_pipeline(),
+            self._abort(
+                context,
+                grpc.StatusCode.FAILED_PRECONDITION,
+                DIARIZATION_JOB_REQUIRED_ERROR_CODE,
+                DIARIZATION_JOB_REQUIRED_MESSAGE,
             )
-            payload = result.to_json_dict(
-                include_words=prepared.include_words,
-                include_utterances=prepared.include_utterances,
-                include_speakers=prepared.include_speakers,
-                include_speaker_segments=prepared.include_speaker_segments,
-            )
-            response = transcription_pb2.DiarizeAudioResponse(
-                text=result.text,
-                language_code=result.language or "",
-            )
-            response.diarization.CopyFrom(
-                json_format.ParseDict(payload, struct_pb2.Struct())
-            )
-            if prepared.persist_json_artifact:
-                json_record = self.service_context.artifact_store.write_artifact(
-                    [json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")],
-                    filename=f"{Path(prepared.audio_record.filename).stem}.diarization.json",
-                    media_type="application/json",
-                    fallback_suffix=".json",
-                )
-                response.diarization_artifact_id = json_record.artifact_id
-            return response
 
     def SubmitTranscribeJob(self, request, context):
         with self._request_scope(context):

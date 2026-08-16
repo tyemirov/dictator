@@ -129,52 +129,33 @@ class DiarizationClient:
             persist_json_artifact=persist_json_artifact,
             autodetect_language=resolved_autodetect,
         )
-        try:
-            response = self._transcription_stub.SubmitDiarizeAudioJob(
-                request,
-                metadata=self._metadata,
-            )
-            submitted = DiarizationJob(
-                job_id=response.job_id,
-                state=transcription_pb2.DiarizationJobState.Name(response.state),
-                source_artifact_id=artifact.artifact_id,
-            )
-            finished = self.wait_for_diarization_job(
-                submitted.job_id,
-                timeout_seconds=timeout_seconds,
-                poll_interval_seconds=poll_interval_seconds,
-            )
-            if finished.result is None:
-                raise RuntimeError("diarization job succeeded without a result payload")
-            source_artifact_id = (
-                finished.result.source_artifact_id
-                or finished.source_artifact_id
-                or submitted.source_artifact_id
-            )
-            return DiarizationResult(
-                text=finished.result.text,
-                language_code=finished.result.language_code,
-                source_artifact_id=source_artifact_id,
-                diarization=finished.result.diarization,
-                diarization_artifact_id=finished.result.diarization_artifact_id,
-            )
-        except grpc.RpcError as error:
-            if not self._should_fallback_to_sync(error):
-                raise
-
-        response = self._transcription_stub.DiarizeAudio(
+        response = self._transcription_stub.SubmitDiarizeAudioJob(
             request,
             metadata=self._metadata,
         )
-        return DiarizationResult(
-            text=response.text,
-            language_code=response.language_code,
+        submitted = DiarizationJob(
+            job_id=response.job_id,
+            state=transcription_pb2.DiarizationJobState.Name(response.state),
             source_artifact_id=artifact.artifact_id,
-            diarization=MessageToDict(
-                response.diarization,
-                preserving_proto_field_name=True,
-            ),
-            diarization_artifact_id=response.diarization_artifact_id,
+        )
+        finished = self.wait_for_diarization_job(
+            submitted.job_id,
+            timeout_seconds=timeout_seconds,
+            poll_interval_seconds=poll_interval_seconds,
+        )
+        if finished.result is None:
+            raise RuntimeError("diarization job succeeded without a result payload")
+        source_artifact_id = (
+            finished.result.source_artifact_id
+            or finished.source_artifact_id
+            or submitted.source_artifact_id
+        )
+        return DiarizationResult(
+            text=finished.result.text,
+            language_code=finished.result.language_code,
+            source_artifact_id=source_artifact_id,
+            diarization=finished.result.diarization,
+            diarization_artifact_id=finished.result.diarization_artifact_id,
         )
 
     def submit_diarize_file_job(
@@ -337,11 +318,3 @@ class DiarizationClient:
         if utterance_gap_seconds is not None:
             request.utterance_gap_seconds = utterance_gap_seconds
         return request
-
-    @staticmethod
-    def _should_fallback_to_sync(error: grpc.RpcError) -> bool:
-        if error.code() == grpc.StatusCode.UNIMPLEMENTED:
-            return True
-        if error.code() != grpc.StatusCode.INVALID_ARGUMENT:
-            return False
-        return (error.details() or "").endswith("job manager is not configured")
