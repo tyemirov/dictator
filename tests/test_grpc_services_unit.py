@@ -319,19 +319,20 @@ class GrpcServicesUnitTests(unittest.TestCase):
     def test_transcription_and_alignment_servicer_branches(self):
         context = FakeContext(metadata=(("x-dictator-token", "secret"),))
         servicer = TranscriptionServiceServicer(self.context)
-        response = servicer.DiarizeAudio(
-            transcription_pb2.DiarizeAudioRequest(
-                audio_artifact_id=self.audio_record.artifact_id,
-                autodetect_language=True,
-                model_size="base",
-            ),
-            context,
+        with self.assertRaises(RpcAbort) as exc:
+            servicer.DiarizeAudio(
+                transcription_pb2.DiarizeAudioRequest(
+                    audio_artifact_id=self.audio_record.artifact_id,
+                    autodetect_language=True,
+                    model_size="base",
+                ),
+                context,
+            )
+        self.assertEqual(exc.exception.status, grpc.StatusCode.FAILED_PRECONDITION)
+        self.assertEqual(
+            context.trailing_metadata,
+            (("x-dictator-error-code", "dictator.grpc.diarization.job_required"),),
         )
-        diarize_request = self.runtime.diarization_service.calls[0][0]
-        self.assertTrue(diarize_request.include_words)
-        self.assertTrue(diarize_request.include_utterances)
-        self.assertTrue(diarize_request.include_speakers)
-        self.assertEqual(response.text, "hello")
 
         aligner = AlignmentServiceServicer(self.context)
         response = aligner.AlignTranscript(

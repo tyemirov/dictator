@@ -10,15 +10,17 @@
 - Made release preparation, GitHub publication, and container artifact publication repository-owned and immutable, with deployment remaining a separate operator action.
 
 ### Bug Fixes 🐛
-- _No changes._
+- Changed synchronous diarization to return a typed job-required gRPC status before the hosted proxy deadline.
 
 ### Testing 🧪
 - Added coverage for Silero SSML routing, client request plumbing, and gRPC text-format mapping.
 - Added black-box release-contract coverage for the repository-owned entrypoints, container artifact preparation, and publication wiring.
+- Added a hosted gRPC route probe and job-only diarization client coverage.
 
 ### Docs 📚
 - Documented Silero SSML request usage in the README and client integration guide.
 - Documented the canonical release, publish, and deploy lifecycle and the exact container tags produced by publication.
+- Documented the job-only diarization contract and typed synchronous status.
 
 ## [v1.10.8] - 2026-06-26
 

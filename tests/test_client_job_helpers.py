@@ -624,41 +624,7 @@ class ClientJobHelpersTests(unittest.TestCase):
             with self.assertRaises(grpc.RpcError):
                 client.dictate_bytes(b"abc")
 
-    def test_diarization_sync_fallback_and_error_paths(self):
-        diarization_struct = struct_pb2.Struct()
-        diarization_struct.update({"text": "fallback", "speakers": [{"speaker": "S1"}]})
-        sync_stub = types.SimpleNamespace(
-            SubmitDiarizeAudioJob=MagicMock(
-                side_effect=_FakeRpcError(
-                    grpc.StatusCode.INVALID_ARGUMENT,
-                    "diarization job manager is not configured",
-                )
-            ),
-            DiarizeAudio=MagicMock(
-                return_value=types.SimpleNamespace(
-                    text="fallback",
-                    language_code="en",
-                    diarization=diarization_struct,
-                    diarization_artifact_id="json-sync",
-                )
-            ),
-        )
-        with (
-            patch("dictator.client.diarization.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
-            patch("dictator.client.diarization.transcription_pb2_grpc.TranscriptionServiceStub", return_value=sync_stub),
-            patch("dictator.client.diarization.upload_audio_artifact", return_value=types.SimpleNamespace(artifact_id="audio-sync")),
-        ):
-            client = DiarizationClient(object())
-            result = client.diarize_bytes(
-                b"abc",
-                language_code="en",
-                utterance_gap_seconds=0.5,
-                persist_json_artifact=True,
-            )
-        self.assertEqual(result.diarization["text"], "fallback")
-        self.assertEqual(result.diarization_artifact_id, "json-sync")
-        sync_stub.DiarizeAudio.assert_called_once()
-
+    def test_diarization_job_error_paths(self):
         with (
             patch("dictator.client.diarization.artifacts_pb2_grpc.ArtifactServiceStub", return_value=object()),
             patch("dictator.client.diarization.transcription_pb2_grpc.TranscriptionServiceStub", return_value=object()),

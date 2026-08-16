@@ -1,10 +1,10 @@
 import tempfile
 import time
+from contextlib import ExitStack
 from pathlib import Path
 import unittest
 
 import grpc
-from google.protobuf.json_format import MessageToDict
 
 from dictator.alignment.models import AlignTranscriptResult, AlignedWord
 from dictator.alignment.srt import build_srt
@@ -17,6 +17,7 @@ from dictator.diarization.models import (
     SpeakerSegment,
 )
 from dictator.runtime import InflightLimiter, MetricsRegistry
+from dictator.runtime.jobs import DiarizationJobManager, LocalDiarizationJobStore
 from dictator.speech.v1 import (
     alignment_pb2,
     alignment_pb2_grpc,
@@ -165,16 +166,31 @@ class GrpcTransportIntegrationTests(unittest.TestCase):
         cls._tmpdir = tempfile.TemporaryDirectory()
         artifact_root = Path(cls._tmpdir.name)
         cls._auth_metadata = (("x-dictator-token", "secret"),)
+        artifact_store = LocalArtifactStore(artifact_root)
+        execution_runtime = FakeRuntime()
+        cls._limiter = InflightLimiter(4)
         service_context = ServiceContext(
-            artifact_store=LocalArtifactStore(artifact_root),
-            execution_runtime=FakeRuntime(),
+            artifact_store=artifact_store,
+            execution_runtime=execution_runtime,
             metrics=MetricsRegistry(),
-            limiter=InflightLimiter(4),
+            limiter=cls._limiter,
             auth_token="secret",
             download_chunk_bytes=2,
+            diarization_job_manager=DiarizationJobManager(
+                job_store=LocalDiarizationJobStore(artifact_root / ".dictator-diarization-jobs"),
+                artifact_store=artifact_store,
+                execution_runtime=execution_runtime,
+                max_workers=1,
+                max_pending_jobs=4,
+            ),
         )
         cls.server = build_server(
-            ServerConfig(artifact_root=artifact_root, auth_token="secret"),
+            ServerConfig(
+                artifact_root=artifact_root,
+                auth_token="secret",
+                max_workers=5,
+                max_inflight=4,
+            ),
             service_context=service_context,
         )
         port = cls.server.add_insecure_port("127.0.0.1:0")
@@ -280,46 +296,28 @@ class GrpcTransportIntegrationTests(unittest.TestCase):
         self.assertGreaterEqual(metrics.requests_succeeded, 5)
         self.assertGreaterEqual(metrics.bytes_received, 6)
 
-    def test_diarize_audio_returns_inline_json_and_artifact(self):
+    def test_diarize_audio_requires_the_job_rpc(self):
         artifact_id = self._upload_artifact("sample.wav", b"abcdef")
-
-        diarization = self.transcription_stub.DiarizeAudio(
-            transcription_pb2.DiarizeAudioRequest(
-                audio_artifact_id=artifact_id,
-                model_size="base",
-                include_words=True,
-                include_utterances=True,
-                include_speakers=True,
-                include_speaker_segments=True,
-                utterance_gap_seconds=0.5,
-                persist_json_artifact=True,
-                autodetect_language=True,
-            ),
-            metadata=self._auth_metadata,
+        request = transcription_pb2.DiarizeAudioRequest(
+            audio_artifact_id=artifact_id,
+            autodetect_language=True,
         )
+        with ExitStack() as limiter_slots:
+            for _ in range(self._limiter.limit):
+                limiter_slots.enter_context(self._limiter.acquire())
+            with self.assertRaises(grpc.RpcError) as exc:
+                self.transcription_stub.DiarizeAudio(request)
+            self.assertEqual(exc.exception.code(), grpc.StatusCode.UNAUTHENTICATED)
 
-        payload = MessageToDict(diarization.diarization, preserving_proto_field_name=True)
-        self.assertEqual(diarization.text, "hello again world")
-        self.assertEqual(diarization.language_code, "en")
-        self.assertEqual(payload["utterances"][0]["speaker"], "S1")
-        self.assertEqual(payload["utterances"][0]["words"][0]["word"], "hello")
-        self.assertEqual(payload["speakers"][0]["speaker"], "S1")
-        self.assertEqual(payload["speakers"][0]["wordCount"], 2.0)
-        self.assertEqual(payload["speakerSegments"][1]["speaker"], "S2")
-        self.assertTrue(diarization.diarization_artifact_id)
-
-        json_chunks = list(
-            self.artifact_stub.DownloadArtifact(
-                artifacts_pb2.DownloadArtifactRequest(
-                    artifact_id=diarization.diarization_artifact_id,
-                    chunk_size=128,
-                ),
-                metadata=self._auth_metadata,
-            )
-        )
-        self.assertIn(
-            "\"utterances\"",
-            b"".join(chunk.content for chunk in json_chunks).decode("utf-8"),
+            with self.assertRaises(grpc.RpcError) as exc:
+                self.transcription_stub.DiarizeAudio(
+                    request,
+                    metadata=self._auth_metadata,
+                )
+        self.assertEqual(exc.exception.code(), grpc.StatusCode.FAILED_PRECONDITION)
+        self.assertEqual(
+            dict(exc.exception.trailing_metadata() or ())["x-dictator-error-code"],
+            "dictator.grpc.diarization.job_required",
         )
 
     def test_invalid_download_chunk_size_is_rejected(self):
@@ -437,20 +435,6 @@ class GrpcTransportIntegrationTests(unittest.TestCase):
             self.transcription_stub.Transcribe(
                 transcription_pb2.TranscribeRequest(
                     audio_artifact_id=artifact_id,
-                    model_size="base",
-                ),
-                metadata=self._auth_metadata,
-            )
-        self.assertEqual(exc.exception.code(), grpc.StatusCode.INVALID_ARGUMENT)
-
-    def test_diarize_rejects_conflicting_language_inputs(self):
-        artifact_id = self._upload_artifact("sample.wav", b"abcdef")
-        with self.assertRaises(grpc.RpcError) as exc:
-            self.transcription_stub.DiarizeAudio(
-                transcription_pb2.DiarizeAudioRequest(
-                    audio_artifact_id=artifact_id,
-                    language_code="en",
-                    autodetect_language=True,
                     model_size="base",
                 ),
                 metadata=self._auth_metadata,

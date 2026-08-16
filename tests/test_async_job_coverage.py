@@ -72,13 +72,11 @@ def _build_service_context(**overrides):
 class AsyncJobCoverageTests(unittest.TestCase):
     def test_client_static_fallback_helpers_and_default_granularity(self):
         from dictator.client.alignment import AlignmentClient
-        from dictator.client.diarization import DiarizationClient
         from dictator.client.dictation import DictationClient
         from dictator.client.subtitles import SubtitleClient
 
         unimplemented = _FakeRpcError(grpc.StatusCode.UNIMPLEMENTED, "")
         self.assertTrue(AlignmentClient._should_fallback_to_sync(unimplemented))
-        self.assertTrue(DiarizationClient._should_fallback_to_sync(unimplemented))
         self.assertTrue(DictationClient._should_fallback_to_sync(unimplemented))
         self.assertTrue(SubtitleClient._should_fallback_to_sync(unimplemented))
         self.assertEqual(

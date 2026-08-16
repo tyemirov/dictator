@@ -235,16 +235,18 @@ class AsyncJobEndpointTests(unittest.TestCase):
             transcription_pb2.DiarizeAudioRequest(
                 audio_artifact_id=self.audio_record.artifact_id,
                 autodetect_language=True,
-                include_words=True,
-                include_utterances=True,
-                include_speakers=True,
-                include_speaker_segments=True,
+                utterance_gap_seconds=0.5,
                 persist_json_artifact=True,
             ),
             FakeContext(),
         )
         self.assertEqual(submitted.job_id, "dia-1")
         self.assertEqual(submitted.state, transcription_pb2.DIARIZATION_JOB_STATE_SUCCEEDED)
+        self.assertTrue(manager.submitted[0].include_words)
+        self.assertTrue(manager.submitted[0].include_utterances)
+        self.assertTrue(manager.submitted[0].include_speakers)
+        self.assertFalse(manager.submitted[0].include_speaker_segments)
+        self.assertEqual(manager.submitted[0].utterance_gap_seconds, 0.5)
 
         looked_up = servicer.GetDiarizeAudioJob(
             transcription_pb2.GetDiarizeAudioJobRequest(job_id="dia-1"),
@@ -361,6 +363,16 @@ class AsyncJobEndpointTests(unittest.TestCase):
                 transcription_pb2.TranscribeRequest(
                     audio_artifact_id=self.audio_record.artifact_id,
                     language_code="en",
+                ),
+                FakeContext(),
+            )
+        self.assertEqual(exc.exception.status, grpc.StatusCode.INVALID_ARGUMENT)
+
+        with self.assertRaises(RpcAbort) as exc:
+            transcriber.SubmitDiarizeAudioJob(
+                transcription_pb2.DiarizeAudioRequest(
+                    audio_artifact_id=self.audio_record.artifact_id,
+                    autodetect_language=True,
                 ),
                 FakeContext(),
             )

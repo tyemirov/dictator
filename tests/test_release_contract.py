@@ -1,5 +1,6 @@
 from pathlib import Path
 import subprocess
+import tempfile
 import unittest
 
 
@@ -19,18 +20,42 @@ class ReleaseContractTests(unittest.TestCase):
         self.assertIn('MPRLAB_APP_ROOT="$${application_root}"', makefile_source)
         self.assertNotIn("GATEWAY_DIR", makefile_source)
 
-        for target in ("release", "publish", "deploy"):
-            completed = subprocess.run(
-                ("make", "--dry-run", target),
-                cwd=self.repository_root,
-                check=False,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_root = Path(temp_dir)
+            application_root = workspace_root / "dictator"
+            gateway_root = workspace_root / "mprlab-gateway"
+            application_root.mkdir()
+            gateway_root.mkdir()
+            subprocess.run(
+                ("git", "init", "--quiet"),
+                cwd=application_root,
+                check=True,
             )
-            self.assertEqual(completed.returncode, 0, completed.stdout)
-            self.assertIn(f'"app-{target}"', completed.stdout)
-            self.assertIn('MPRLAB_APP_ROOT="${application_root}"', completed.stdout)
+            (gateway_root / "Makefile").write_text(
+                ".PHONY: app-release app-publish app-deploy\n"
+                "app-release app-publish app-deploy:\n"
+                "\t@:\n",
+                encoding="utf-8",
+            )
+
+            for target in ("release", "publish", "deploy"):
+                completed = subprocess.run(
+                    (
+                        "make",
+                        "--dry-run",
+                        "--file",
+                        str(self.repository_root / "Makefile"),
+                        target,
+                    ),
+                    cwd=application_root,
+                    check=False,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                )
+                self.assertEqual(completed.returncode, 0, completed.stdout)
+                self.assertIn(f'"app-{target}"', completed.stdout)
+                self.assertIn('MPRLAB_APP_ROOT="${application_root}"', completed.stdout)
 
     def test_obsolete_application_lifecycle_is_absent(self):
         for relative_path in self.obsolete_lifecycle_paths:

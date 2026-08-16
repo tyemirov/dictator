@@ -12,7 +12,7 @@ PROTO_PYTHON_READY := $(PROTO_PYTHON_VENV)/.ready
 PROTO_GRPCIO_VERSION ?= 1.78.0
 PROTO_GRPCIO_TOOLS_VERSION ?= 1.78.0
 PROTO_PROTOBUF_VERSION ?= 6.33.6
-.PHONY: test coverage ci release publish deploy up down test-docker-image proto proto-python proto-go proto-check proto-python-tools
+.PHONY: test coverage ci release publish deploy up down test-docker-image test-hosted-grpc-route proto proto-python proto-go proto-check proto-python-tools
 
 test:
 	$(PYTHON) -m unittest discover -s tests -p 'test_*.py'
@@ -26,6 +26,9 @@ ci: proto-check coverage
 
 test-docker-image:
 	./scripts/test-docker-image.sh
+
+test-hosted-grpc-route:
+	$(PYTHON) scripts/verify_hosted_grpc_route.py
 
 up:
 	./scripts/up.sh

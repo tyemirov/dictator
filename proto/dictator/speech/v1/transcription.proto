@@ -13,6 +13,7 @@ service TranscriptionService {
   rpc GetTranscribeJob(GetTranscribeJobRequest) returns (GetTranscribeJobResponse);
   rpc CancelTranscribeJob(CancelTranscribeJobRequest)
       returns (CancelTranscribeJobResponse);
+  // Returns FAILED_PRECONDITION. Use SubmitDiarizeAudioJob for diarization work.
   rpc DiarizeAudio(DiarizeAudioRequest) returns (DiarizeAudioResponse);
   rpc SubmitDiarizeAudioJob(DiarizeAudioRequest) returns (SubmitDiarizeAudioJobResponse);
   rpc GetDiarizeAudioJob(GetDiarizeAudioJobRequest) returns (GetDiarizeAudioJobResponse);
