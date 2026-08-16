@@ -1,5 +1,6 @@
 import tempfile
 import time
+from contextlib import ExitStack
 from pathlib import Path
 import unittest
 
@@ -167,11 +168,12 @@ class GrpcTransportIntegrationTests(unittest.TestCase):
         cls._auth_metadata = (("x-dictator-token", "secret"),)
         artifact_store = LocalArtifactStore(artifact_root)
         execution_runtime = FakeRuntime()
+        cls._limiter = InflightLimiter(4)
         service_context = ServiceContext(
             artifact_store=artifact_store,
             execution_runtime=execution_runtime,
             metrics=MetricsRegistry(),
-            limiter=InflightLimiter(4),
+            limiter=cls._limiter,
             auth_token="secret",
             download_chunk_bytes=2,
             diarization_job_manager=DiarizationJobManager(
@@ -183,7 +185,12 @@ class GrpcTransportIntegrationTests(unittest.TestCase):
             ),
         )
         cls.server = build_server(
-            ServerConfig(artifact_root=artifact_root, auth_token="secret"),
+            ServerConfig(
+                artifact_root=artifact_root,
+                auth_token="secret",
+                max_workers=5,
+                max_inflight=4,
+            ),
             service_context=service_context,
         )
         port = cls.server.add_insecure_port("127.0.0.1:0")
@@ -291,14 +298,22 @@ class GrpcTransportIntegrationTests(unittest.TestCase):
 
     def test_diarize_audio_requires_the_job_rpc(self):
         artifact_id = self._upload_artifact("sample.wav", b"abcdef")
-        with self.assertRaises(grpc.RpcError) as exc:
-            self.transcription_stub.DiarizeAudio(
-                transcription_pb2.DiarizeAudioRequest(
-                    audio_artifact_id=artifact_id,
-                    autodetect_language=True,
-                ),
-                metadata=self._auth_metadata,
-            )
+        request = transcription_pb2.DiarizeAudioRequest(
+            audio_artifact_id=artifact_id,
+            autodetect_language=True,
+        )
+        with ExitStack() as limiter_slots:
+            for _ in range(self._limiter.limit):
+                limiter_slots.enter_context(self._limiter.acquire())
+            with self.assertRaises(grpc.RpcError) as exc:
+                self.transcription_stub.DiarizeAudio(request)
+            self.assertEqual(exc.exception.code(), grpc.StatusCode.UNAUTHENTICATED)
+
+            with self.assertRaises(grpc.RpcError) as exc:
+                self.transcription_stub.DiarizeAudio(
+                    request,
+                    metadata=self._auth_metadata,
+                )
         self.assertEqual(exc.exception.code(), grpc.StatusCode.FAILED_PRECONDITION)
         self.assertEqual(
             dict(exc.exception.trailing_metadata() or ())["x-dictator-error-code"],
