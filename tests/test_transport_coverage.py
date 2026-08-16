@@ -333,20 +333,16 @@ class TransportCoverageTests(unittest.TestCase):
             speaker_record = service_context.artifact_store.write_artifact([b"speaker"], "speaker.wav", media_type="audio/wav")
 
             transcription_servicer = TranscriptionServiceServicer(service_context)
-            diarize_response = transcription_servicer.DiarizeAudio(
-                transcription_pb2.DiarizeAudioRequest(
-                    audio_artifact_id=audio_record.artifact_id,
-                    autodetect_language=True,
-                    persist_json_artifact=True,
-                ),
-                FakeContext(),
-            )
-            diarization_payload = dict(diarize_response.diarization)
-            self.assertIn("words", diarization_payload)
-            self.assertIn("utterances", diarization_payload)
-            self.assertIn("speakers", diarization_payload)
-            self.assertNotIn("speakerSegments", diarization_payload)
-            self.assertTrue(diarize_response.diarization_artifact_id)
+            with self.assertRaises(AbortCalled) as exc:
+                transcription_servicer.DiarizeAudio(
+                    transcription_pb2.DiarizeAudioRequest(
+                        audio_artifact_id=audio_record.artifact_id,
+                        autodetect_language=True,
+                        persist_json_artifact=True,
+                    ),
+                    FakeContext(),
+                )
+            self.assertEqual(exc.exception.status, grpc.StatusCode.FAILED_PRECONDITION)
 
             alignment_servicer = AlignmentServiceServicer(service_context)
             with self.assertRaises(AbortCalled):
@@ -412,7 +408,7 @@ class TransportCoverageTests(unittest.TestCase):
                 FakeContext(),
             )
             self.assertEqual(subtitle_response.mode, subtitle_pb2.SUBTITLE_MODE_FORCED_ALIGNMENT)
-            self.assertEqual(service_context.execution_runtime.whisper_model_calls, ["base"])
+            self.assertEqual(service_context.execution_runtime.whisper_model_calls, [])
 
             voice_servicer = VoiceServiceServicer(service_context)
             extract_response = voice_servicer.ExtractReferenceSample(

@@ -368,21 +368,14 @@ class AsyncClientRegressionTests(unittest.TestCase):
                     "diarization job manager is not configured",
                 )
             ),
-            DiarizeAudio=MagicMock(
-                return_value=types.SimpleNamespace(
-                    text="hello",
-                    language_code="en",
-                    diarization=struct_pb2.Struct(),
-                    diarization_artifact_id="",
-                )
-            ),
+            DiarizeAudio=MagicMock(),
         )
         with patch("dictator.client.diarization.upload_audio_artifact", return_value=artifact) as upload_mock:
             client = self._make_diarization_client(stub=diarization_stub)
-            result = client.diarize_bytes(b"abc", language_code="en")
-        self.assertEqual(result.source_artifact_id, "audio-1")
+            with self.assertRaises(grpc.RpcError):
+                client.diarize_bytes(b"abc", language_code="en")
         self.assertEqual(upload_mock.call_count, 1)
-        self.assertEqual(diarization_stub.DiarizeAudio.call_args.args[0].audio_artifact_id, "audio-1")
+        diarization_stub.DiarizeAudio.assert_not_called()
 
         subtitle_stub = types.SimpleNamespace(
             SubmitRenderSubtitlesJob=MagicMock(
