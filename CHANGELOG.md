@@ -6,6 +6,7 @@
 - Added Silero Russian SSML synthesis support via `SYNTHESIS_TEXT_FORMAT_SSML`, including `<break>`, `<prosody>`, `<p>`, and `<s>` performance controls.
 
 ### Improvements ⚙️
+- Adopted the permanent versionless selected manifest and preserved the current Dictator resource topology.
 - Preserved plain-text synthesis behavior while allowing Silero to auto-detect a `<speak>` root when `text_format` is unspecified.
 - Made release preparation, GitHub publication, and container artifact publication repository-owned and immutable, with deployment remaining a separate operator action.
 
