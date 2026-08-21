@@ -80,7 +80,7 @@ docker build -f Dockerfile.gpu -t dictator:gpu .
 
 ### GPU Release Flow
 
-Dictator owns one production declaration at
+Dictator owns one permanent versionless selected manifest at
 `.mprlab/deploy/resources.yml`. It declares the GPU image, ComputerCat service,
 retained model and artifact volumes, private runtime values, versioned
 `dictator.grpc` capability, and the public `dictator.mprlab.com` route. The

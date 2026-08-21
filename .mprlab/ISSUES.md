@@ -49,6 +49,20 @@ Format: `- [ ] [B042] (P1) {I007} Title`
 
 ## Improvements
 
+- [x] [I008] (P1) Adopt the permanent versionless selected manifest
+  Goal:
+  Use the permanent selected-manifest contract for the Dictator lifecycle.
+
+  Requirements:
+  - Remove `mprlab_resources.schema_version`.
+  - Keep `owner`, `release`, and `resources` as the exact top-level fields.
+  - Preserve the current resource topology and all independent version fields.
+  - Keep local orchestration separate from the production lifecycle.
+
+  Validation:
+  - Run `make ci`.
+  - Run gateway `plan-app-release` for the committed application.
+
 - [ ] [I001] (P1) {P001} Build the Higgs TTS 3 qualification harness
   Goal:
   Produce repeatable evidence for the adoption contract from P001.
@@ -124,13 +138,13 @@ Format: `- [ ] [B042] (P1) {I007} Title`
   - Complete one real GPU voice-clone request through Dictator and the sidecar.
   - Scan active files for Qwen3 identifiers, dependencies, model assets, and configuration.
 
-- [ ] [I003] (P1) Migrate the current Dictator lifecycle to schema v3
+- [ ] [I003] (P1) Migrate the current Dictator lifecycle to the selected manifest
   Goal:
-  Replace the schema-v1 production contract without a change to local orchestration.
+  Replace the numbered production contract without a change to local orchestration.
 
   Requirements:
   - Keep `docker-compose.yml`, local scripts, `make up`, `make down`, and local tests.
-  - Rewrite `.mprlab/deploy/resources.yml` with `schema_version: 3`.
+  - Rewrite `.mprlab/deploy/resources.yml` for the permanent versionless selected-manifest contract.
   - Declare only the current Dictator image and its current production resources.
   - Preserve the public Dictator gRPC capability and Caddy route.
   - Bind private values through `.mprlab/deploy/.env` and typed private-value resources.
@@ -140,7 +154,7 @@ Format: `- [ ] [B042] (P1) {I007} Title`
   - Keep application source CI separate from gateway lifecycle validation.
 
   Deliverables:
-  - Add the current schema-v3 Dictator application manifest.
+  - Add the current versionless Dictator selected manifest.
   - Add canonical lifecycle delegation for one Dictator image.
   - Remove obsolete app-owned production lifecycle paths.
   - Preserve all app-owned local orchestration paths.
@@ -152,7 +166,7 @@ Format: `- [ ] [B042] (P1) {I007} Title`
   - Run the local orchestration contract tests.
   - Run `make ci`.
 
-- [ ] [I004] (P1) {I002,I003} Add Higgs TTS 3 to the schema-v3 lifecycle
+- [ ] [I004] (P1) {I002,I003} Add Higgs TTS 3 to the selected-application lifecycle
   Goal:
   Add the approved two-image topology to the current production manifest.
 
@@ -184,7 +198,7 @@ Format: `- [ ] [B042] (P1) {I007} Title`
   Prove the replacement on the non-production host that P001 identifies.
 
   Requirements:
-  - Deploy the exact candidate image digests through the schema-v3 lifecycle.
+  - Deploy the exact candidate image digests through the selected-application lifecycle.
   - Record the host, GPU, driver, memory, storage, model, image, release, and gateway identities.
   - Do a test of authenticated upload, synthesis, job polling, download, duration, and timeline operations.
   - Do a test of Silero synthesis and all unchanged transcription services.
@@ -240,7 +254,7 @@ Format: `- [ ] [B042] (P1) {I007} Title`
   - Verify both published image digests before deployment.
   - Run the I006 migration in dry-run mode.
   - Compare the dry-run receipt with the approved P002 selection.
-  - Deploy through the schema-v3 gateway lifecycle.
+  - Deploy through the selected-application gateway lifecycle.
   - Run the authenticated production acceptance workflow.
   - Execute the I006 migration only after runtime acceptance passes.
   - Remove the one-off migration command after a successful migration.
