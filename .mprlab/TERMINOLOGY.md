@@ -93,6 +93,9 @@ Give each term one meaning. Use the same term for the same concept in all docume
 
 Add repository-specific technical nouns below this line.
 
+- `Go module`: A versioned group of Go packages with one declared module path.
+- `SDK`: The generated client package for the public Dictator API.
+
 ```text
 - `term`: Definition with one meaning.
 ```

@@ -281,6 +281,33 @@ Format: `- [ ] [B042] (P1) {I007} Title`
 
 ## Features
 
+- [ ] [F002] (P1) Publish the current Go SDK through the application lifecycle.
+  Goal:
+  Publish the current Dictator Go SDK through the canonical automated lifecycle.
+  LLM Proxy F042 requires the released `preset_speaker` and `text_format` fields.
+
+  Requirements:
+  - Declare one `go_module` resource in `.mprlab/deploy/resources.yml` through the contract from merged gateway F011.
+  - Use `sdk/go/dictatorspeechv1` as the source and `github.com/tyemirov/dictator/sdk/go/dictatorspeechv1` as the module path.
+  - Select a new canonical semantic version for the current generated SDK.
+  - Keep the SDK version independent of the application version.
+  - Publish through the application lifecycle without manual tags, copied protobuf definitions, or unreleased dependencies.
+  - Preserve the current application resources and local orchestration.
+  - Keep gateway validation under gateway F011 and B540. Record the accepted gateway revision before publication.
+  - Record the released SDK version and publication evidence for LLM Proxy F042.
+  - Keep production publication subject to explicit operator authorization.
+
+  Deliverables:
+  - Add the resource declaration, lifecycle tests, and SDK publication documentation.
+  - Record the automated publication receipt and a consumer verification result.
+
+  Validation:
+  - Verify the module path and the generated `preset_speaker` and `text_format` fields.
+  - Verify initial publication, exact retry, unchanged-source reuse, and changed-source rejection through the public lifecycle.
+  - Verify that the release receipt identifies the SDK source, version, tag, and commit.
+  - Download the released module through the Go package manager and compile a consumer that uses both fields.
+  - Run the applicable repository validation before publication.
+
 - [ ] [F001] (P2) {I005,P003} Add explicit Higgs expressive speech controls
   Goal:
   Add the public control format that P003 defines.
