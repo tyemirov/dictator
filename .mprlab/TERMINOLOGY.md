@@ -95,6 +95,12 @@ Add repository-specific technical nouns below this line.
 
 - `Go module`: A versioned group of Go packages with one declared module path.
 - `SDK`: The generated client package for the public Dictator API.
+- `application lifecycle`: The Gateway release, publication, and deployment operations for one application.
+- `module tag`: The Git tag that identifies one Go module version.
+- `publication receipt`: The Gateway record of published artifact identities.
+- `release receipt`: The Gateway record of sealed artifacts and their source identities.
+- `source tree`: The Git object that identifies the files in one directory.
+- `semantic version`: A version with major, minor, and patch numbers.
 
 ```text
 - `term`: Definition with one meaning.

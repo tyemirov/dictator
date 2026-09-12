@@ -281,7 +281,7 @@ Format: `- [ ] [B042] (P1) {I007} Title`
 
 ## Features
 
-- [ ] [F002] (P1) Publish the current Go SDK through the application lifecycle.
+- [!] [F002] (P1) Publish the current Go SDK through the application lifecycle.
   Goal:
   Publish the current Dictator Go SDK through the canonical automated lifecycle.
   LLM Proxy F042 requires the released `preset_speaker` and `text_format` fields.
@@ -307,6 +307,36 @@ Format: `- [ ] [B042] (P1) {I007} Title`
   - Verify that the release receipt identifies the SDK source, version, tag, and commit.
   - Download the released module through the Go package manager and compile a consumer that uses both fields.
   - Run the applicable repository validation before publication.
+
+  Implementation:
+  - Declared `go-sdk` at `v1.11.0` with the required source and module path.
+  - Preserved the existing application resources and local orchestration.
+  - Added `make test-sdk-publication` for the SDK consumer and Gateway lifecycle tests.
+  - Added Go SDK tests to `make ci`.
+  - Added `make verify-released-sdk` for a separate consumer with a new Go module cache.
+  - Added `docs/go-sdk-publication.md` with the publication procedure and required evidence.
+
+  Validation evidence:
+  - The new consumer test first failed because the manifest had no `go_module` resource.
+  - The declared SDK consumer passed with both fields after protobuf serialization.
+  - Gateway validated all five resource declarations through Ansible: 42 successful tasks, zero changes, and zero failures.
+  - The Gateway module tests passed in 83.106 seconds through `make test-sdk-publication`.
+  - These tests covered initial publication, exact retry, unchanged-source reuse, changed-source rejection, module identity, and release evidence.
+  - `make ci` passed with 253 Python tests, 100% configured Python coverage, and the Go SDK tests.
+  - CI used the declared gRPC generator `v1.5.1` through a repository-local tool directory.
+  - The successful command was `GOPATH="$PWD/tools/go" GOMODCACHE="$(go env GOMODCACHE)" make ci`.
+  - The initial CI failure used the installed generator `v1.6.2` and changed generated stubs.
+  - Regeneration with `v1.5.1` restored the tracked SDK source.
+  - The inspected Gateway HEAD was `7a215cd9cbcb066bbbb5afb75a5c6134bcc77e2f` with existing uncommitted changes.
+  - This Gateway identity is inspection evidence. It is not an accepted publication revision.
+  - The language checker found no issue in the changed prose. Existing README findings remain outside this change.
+  - `make verify-released-sdk` failed with `unknown revision sdk/go/dictatorspeechv1/v1.11.0`.
+
+  Blocked:
+  - Gateway F011 remains open for validation under B540. Record its accepted revision before publication.
+  - The Dictator declaration must reach the default branch before the production lifecycle can use it.
+  - The Governor check reports existing managed-document differences and a missing Pages declaration for detected browser content.
+  - The automated publication receipt and released consumer result remain absent.
 
 - [ ] [F001] (P2) {I005,P003} Add explicit Higgs expressive speech controls
   Goal:
