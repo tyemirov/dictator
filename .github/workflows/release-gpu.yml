@@ -1,4 +1,4 @@
-name: Validate GPU release tag
+name: Validate release tag
 
 on:
   push:
@@ -24,9 +24,17 @@ jobs:
 
           git_tag="${GITHUB_REF_NAME}"
           semver_regex='^v?([0-9]+)\.([0-9]+)\.([0-9]+)(-([0-9A-Za-z.-]+))?$'
+          sdk_prefix='sdk/go/dictatorspeechv1/'
+          sdk_version_regex='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
 
-          if [[ ! "${git_tag}" =~ ${semver_regex} ]]; then
-            echo "Error: Git tag '${git_tag}' must be semver like 1.2.3 or v1.2.3. Optional prerelease suffixes such as -rc.1 are supported. Build metadata (+...) is not supported." >&2
+          if [[ "${git_tag}" == "${sdk_prefix}"* ]]; then
+            sdk_version="${git_tag#"${sdk_prefix}"}"
+            if [[ ! "${sdk_version}" =~ ${sdk_version_regex} ]]; then
+              echo "Error: SDK tag '${git_tag}' must use ${sdk_prefix}vMAJOR.MINOR.PATCH with no leading zeros, prerelease suffix, or build metadata." >&2
+              exit 1
+            fi
+          elif [[ ! "${git_tag}" =~ ${semver_regex} ]]; then
+            echo "Error: Application tag '${git_tag}' must be semver like 1.2.3 or v1.2.3. Optional prerelease suffixes such as -rc.1 are supported. Build metadata (+...) is not supported." >&2
             exit 1
           fi
 
