@@ -104,6 +104,12 @@ Deployment reads `DICTATOR_GRPC_AUTH_TOKEN` and `HF_TOKEN` only from the
 ignored mode-`0600` `.mprlab/deploy/.env`. Release and publication do not read
 that private file.
 
+### Go SDK publication
+
+The application manifest declares SDK version `v1.11.0` independently of the application version.
+The application lifecycle publishes its module tag automatically.
+See [Go SDK publication](docs/go-sdk-publication.md) for validation commands and required publication evidence.
+
 ### Run with Compose
 
 If you want Docker Compose to load service environment from a file, create a private local `.env` explicitly. Use `dictator.env.example` only to review variable names; its values are intentionally unusable and the file must never be copied or sourced.
