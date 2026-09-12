@@ -4,6 +4,11 @@ mprlab_resources:
   release:
     scheme: semver
   resources:
+    - kind: go_module
+      id: go-sdk
+      source: sdk/go/dictatorspeechv1
+      module: github.com/tyemirov/dictator/sdk/go/dictatorspeechv1
+      version: v1.11.0
     - kind: private_values
       id: private
       bindings:

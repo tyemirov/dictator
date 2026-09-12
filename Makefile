@@ -12,7 +12,7 @@ PROTO_PYTHON_READY := $(PROTO_PYTHON_VENV)/.ready
 PROTO_GRPCIO_VERSION ?= 1.78.0
 PROTO_GRPCIO_TOOLS_VERSION ?= 1.78.0
 PROTO_PROTOBUF_VERSION ?= 6.33.6
-.PHONY: test coverage ci release publish deploy up down test-docker-image test-hosted-grpc-route proto proto-python proto-go proto-check proto-python-tools
+.PHONY: test coverage ci release publish deploy up down test-docker-image test-hosted-grpc-route proto proto-python proto-go proto-check proto-python-tools test-sdk test-sdk-publication verify-released-sdk
 
 test:
 	$(PYTHON) -m unittest discover -s tests -p 'test_*.py'
@@ -23,6 +23,17 @@ coverage:
 	$(PYTHON) -m coverage report -m
 
 ci: proto-check coverage
+	$(MAKE) test-sdk
+
+test-sdk:
+	cd sdk/go/dictatorspeechv1 && go test ./...
+
+test-sdk-publication: test-sdk
+	$(PYTHON) -m unittest discover -s tests -p 'test_go_sdk_contract.py'
+	$(MAKE) --no-print-directory -C ../mprlab-gateway test-go-module-publication
+
+verify-released-sdk:
+	$(PYTHON) scripts/verify_go_sdk.py --source released
 
 test-docker-image:
 	./scripts/test-docker-image.sh
