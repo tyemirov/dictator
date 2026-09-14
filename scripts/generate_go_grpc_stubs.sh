@@ -96,8 +96,8 @@ if ! command -v protoc-gen-go-grpc >/dev/null 2>&1; then
     echo "Install Go and rerun this command." >&2
     exit 1
   fi
-  echo "Installing protoc-gen-go-grpc@v1.5.1" >&2
-  go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
+  echo "Installing protoc-gen-go-grpc@v1.6.2" >&2
+  go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2
 fi
 
 mkdir -p "${OUTPUT_ROOT}"
