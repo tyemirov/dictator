@@ -11,6 +11,23 @@ Format: `- [ ] [B042] (P1) {I007} Title`
 
 ## BugFixes
 
+- [ ] [B003] (P1) Install FFmpeg for real audio acceptance in hosted CI.
+  Goal:
+  Supply the audio decoder required by the canonical public gRPC tests.
+
+  Evidence:
+  - GitHub run `36073226020`, job `107878659991`, failed at commit `df25dd9ba5faebfef22399083a3a4579d8c562ce`.
+  - The runner reported `[Errno 2] No such file or directory: 'ffmpeg'`.
+  - The new F004 acceptance uses real decoding. The workflow installed only Python dependencies and Go tools.
+
+  Requirements:
+  - Install FFmpeg through the existing Ubuntu workflow before tests run.
+  - Preserve real decoding, configured coverage, and all public acceptance cases.
+
+  Validation:
+  - Run `make ci` locally.
+  - Verify the exact correction commit through GitHub CI.
+
 - [x] [B002] (P1) Release the job manager lock before queued cancellation callbacks.
   Goal:
   Make queued cancellation return through the public gRPC API without a deadlock.
