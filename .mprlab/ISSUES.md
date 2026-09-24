@@ -11,7 +11,7 @@ Format: `- [ ] [B042] (P1) {I007} Title`
 
 ## BugFixes
 
-- [ ] [B003] (P1) Install FFmpeg for real audio acceptance in hosted CI.
+- [x] [B003] (P1) Install FFmpeg for real audio acceptance in hosted CI.
   Goal:
   Supply the audio decoder required by the canonical public gRPC tests.
 
@@ -27,6 +27,12 @@ Format: `- [ ] [B042] (P1) {I007} Title`
   Validation:
   - Run `make ci` locally.
   - Verify the exact correction commit through GitHub CI.
+
+  Resolution:
+  - The workflow now installs FFmpeg before the canonical suite.
+  - Local CI passed 266 Python tests, 100% configured coverage, and Go SDK tests.
+  - Hosted run `36073692639` passed at correction commit `44640dc279033ab1cad3d68f1140b1604db73a1b`.
+  - The source retains real decoding and every acceptance case.
 
 - [x] [B002] (P1) Release the job manager lock before queued cancellation callbacks.
   Goal:
