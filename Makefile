@@ -12,10 +12,11 @@ PROTO_PYTHON_READY := $(PROTO_PYTHON_VENV)/.ready
 PROTO_GRPCIO_VERSION ?= 1.78.0
 PROTO_GRPCIO_TOOLS_VERSION ?= 1.78.0
 PROTO_PROTOBUF_VERSION ?= 6.33.6
+TEST_PATTERN ?= test_*.py
 .PHONY: test coverage ci release publish deploy up down test-docker-image test-hosted-grpc-route proto proto-python proto-go proto-check proto-python-tools test-sdk test-sdk-publication verify-released-sdk
 
 test:
-	$(PYTHON) -m unittest discover -s tests -p 'test_*.py'
+	$(PYTHON) -m unittest discover -s tests -p '$(TEST_PATTERN)'
 
 coverage:
 	$(PYTHON) -m coverage erase

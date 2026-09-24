@@ -20,6 +20,11 @@ class GoSDKContractTests(unittest.TestCase):
         self.assertEqual(result["fields"], {
             "preset_speaker": "baya",
             "text_format": "SYNTHESIS_TEXT_FORMAT_SSML",
+            "input_audio_usage": {
+                "sample_count": 32001,
+                "sample_rate_hz": 16000,
+                "response_count": 9,
+            },
         })
 
 

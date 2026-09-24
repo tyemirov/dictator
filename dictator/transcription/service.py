@@ -7,6 +7,10 @@ from typing import Any, Callable, Iterable, Optional
 
 import torch
 
+from dictator.audio.constants import PCM_SAMPLE_RATE
+from dictator.audio.ffmpeg_ops import decode_pcm
+from dictator.audio.usage import InputAudioUsage
+
 from .models import TranscriptionResult, WordSegment
 
 ProgressCallback = Callable[[float], None]
@@ -27,13 +31,15 @@ def load_whisper_model(model_size: str = "base", cache_dir: Path | None = None):
     )
 
 
-def _coerce_audio_input(audio: AudioInput) -> str | object:
+def _coerce_audio_input(audio: AudioInput) -> object:
     if isinstance(audio, Path):
-        return str(audio)
+        audio = decode_pcm(audio)
     import numpy as np
 
     if audio.size == 0:
         raise ValueError("audio array is empty")
+    if audio.ndim != 1:
+        raise ValueError("audio array must contain mono samples")
     return audio.astype(np.float32) / 32768.0
 
 
@@ -50,7 +56,9 @@ def transcribe(
     kwargs = {"word_timestamps": True, "verbose": False}
     if language is not None:
         kwargs["language"] = language
-    result = model.transcribe(_coerce_audio_input(audio), **kwargs)
+    samples = _coerce_audio_input(audio)
+    input_audio_usage = InputAudioUsage(sample_count=len(samples), sample_rate_hz=PCM_SAMPLE_RATE)
+    result = model.transcribe(samples, **kwargs)
 
     words: list[WordSegment] = []
     for segment in result.get("segments", []):
@@ -70,6 +78,7 @@ def transcribe(
     return TranscriptionResult(
         language=str(detected_language) if detected_language else None,
         words=tuple(words),
+        input_audio_usage=input_audio_usage,
     )
 
 

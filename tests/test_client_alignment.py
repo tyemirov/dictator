@@ -50,15 +50,16 @@ class AlignmentClientTests(unittest.TestCase):
                         started_at_unix_seconds=2.0,
                         finished_at_unix_seconds=0.0,
                     ),
-                    types.SimpleNamespace(
+                    alignment_pb2.GetAlignTranscriptJobResponse(
+                        input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
                         job_id="align-1",
                         state=alignment_pb2.ALIGNMENT_JOB_STATE_SUCCEEDED,
                         error_code="",
                         error_message="",
                         language_code="en",
                         words=[
-                            types.SimpleNamespace(content="hello", start_seconds=0.0, end_seconds=0.4),
-                            types.SimpleNamespace(content="world", start_seconds=0.4, end_seconds=0.9),
+                            dict(content="hello", start_seconds=0.0, end_seconds=0.4),
+                            dict(content="world", start_seconds=0.4, end_seconds=0.9),
                         ],
                         srt_text="1\n00:00:00,000 --> 00:00:00,900\nhello world\n",
                         srt_artifact_id="srt-1",
@@ -66,13 +67,14 @@ class AlignmentClientTests(unittest.TestCase):
                         started_at_unix_seconds=2.0,
                         finished_at_unix_seconds=3.0,
                     ),
-                    types.SimpleNamespace(
+                    alignment_pb2.GetAlignTranscriptJobResponse(
+                        input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
                         job_id="align-2",
                         state=alignment_pb2.ALIGNMENT_JOB_STATE_SUCCEEDED,
                         error_code="",
                         error_message="",
                         language_code="en",
-                        words=[types.SimpleNamespace(content="hi", start_seconds=0.0, end_seconds=0.2)],
+                        words=[dict(content="hi", start_seconds=0.0, end_seconds=0.2)],
                         srt_text="1\n00:00:00,000 --> 00:00:00,200\nhi\n",
                         srt_artifact_id="srt-2",
                         created_at_unix_seconds=1.0,
@@ -123,9 +125,10 @@ class AlignmentClientTests(unittest.TestCase):
     def test_alignment_convenience_falls_back_to_sync_rpc(self):
         from dictator.client.alignment import AlignmentClient
 
-        sync_response = types.SimpleNamespace(
+        sync_response = alignment_pb2.AlignTranscriptResponse(
+            input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
             language_code="en",
-            words=[types.SimpleNamespace(content="fallback", start_seconds=0.0, end_seconds=0.5)],
+            words=[dict(content="fallback", start_seconds=0.0, end_seconds=0.5)],
             srt_text="1\n00:00:00,000 --> 00:00:00,500\nfallback\n",
             srt_artifact_id="srt-sync",
         )

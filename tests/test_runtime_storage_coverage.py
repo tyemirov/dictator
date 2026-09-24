@@ -7,6 +7,7 @@ import types
 import unittest
 from unittest.mock import patch
 
+from dictator.audio.usage import InputAudioUsage
 from dictator.runtime.errors import ServiceRequestError, ValidationError
 from dictator.runtime.inflight import InflightLimiter
 from dictator.runtime.jobs import LocalSynthesisJobStore, SynthesisJobManager, SynthesisJobRecord, SynthesisJobState
@@ -873,6 +874,7 @@ class GenericJobRuntimeCoverageTests(unittest.TestCase):
             def align(self, request):
                 GenericJobRuntimeCoverageTests._write_reserved_outputs(request, self._source_path)
                 return types.SimpleNamespace(
+                    input_audio_usage=InputAudioUsage(16000, 16000),
                     language="en",
                     words=(AlignedWord(text="hello", start_seconds=0.0, end_seconds=0.4),),
                     srt_text="1\n00:00:00,000 --> 00:00:00,400\nhello\n",
@@ -884,11 +886,13 @@ class GenericJobRuntimeCoverageTests(unittest.TestCase):
                     text="hello",
                     language="en",
                     words=(types.SimpleNamespace(text="hello", start_seconds=0.0, end_seconds=0.4),),
+                    input_audio_usage=InputAudioUsage(16000, 16000),
                 )
 
         class _DiarizationResult:
             text = "hello"
             language = "en"
+            input_audio_usage = InputAudioUsage(16000, 16000)
 
             def to_json_dict(self, **_kwargs):
                 return {"text": "hello", "speakers": [{"speaker": "S1"}]}
@@ -904,6 +908,7 @@ class GenericJobRuntimeCoverageTests(unittest.TestCase):
             def render(self, request, **_kwargs):
                 GenericJobRuntimeCoverageTests._write_reserved_outputs(request, self._source_path)
                 return types.SimpleNamespace(
+                    input_audio_usage=InputAudioUsage(16000, 16000),
                     language="en",
                     mode="forced_alignment",
                     output_format="srt",
@@ -924,6 +929,7 @@ class GenericJobRuntimeCoverageTests(unittest.TestCase):
             def extract(self, request, **_kwargs):
                 GenericJobRuntimeCoverageTests._write_reserved_outputs(request, self._source_path)
                 return types.SimpleNamespace(
+                    input_audio_usage=InputAudioUsage(16000, 16000),
                     trim_start_seconds=0.5,
                     trim_end_seconds=1.5,
                     window_start_seconds=0.0,

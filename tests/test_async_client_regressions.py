@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import grpc
 from google.protobuf import struct_pb2
 
+from dictator.audio.usage import InputAudioUsage
 from dictator.client.alignment import AlignmentClient, AlignmentJob, AlignmentResult
 from dictator.client.diarization import DiarizationClient, DiarizationJob, DiarizationResult
 from dictator.client.dictation import DictationClient, DictationJob, DictationResult
@@ -80,7 +81,7 @@ class AsyncClientRegressionTests(unittest.TestCase):
                     job_id="tx-1",
                     state="TRANSCRIPTION_JOB_STATE_SUCCEEDED",
                     source_artifact_id="audio-1",
-                    result=DictationResult(text="hello", language_code="en", artifact_id="audio-1"),
+                    result=DictationResult(text="hello", language_code="en", artifact_id="audio-1", input_audio_usage=InputAudioUsage(16000, 16000)),
                 ),
             ) as wait_mock,
         ):
@@ -107,6 +108,7 @@ class AsyncClientRegressionTests(unittest.TestCase):
                     state="DIARIZATION_JOB_STATE_SUCCEEDED",
                     source_artifact_id="audio-1",
                     result=DiarizationResult(
+                        input_audio_usage=InputAudioUsage(16000, 16000),
                         text="hello",
                         language_code="en",
                         source_artifact_id="audio-1",
@@ -138,6 +140,7 @@ class AsyncClientRegressionTests(unittest.TestCase):
                     state="SUBTITLE_JOB_STATE_SUCCEEDED",
                     source_artifact_id="audio-1",
                     result=SubtitleResult(
+                        input_audio_usage=InputAudioUsage(16000, 16000),
                         language_code="en",
                         mode="forced_alignment",
                         granularity="words",
@@ -173,6 +176,7 @@ class AsyncClientRegressionTests(unittest.TestCase):
                     state="ALIGNMENT_JOB_STATE_SUCCEEDED",
                     source_artifact_id="audio-1",
                     result=AlignmentResult(
+                        input_audio_usage=InputAudioUsage(16000, 16000),
                         language_code="en",
                         source_artifact_id="audio-1",
                         srt_artifact_id="srt-1",
@@ -200,6 +204,7 @@ class AsyncClientRegressionTests(unittest.TestCase):
                     state="EXTRACT_REFERENCE_SAMPLE_JOB_STATE_SUCCEEDED",
                     source_artifact_id="audio-1",
                     result=ReferenceSampleResult(
+                        input_audio_usage=InputAudioUsage(16000, 16000),
                         sample_artifact_id="sample-1",
                         trim_start_seconds=0.0,
                         trim_end_seconds=1.0,
@@ -217,7 +222,7 @@ class AsyncClientRegressionTests(unittest.TestCase):
         dictation_client = self._make_dictation_client(
             stub=types.SimpleNamespace(
                 GetTranscribeJob=MagicMock(
-                    return_value=types.SimpleNamespace(
+                    return_value=transcription_pb2.GetTranscribeJobResponse(
                         job_id="tx-1",
                         state=transcription_pb2.TRANSCRIPTION_JOB_STATE_SUCCEEDED,
                         source_artifact_id="audio-1",
@@ -229,6 +234,7 @@ class AsyncClientRegressionTests(unittest.TestCase):
                         created_at_unix_seconds=1.0,
                         started_at_unix_seconds=2.0,
                         finished_at_unix_seconds=3.0,
+                        input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
                     )
                 )
             )
@@ -242,7 +248,8 @@ class AsyncClientRegressionTests(unittest.TestCase):
         diarization_client = self._make_diarization_client(
             stub=types.SimpleNamespace(
                 GetDiarizeAudioJob=MagicMock(
-                    return_value=types.SimpleNamespace(
+                    return_value=transcription_pb2.GetDiarizeAudioJobResponse(
+                        input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
                         job_id="dia-1",
                         state=transcription_pb2.DIARIZATION_JOB_STATE_SUCCEEDED,
                         source_artifact_id="audio-2",
@@ -266,7 +273,8 @@ class AsyncClientRegressionTests(unittest.TestCase):
         subtitle_client = self._make_subtitle_client(
             stub=types.SimpleNamespace(
                 GetRenderSubtitlesJob=MagicMock(
-                    return_value=types.SimpleNamespace(
+                    return_value=subtitle_pb2.GetRenderSubtitlesJobResponse(
+                        input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
                         job_id="sub-1",
                         state=subtitle_pb2.SUBTITLE_JOB_STATE_SUCCEEDED,
                         source_artifact_id="audio-3",
@@ -294,7 +302,8 @@ class AsyncClientRegressionTests(unittest.TestCase):
         alignment_client = self._make_alignment_client(
             stub=types.SimpleNamespace(
                 GetAlignTranscriptJob=MagicMock(
-                    return_value=types.SimpleNamespace(
+                    return_value=alignment_pb2.GetAlignTranscriptJobResponse(
+                        input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
                         job_id="align-1",
                         state=alignment_pb2.ALIGNMENT_JOB_STATE_SUCCEEDED,
                         source_artifact_id="audio-4",
@@ -318,13 +327,14 @@ class AsyncClientRegressionTests(unittest.TestCase):
         reference_client = self._make_reference_client(
             stub=types.SimpleNamespace(
                 GetExtractReferenceSampleJob=MagicMock(
-                    return_value=types.SimpleNamespace(
+                    return_value=voice_pb2.GetExtractReferenceSampleJobResponse(
+                        input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
                         job_id="ref-1",
                         state=voice_pb2.EXTRACT_REFERENCE_SAMPLE_JOB_STATE_SUCCEEDED,
                         source_artifact_id="audio-5",
                         error_code="",
                         error_message="",
-                        sample_artifact=types.SimpleNamespace(artifact_id="sample-1"),
+                        sample_artifact=dict(artifact_id="sample-1"),
                         trim_start_seconds=0.0,
                         trim_end_seconds=1.0,
                         window_start_seconds=0.0,
@@ -351,7 +361,9 @@ class AsyncClientRegressionTests(unittest.TestCase):
                 )
             ),
             Transcribe=MagicMock(
-                return_value=types.SimpleNamespace(text="hello", language_code="en", words=())
+                return_value=transcription_pb2.TranscribeResponse(text="hello", language_code="en", words=(),
+                                 input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
+                             )
             ),
         )
         with patch("dictator.client.dictation.upload_audio_artifact", return_value=artifact) as upload_mock:
@@ -385,7 +397,8 @@ class AsyncClientRegressionTests(unittest.TestCase):
                 )
             ),
             RenderSubtitles=MagicMock(
-                return_value=types.SimpleNamespace(
+                return_value=subtitle_pb2.RenderSubtitlesResponse(
+                    input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
                     language_code="en",
                     mode=subtitle_pb2.SUBTITLE_MODE_FORCED_ALIGNMENT,
                     group_size=1,
@@ -410,7 +423,8 @@ class AsyncClientRegressionTests(unittest.TestCase):
                 )
             ),
             AlignTranscript=MagicMock(
-                return_value=types.SimpleNamespace(
+                return_value=alignment_pb2.AlignTranscriptResponse(
+                    input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
                     language_code="en",
                     words=(),
                     srt_text="",
@@ -429,6 +443,7 @@ class AsyncClientRegressionTests(unittest.TestCase):
         alignment_servicer = AlignmentServiceServicer(types.SimpleNamespace())
         alignment_response = alignment_servicer._job_response(
             AlignmentJobRecord(
+                input_audio_usage=InputAudioUsage(16000, 16000),
                 job_id="align-1",
                 state=AlignmentJobState.SUCCEEDED,
                 audio_artifact_id="audio-1",
@@ -446,12 +461,14 @@ class AsyncClientRegressionTests(unittest.TestCase):
                 audio_artifact_id="audio-2",
                 include_word_segments=True,
                 created_at_unix_seconds=1.0,
+                input_audio_usage=InputAudioUsage(16000, 16000),
             )
         )
         self.assertEqual(transcription_response.source_artifact_id, "audio-2")
 
         diarization_response = transcription_servicer._diarization_job_response(
             DiarizationJobRecord(
+                input_audio_usage=InputAudioUsage(16000, 16000),
                 job_id="dia-1",
                 state=DiarizationJobState.SUCCEEDED,
                 audio_artifact_id="audio-3",
@@ -468,6 +485,7 @@ class AsyncClientRegressionTests(unittest.TestCase):
         subtitle_servicer = SubtitleServiceServicer(types.SimpleNamespace())
         subtitle_response = subtitle_servicer._subtitle_job_response(
             SubtitleJobRecord(
+                input_audio_usage=InputAudioUsage(16000, 16000),
                 job_id="sub-1",
                 state=SubtitleJobState.SUCCEEDED,
                 audio_artifact_id="audio-4",
@@ -480,6 +498,7 @@ class AsyncClientRegressionTests(unittest.TestCase):
         voice_servicer = VoiceServiceServicer(types.SimpleNamespace())
         reference_response = voice_servicer._reference_extraction_job_response(
             ExtractReferenceSampleJobRecord(
+                input_audio_usage=InputAudioUsage(16000, 16000),
                 job_id="ref-1",
                 state=ExtractReferenceSampleJobState.SUCCEEDED,
                 source_artifact_id="audio-5",

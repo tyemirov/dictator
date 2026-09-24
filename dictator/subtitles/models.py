@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from dictator.audio.usage import InputAudioUsage
 from pathlib import Path
 from typing import Literal
 
@@ -57,4 +58,5 @@ class RenderSubtitlesResult:
     group_size: int
     cues: tuple[SubtitleCue, ...]
     srt_text: str
+    input_audio_usage: InputAudioUsage
     output_srt_path: Path | None = None

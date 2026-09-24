@@ -8,10 +8,12 @@ from typing import Sequence
 
 import grpc
 
+from dictator.audio.usage import InputAudioUsage
 from dictator.speech.v1 import artifacts_pb2_grpc, transcription_pb2, transcription_pb2_grpc
 
 from ._jobs import wait_for_job
 from ._uploads import DEFAULT_CHUNK_BYTES, DEFAULT_MEDIA_TYPE, upload_audio_artifact
+from ._usage import input_audio_usage_from_response
 
 
 @dataclass(frozen=True)
@@ -19,6 +21,7 @@ class DictationResult:
     text: str
     language_code: str
     artifact_id: str
+    input_audio_usage: InputAudioUsage
     words: tuple[dict[str, float | str], ...] = ()
 
     def to_http_payload(self) -> dict[str, str]:
@@ -134,6 +137,7 @@ class DictationClient:
                 language_code=finished.result.language_code,
                 artifact_id=source_artifact_id,
                 words=finished.result.words,
+                input_audio_usage=finished.result.input_audio_usage,
             )
         except grpc.RpcError as error:
             if not self._should_fallback_to_sync(error):
@@ -147,6 +151,7 @@ class DictationClient:
             text=response.text,
             language_code=response.language_code,
             artifact_id=artifact.artifact_id,
+            input_audio_usage=input_audio_usage_from_response(response),
             words=tuple(
                 {
                     "content": word.content,
@@ -227,6 +232,7 @@ class DictationClient:
                 text=response.text,
                 language_code=response.language_code,
                 artifact_id=source_artifact_id,
+                input_audio_usage=input_audio_usage_from_response(response),
                 words=tuple(
                     {
                         "content": word.content,

@@ -15,6 +15,7 @@ from typing import Generic, TypeVar
 import uuid
 
 from dictator.alignment.models import AlignTranscriptRequest, AlignedWord
+from dictator.audio.usage import InputAudioUsage
 from dictator.diarization.models import DiarizeAudioRequest, DiarizeAudioResult
 from dictator.runtime.errors import DictatorError, ServiceRequestError, ValidationError
 from dictator.storage import LocalArtifactStore
@@ -126,6 +127,7 @@ class AlignmentJobRecord:
     words: tuple[AlignedWord, ...] = ()
     srt_text: str | None = None
     srt_artifact_id: str | None = None
+    input_audio_usage: InputAudioUsage | None = None
 
     def to_json_dict(self) -> dict[str, object]:
         payload = asdict(self)
@@ -136,6 +138,7 @@ class AlignmentJobRecord:
     @classmethod
     def from_json_dict(cls, payload: dict[str, object]) -> "AlignmentJobRecord":
         return cls(
+            input_audio_usage=_input_audio_usage_from_json(payload),
             job_id=str(payload["job_id"]),
             state=AlignmentJobState(str(payload["state"])),
             audio_artifact_id=str(payload["audio_artifact_id"]),
@@ -174,6 +177,7 @@ class TranscriptionJobRecord:
     text: str | None = None
     language_code: str | None = None
     words: tuple[WordSegment, ...] = ()
+    input_audio_usage: InputAudioUsage | None = None
 
     def to_json_dict(self) -> dict[str, object]:
         payload = asdict(self)
@@ -196,6 +200,7 @@ class TranscriptionJobRecord:
             text=_optional_str(payload.get("text")),
             language_code=_optional_str(payload.get("language_code")),
             words=_transcription_words_from_json(payload.get("words")),
+            input_audio_usage=_input_audio_usage_from_json(payload),
         )
 
 
@@ -231,6 +236,7 @@ class DiarizationJobRecord:
     language_code: str | None = None
     diarization: dict[str, object] | None = None
     diarization_artifact_id: str | None = None
+    input_audio_usage: InputAudioUsage | None = None
 
     def to_json_dict(self) -> dict[str, object]:
         payload = asdict(self)
@@ -243,6 +249,7 @@ class DiarizationJobRecord:
         if diarization is not None and not isinstance(diarization, dict):
             raise ValueError("diarization job payload must be a dict")
         return cls(
+            input_audio_usage=_input_audio_usage_from_json(payload),
             job_id=str(payload["job_id"]),
             state=DiarizationJobState(str(payload["state"])),
             audio_artifact_id=str(payload["audio_artifact_id"]),
@@ -294,6 +301,7 @@ class SubtitleJobRecord:
     cues: tuple[SubtitleCue, ...] = ()
     srt_text: str | None = None
     srt_artifact_id: str | None = None
+    input_audio_usage: InputAudioUsage | None = None
 
     def to_json_dict(self) -> dict[str, object]:
         payload = asdict(self)
@@ -304,6 +312,7 @@ class SubtitleJobRecord:
     @classmethod
     def from_json_dict(cls, payload: dict[str, object]) -> "SubtitleJobRecord":
         return cls(
+            input_audio_usage=_input_audio_usage_from_json(payload),
             job_id=str(payload["job_id"]),
             state=SubtitleJobState(str(payload["state"])),
             audio_artifact_id=str(payload["audio_artifact_id"]),
@@ -351,6 +360,7 @@ class ExtractReferenceSampleJobRecord:
     window_start_seconds: float | None = None
     window_end_seconds: float | None = None
     dominant_speaker_word_count: int | None = None
+    input_audio_usage: InputAudioUsage | None = None
 
     def to_json_dict(self) -> dict[str, object]:
         payload = asdict(self)
@@ -360,6 +370,7 @@ class ExtractReferenceSampleJobRecord:
     @classmethod
     def from_json_dict(cls, payload: dict[str, object]) -> "ExtractReferenceSampleJobRecord":
         return cls(
+            input_audio_usage=_input_audio_usage_from_json(payload),
             job_id=str(payload["job_id"]),
             state=ExtractReferenceSampleJobState(str(payload["state"])),
             source_artifact_id=str(payload["source_artifact_id"]),
@@ -375,6 +386,14 @@ class ExtractReferenceSampleJobRecord:
             window_end_seconds=_optional_float(payload.get("window_end_seconds")),
             dominant_speaker_word_count=_optional_int(payload.get("dominant_speaker_word_count")),
         )
+
+
+def _input_audio_usage_from_json(payload: dict[str, object]) -> InputAudioUsage | None:
+    usage_payload = payload["input_audio_usage"]
+    usage = None if usage_payload is None else InputAudioUsage(**usage_payload)
+    if payload["state"] == JobState.SUCCEEDED.value and usage is None:
+        raise ValueError("successful audio job requires input_audio_usage")
+    return usage
 
 
 def _optional_float(value: object) -> float | None:
@@ -679,6 +698,7 @@ class LocalAlignmentJobStore(_LocalJsonJobStore[AlignmentJobRecord]):
                 if record.state not in {AlignmentJobState.QUEUED, AlignmentJobState.RUNNING}:
                     continue
                 failed = AlignmentJobRecord(
+                    input_audio_usage=record.input_audio_usage,
                     job_id=record.job_id,
                     state=AlignmentJobState.FAILED,
                     audio_artifact_id=record.audio_artifact_id,
@@ -735,6 +755,7 @@ class LocalTranscriptionJobStore(_LocalJsonJobStore[TranscriptionJobRecord]):
                     text=record.text,
                     language_code=record.language_code,
                     words=record.words,
+                    input_audio_usage=record.input_audio_usage,
                 )
                 self._write_record(failed)
 
@@ -770,6 +791,7 @@ class LocalDiarizationJobStore(_LocalJsonJobStore[DiarizationJobRecord]):
                 if record.state not in {DiarizationJobState.QUEUED, DiarizationJobState.RUNNING}:
                     continue
                 failed = DiarizationJobRecord(
+                    input_audio_usage=record.input_audio_usage,
                     job_id=record.job_id,
                     state=DiarizationJobState.FAILED,
                     audio_artifact_id=record.audio_artifact_id,
@@ -818,6 +840,7 @@ class LocalSubtitleJobStore(_LocalJsonJobStore[SubtitleJobRecord]):
                 if record.state not in {SubtitleJobState.QUEUED, SubtitleJobState.RUNNING}:
                     continue
                 failed = SubtitleJobRecord(
+                    input_audio_usage=record.input_audio_usage,
                     job_id=record.job_id,
                     state=SubtitleJobState.FAILED,
                     audio_artifact_id=record.audio_artifact_id,
@@ -871,6 +894,7 @@ class LocalExtractReferenceSampleJobStore(_LocalJsonJobStore[ExtractReferenceSam
                 }:
                     continue
                 failed = ExtractReferenceSampleJobRecord(
+                    input_audio_usage=record.input_audio_usage,
                     job_id=record.job_id,
                     state=ExtractReferenceSampleJobState.FAILED,
                     source_artifact_id=record.source_artifact_id,
@@ -936,10 +960,10 @@ class _QueuedJobManager(Generic[PreparedT, RecordT]):
         record = self.job_store.cancel(job_id)
         if record.state == JobState.CANCELED:
             with self._lock:
-                future = self._futures.get(record.job_id)
-                cancel = getattr(future, "cancel", None)
-                if cancel is not None and cancel():
-                    self._futures.pop(record.job_id, None)
+                future = self._futures.pop(record.job_id, None)
+            cancel = getattr(future, "cancel", None)
+            if cancel is not None and cancel():
+                with self._lock:
                     if self._pending_jobs > 0:
                         self._pending_jobs -= 1
         return record
@@ -1110,6 +1134,7 @@ class AlignmentJobManager(_QueuedJobManager[PreparedAlignmentJob, AlignmentJobRe
             self.job_store.update(
                 job_id,
                 state=AlignmentJobState.SUCCEEDED.value,
+                input_audio_usage=result.input_audio_usage.to_json_dict(),
                 finished_at_unix_seconds=time.time(),
                 language_code=result.language,
                 words=_alignment_words_to_json(result.words),
@@ -1181,6 +1206,7 @@ class TranscriptionJobManager(_QueuedJobManager[PreparedTranscriptionJob, Transc
                 text=result.text,
                 language_code=result.language,
                 words=_transcription_words_to_json(result.words if prepared.include_word_segments else ()),
+                input_audio_usage=result.input_audio_usage.to_json_dict(),
             )
         finally:
             with self._lock:
@@ -1267,6 +1293,7 @@ class DiarizationJobManager(_QueuedJobManager[PreparedDiarizationJob, Diarizatio
             self.job_store.update(
                 job_id,
                 state=DiarizationJobState.SUCCEEDED.value,
+                input_audio_usage=result.input_audio_usage.to_json_dict(),
                 finished_at_unix_seconds=time.time(),
                 text=result.text,
                 language_code=result.language,
@@ -1353,6 +1380,7 @@ class SubtitleJobManager(_QueuedJobManager[PreparedSubtitleJob, SubtitleJobRecor
             self.job_store.update(
                 job_id,
                 state=SubtitleJobState.SUCCEEDED.value,
+                input_audio_usage=result.input_audio_usage.to_json_dict(),
                 finished_at_unix_seconds=time.time(),
                 language_code=result.language,
                 mode=result.mode,
@@ -1446,6 +1474,7 @@ class ExtractReferenceSampleJobManager(
             self.job_store.update(
                 job_id,
                 state=ExtractReferenceSampleJobState.SUCCEEDED.value,
+                input_audio_usage=result.input_audio_usage.to_json_dict(),
                 finished_at_unix_seconds=time.time(),
                 sample_artifact_id=sample_record.artifact_id,
                 trim_start_seconds=result.trim_start_seconds,

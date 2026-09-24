@@ -417,6 +417,61 @@ func (x *WordSegment) GetEndSeconds() float64 {
 	return 0
 }
 
+// Exact mono input samples submitted to processing. Duration in seconds is
+// sample_count / sample_rate_hz. Count one input, not repeated model passes.
+// Presence means measured usage; absence must not be interpreted as zero.
+type InputAudioUsage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SampleCount   uint64                 `protobuf:"varint,1,opt,name=sample_count,json=sampleCount,proto3" json:"sample_count,omitempty"`
+	SampleRateHz  uint32                 `protobuf:"varint,2,opt,name=sample_rate_hz,json=sampleRateHz,proto3" json:"sample_rate_hz,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InputAudioUsage) Reset() {
+	*x = InputAudioUsage{}
+	mi := &file_dictator_speech_v1_common_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InputAudioUsage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InputAudioUsage) ProtoMessage() {}
+
+func (x *InputAudioUsage) ProtoReflect() protoreflect.Message {
+	mi := &file_dictator_speech_v1_common_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InputAudioUsage.ProtoReflect.Descriptor instead.
+func (*InputAudioUsage) Descriptor() ([]byte, []int) {
+	return file_dictator_speech_v1_common_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *InputAudioUsage) GetSampleCount() uint64 {
+	if x != nil {
+		return x.SampleCount
+	}
+	return 0
+}
+
+func (x *InputAudioUsage) GetSampleRateHz() uint32 {
+	if x != nil {
+		return x.SampleRateHz
+	}
+	return 0
+}
+
 type TimelineSegment struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Content       string                 `protobuf:"bytes,1,opt,name=content,proto3" json:"content,omitempty"`
@@ -428,7 +483,7 @@ type TimelineSegment struct {
 
 func (x *TimelineSegment) Reset() {
 	*x = TimelineSegment{}
-	mi := &file_dictator_speech_v1_common_proto_msgTypes[4]
+	mi := &file_dictator_speech_v1_common_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -440,7 +495,7 @@ func (x *TimelineSegment) String() string {
 func (*TimelineSegment) ProtoMessage() {}
 
 func (x *TimelineSegment) ProtoReflect() protoreflect.Message {
-	mi := &file_dictator_speech_v1_common_proto_msgTypes[4]
+	mi := &file_dictator_speech_v1_common_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -453,7 +508,7 @@ func (x *TimelineSegment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TimelineSegment.ProtoReflect.Descriptor instead.
 func (*TimelineSegment) Descriptor() ([]byte, []int) {
-	return file_dictator_speech_v1_common_proto_rawDescGZIP(), []int{4}
+	return file_dictator_speech_v1_common_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *TimelineSegment) GetContent() string {
@@ -509,7 +564,10 @@ const file_dictator_speech_v1_common_proto_rawDesc = "" +
 	"\acontent\x18\x01 \x01(\tR\acontent\x12#\n" +
 	"\rstart_seconds\x18\x02 \x01(\x01R\fstartSeconds\x12\x1f\n" +
 	"\vend_seconds\x18\x03 \x01(\x01R\n" +
-	"endSeconds\"q\n" +
+	"endSeconds\"Z\n" +
+	"\x0fInputAudioUsage\x12!\n" +
+	"\fsample_count\x18\x01 \x01(\x04R\vsampleCount\x12$\n" +
+	"\x0esample_rate_hz\x18\x02 \x01(\rR\fsampleRateHz\"q\n" +
 	"\x0fTimelineSegment\x12\x18\n" +
 	"\acontent\x18\x01 \x01(\tR\acontent\x12#\n" +
 	"\rstart_seconds\x18\x02 \x01(\x01R\fstartSeconds\x12\x1f\n" +
@@ -536,7 +594,7 @@ func file_dictator_speech_v1_common_proto_rawDescGZIP() []byte {
 }
 
 var file_dictator_speech_v1_common_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_dictator_speech_v1_common_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_dictator_speech_v1_common_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_dictator_speech_v1_common_proto_goTypes = []any{
 	(AudioContainer)(0),     // 0: dictator.speech.v1.AudioContainer
 	(AudioCodec)(0),         // 1: dictator.speech.v1.AudioCodec
@@ -544,7 +602,8 @@ var file_dictator_speech_v1_common_proto_goTypes = []any{
 	(*AudioFormat)(nil),     // 3: dictator.speech.v1.AudioFormat
 	(*AudioMetadata)(nil),   // 4: dictator.speech.v1.AudioMetadata
 	(*WordSegment)(nil),     // 5: dictator.speech.v1.WordSegment
-	(*TimelineSegment)(nil), // 6: dictator.speech.v1.TimelineSegment
+	(*InputAudioUsage)(nil), // 6: dictator.speech.v1.InputAudioUsage
+	(*TimelineSegment)(nil), // 7: dictator.speech.v1.TimelineSegment
 }
 var file_dictator_speech_v1_common_proto_depIdxs = []int32{
 	4, // 0: dictator.speech.v1.ArtifactRef.audio_metadata:type_name -> dictator.speech.v1.AudioMetadata
@@ -568,7 +627,7 @@ func file_dictator_speech_v1_common_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dictator_speech_v1_common_proto_rawDesc), len(file_dictator_speech_v1_common_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

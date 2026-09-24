@@ -446,17 +446,18 @@ func (*RenderSubtitlesRequest_SourceText) isRenderSubtitlesRequest_SourceTextSou
 func (*RenderSubtitlesRequest_SourceTextArtifactId) isRenderSubtitlesRequest_SourceTextSource() {}
 
 type RenderSubtitlesResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	LanguageCode  string                 `protobuf:"bytes,1,opt,name=language_code,json=languageCode,proto3" json:"language_code,omitempty"`
-	Mode          SubtitleMode           `protobuf:"varint,2,opt,name=mode,proto3,enum=dictator.speech.v1.SubtitleMode" json:"mode,omitempty"`
-	OutputFormat  SubtitleFormat         `protobuf:"varint,3,opt,name=output_format,json=outputFormat,proto3,enum=dictator.speech.v1.SubtitleFormat" json:"output_format,omitempty"`
-	Granularity   SubtitleGranularity    `protobuf:"varint,4,opt,name=granularity,proto3,enum=dictator.speech.v1.SubtitleGranularity" json:"granularity,omitempty"`
-	GroupSize     int32                  `protobuf:"varint,5,opt,name=group_size,json=groupSize,proto3" json:"group_size,omitempty"`
-	Cues          []*SubtitleCue         `protobuf:"bytes,6,rep,name=cues,proto3" json:"cues,omitempty"`
-	SrtText       string                 `protobuf:"bytes,7,opt,name=srt_text,json=srtText,proto3" json:"srt_text,omitempty"`
-	SrtArtifactId string                 `protobuf:"bytes,8,opt,name=srt_artifact_id,json=srtArtifactId,proto3" json:"srt_artifact_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	LanguageCode    string                 `protobuf:"bytes,1,opt,name=language_code,json=languageCode,proto3" json:"language_code,omitempty"`
+	Mode            SubtitleMode           `protobuf:"varint,2,opt,name=mode,proto3,enum=dictator.speech.v1.SubtitleMode" json:"mode,omitempty"`
+	OutputFormat    SubtitleFormat         `protobuf:"varint,3,opt,name=output_format,json=outputFormat,proto3,enum=dictator.speech.v1.SubtitleFormat" json:"output_format,omitempty"`
+	Granularity     SubtitleGranularity    `protobuf:"varint,4,opt,name=granularity,proto3,enum=dictator.speech.v1.SubtitleGranularity" json:"granularity,omitempty"`
+	GroupSize       int32                  `protobuf:"varint,5,opt,name=group_size,json=groupSize,proto3" json:"group_size,omitempty"`
+	Cues            []*SubtitleCue         `protobuf:"bytes,6,rep,name=cues,proto3" json:"cues,omitempty"`
+	SrtText         string                 `protobuf:"bytes,7,opt,name=srt_text,json=srtText,proto3" json:"srt_text,omitempty"`
+	SrtArtifactId   string                 `protobuf:"bytes,8,opt,name=srt_artifact_id,json=srtArtifactId,proto3" json:"srt_artifact_id,omitempty"`
+	InputAudioUsage *InputAudioUsage       `protobuf:"bytes,9,opt,name=input_audio_usage,json=inputAudioUsage,proto3" json:"input_audio_usage,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *RenderSubtitlesResponse) Reset() {
@@ -543,6 +544,13 @@ func (x *RenderSubtitlesResponse) GetSrtArtifactId() string {
 		return x.SrtArtifactId
 	}
 	return ""
+}
+
+func (x *RenderSubtitlesResponse) GetInputAudioUsage() *InputAudioUsage {
+	if x != nil {
+		return x.InputAudioUsage
+	}
+	return nil
 }
 
 type SubmitRenderSubtitlesJobResponse struct {
@@ -659,6 +667,7 @@ type GetRenderSubtitlesJobResponse struct {
 	StartedAtUnixSeconds  float64                `protobuf:"fixed64,14,opt,name=started_at_unix_seconds,json=startedAtUnixSeconds,proto3" json:"started_at_unix_seconds,omitempty"`
 	FinishedAtUnixSeconds float64                `protobuf:"fixed64,15,opt,name=finished_at_unix_seconds,json=finishedAtUnixSeconds,proto3" json:"finished_at_unix_seconds,omitempty"`
 	SourceArtifactId      string                 `protobuf:"bytes,16,opt,name=source_artifact_id,json=sourceArtifactId,proto3" json:"source_artifact_id,omitempty"`
+	InputAudioUsage       *InputAudioUsage       `protobuf:"bytes,17,opt,name=input_audio_usage,json=inputAudioUsage,proto3" json:"input_audio_usage,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -805,6 +814,13 @@ func (x *GetRenderSubtitlesJobResponse) GetSourceArtifactId() string {
 	return ""
 }
 
+func (x *GetRenderSubtitlesJobResponse) GetInputAudioUsage() *InputAudioUsage {
+	if x != nil {
+		return x.InputAudioUsage
+	}
+	return nil
+}
+
 type CancelRenderSubtitlesJobRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
@@ -905,7 +921,7 @@ var File_dictator_speech_v1_subtitle_proto protoreflect.FileDescriptor
 
 const file_dictator_speech_v1_subtitle_proto_rawDesc = "" +
 	"\n" +
-	"!dictator/speech/v1/subtitle.proto\x12\x12dictator.speech.v1\"\x8c\x01\n" +
+	"!dictator/speech/v1/subtitle.proto\x12\x12dictator.speech.v1\x1a\x1fdictator/speech/v1/common.proto\"\x8c\x01\n" +
 	"\vSubtitleCue\x12\x18\n" +
 	"\acontent\x18\x01 \x01(\tR\acontent\x12#\n" +
 	"\rstart_seconds\x18\x02 \x01(\x01R\fstartSeconds\x12\x1f\n" +
@@ -929,7 +945,7 @@ const file_dictator_speech_v1_subtitle_proto_rawDesc = "" +
 	"\x10source_text_name\x18\n" +
 	" \x01(\tR\x0esourceTextName\x12(\n" +
 	"\x10include_srt_text\x18\v \x01(\bR\x0eincludeSrtTextB\x14\n" +
-	"\x12source_text_source\"\x9f\x03\n" +
+	"\x12source_text_source\"\xf0\x03\n" +
 	"\x17RenderSubtitlesResponse\x12#\n" +
 	"\rlanguage_code\x18\x01 \x01(\tR\flanguageCode\x124\n" +
 	"\x04mode\x18\x02 \x01(\x0e2 .dictator.speech.v1.SubtitleModeR\x04mode\x12G\n" +
@@ -939,12 +955,13 @@ const file_dictator_speech_v1_subtitle_proto_rawDesc = "" +
 	"group_size\x18\x05 \x01(\x05R\tgroupSize\x123\n" +
 	"\x04cues\x18\x06 \x03(\v2\x1f.dictator.speech.v1.SubtitleCueR\x04cues\x12\x19\n" +
 	"\bsrt_text\x18\a \x01(\tR\asrtText\x12&\n" +
-	"\x0fsrt_artifact_id\x18\b \x01(\tR\rsrtArtifactId\"u\n" +
+	"\x0fsrt_artifact_id\x18\b \x01(\tR\rsrtArtifactId\x12O\n" +
+	"\x11input_audio_usage\x18\t \x01(\v2#.dictator.speech.v1.InputAudioUsageR\x0finputAudioUsage\"u\n" +
 	" SubmitRenderSubtitlesJobResponse\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12:\n" +
 	"\x05state\x18\x02 \x01(\x0e2$.dictator.speech.v1.SubtitleJobStateR\x05state\"5\n" +
 	"\x1cGetRenderSubtitlesJobRequest\x12\x15\n" +
-	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"\x91\x06\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"\xe2\x06\n" +
 	"\x1dGetRenderSubtitlesJobResponse\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12:\n" +
 	"\x05state\x18\x02 \x01(\x0e2$.dictator.speech.v1.SubtitleJobStateR\x05state\x12\x1d\n" +
@@ -964,7 +981,8 @@ const file_dictator_speech_v1_subtitle_proto_rawDesc = "" +
 	"\x17created_at_unix_seconds\x18\r \x01(\x01R\x14createdAtUnixSeconds\x125\n" +
 	"\x17started_at_unix_seconds\x18\x0e \x01(\x01R\x14startedAtUnixSeconds\x127\n" +
 	"\x18finished_at_unix_seconds\x18\x0f \x01(\x01R\x15finishedAtUnixSeconds\x12,\n" +
-	"\x12source_artifact_id\x18\x10 \x01(\tR\x10sourceArtifactId\"8\n" +
+	"\x12source_artifact_id\x18\x10 \x01(\tR\x10sourceArtifactId\x12O\n" +
+	"\x11input_audio_usage\x18\x11 \x01(\v2#.dictator.speech.v1.InputAudioUsageR\x0finputAudioUsage\"8\n" +
 	"\x1fCancelRenderSubtitlesJobRequest\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"u\n" +
 	" CancelRenderSubtitlesJobResponse\x12\x15\n" +
@@ -1021,6 +1039,7 @@ var file_dictator_speech_v1_subtitle_proto_goTypes = []any{
 	(*GetRenderSubtitlesJobResponse)(nil),    // 9: dictator.speech.v1.GetRenderSubtitlesJobResponse
 	(*CancelRenderSubtitlesJobRequest)(nil),  // 10: dictator.speech.v1.CancelRenderSubtitlesJobRequest
 	(*CancelRenderSubtitlesJobResponse)(nil), // 11: dictator.speech.v1.CancelRenderSubtitlesJobResponse
+	(*InputAudioUsage)(nil),                  // 12: dictator.speech.v1.InputAudioUsage
 }
 var file_dictator_speech_v1_subtitle_proto_depIdxs = []int32{
 	1,  // 0: dictator.speech.v1.RenderSubtitlesRequest.output_format:type_name -> dictator.speech.v1.SubtitleFormat
@@ -1029,26 +1048,28 @@ var file_dictator_speech_v1_subtitle_proto_depIdxs = []int32{
 	1,  // 3: dictator.speech.v1.RenderSubtitlesResponse.output_format:type_name -> dictator.speech.v1.SubtitleFormat
 	2,  // 4: dictator.speech.v1.RenderSubtitlesResponse.granularity:type_name -> dictator.speech.v1.SubtitleGranularity
 	4,  // 5: dictator.speech.v1.RenderSubtitlesResponse.cues:type_name -> dictator.speech.v1.SubtitleCue
-	0,  // 6: dictator.speech.v1.SubmitRenderSubtitlesJobResponse.state:type_name -> dictator.speech.v1.SubtitleJobState
-	0,  // 7: dictator.speech.v1.GetRenderSubtitlesJobResponse.state:type_name -> dictator.speech.v1.SubtitleJobState
-	3,  // 8: dictator.speech.v1.GetRenderSubtitlesJobResponse.mode:type_name -> dictator.speech.v1.SubtitleMode
-	1,  // 9: dictator.speech.v1.GetRenderSubtitlesJobResponse.output_format:type_name -> dictator.speech.v1.SubtitleFormat
-	2,  // 10: dictator.speech.v1.GetRenderSubtitlesJobResponse.granularity:type_name -> dictator.speech.v1.SubtitleGranularity
-	4,  // 11: dictator.speech.v1.GetRenderSubtitlesJobResponse.cues:type_name -> dictator.speech.v1.SubtitleCue
-	0,  // 12: dictator.speech.v1.CancelRenderSubtitlesJobResponse.state:type_name -> dictator.speech.v1.SubtitleJobState
-	5,  // 13: dictator.speech.v1.SubtitleService.RenderSubtitles:input_type -> dictator.speech.v1.RenderSubtitlesRequest
-	5,  // 14: dictator.speech.v1.SubtitleService.SubmitRenderSubtitlesJob:input_type -> dictator.speech.v1.RenderSubtitlesRequest
-	8,  // 15: dictator.speech.v1.SubtitleService.GetRenderSubtitlesJob:input_type -> dictator.speech.v1.GetRenderSubtitlesJobRequest
-	10, // 16: dictator.speech.v1.SubtitleService.CancelRenderSubtitlesJob:input_type -> dictator.speech.v1.CancelRenderSubtitlesJobRequest
-	6,  // 17: dictator.speech.v1.SubtitleService.RenderSubtitles:output_type -> dictator.speech.v1.RenderSubtitlesResponse
-	7,  // 18: dictator.speech.v1.SubtitleService.SubmitRenderSubtitlesJob:output_type -> dictator.speech.v1.SubmitRenderSubtitlesJobResponse
-	9,  // 19: dictator.speech.v1.SubtitleService.GetRenderSubtitlesJob:output_type -> dictator.speech.v1.GetRenderSubtitlesJobResponse
-	11, // 20: dictator.speech.v1.SubtitleService.CancelRenderSubtitlesJob:output_type -> dictator.speech.v1.CancelRenderSubtitlesJobResponse
-	17, // [17:21] is the sub-list for method output_type
-	13, // [13:17] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	12, // 6: dictator.speech.v1.RenderSubtitlesResponse.input_audio_usage:type_name -> dictator.speech.v1.InputAudioUsage
+	0,  // 7: dictator.speech.v1.SubmitRenderSubtitlesJobResponse.state:type_name -> dictator.speech.v1.SubtitleJobState
+	0,  // 8: dictator.speech.v1.GetRenderSubtitlesJobResponse.state:type_name -> dictator.speech.v1.SubtitleJobState
+	3,  // 9: dictator.speech.v1.GetRenderSubtitlesJobResponse.mode:type_name -> dictator.speech.v1.SubtitleMode
+	1,  // 10: dictator.speech.v1.GetRenderSubtitlesJobResponse.output_format:type_name -> dictator.speech.v1.SubtitleFormat
+	2,  // 11: dictator.speech.v1.GetRenderSubtitlesJobResponse.granularity:type_name -> dictator.speech.v1.SubtitleGranularity
+	4,  // 12: dictator.speech.v1.GetRenderSubtitlesJobResponse.cues:type_name -> dictator.speech.v1.SubtitleCue
+	12, // 13: dictator.speech.v1.GetRenderSubtitlesJobResponse.input_audio_usage:type_name -> dictator.speech.v1.InputAudioUsage
+	0,  // 14: dictator.speech.v1.CancelRenderSubtitlesJobResponse.state:type_name -> dictator.speech.v1.SubtitleJobState
+	5,  // 15: dictator.speech.v1.SubtitleService.RenderSubtitles:input_type -> dictator.speech.v1.RenderSubtitlesRequest
+	5,  // 16: dictator.speech.v1.SubtitleService.SubmitRenderSubtitlesJob:input_type -> dictator.speech.v1.RenderSubtitlesRequest
+	8,  // 17: dictator.speech.v1.SubtitleService.GetRenderSubtitlesJob:input_type -> dictator.speech.v1.GetRenderSubtitlesJobRequest
+	10, // 18: dictator.speech.v1.SubtitleService.CancelRenderSubtitlesJob:input_type -> dictator.speech.v1.CancelRenderSubtitlesJobRequest
+	6,  // 19: dictator.speech.v1.SubtitleService.RenderSubtitles:output_type -> dictator.speech.v1.RenderSubtitlesResponse
+	7,  // 20: dictator.speech.v1.SubtitleService.SubmitRenderSubtitlesJob:output_type -> dictator.speech.v1.SubmitRenderSubtitlesJobResponse
+	9,  // 21: dictator.speech.v1.SubtitleService.GetRenderSubtitlesJob:output_type -> dictator.speech.v1.GetRenderSubtitlesJobResponse
+	11, // 22: dictator.speech.v1.SubtitleService.CancelRenderSubtitlesJob:output_type -> dictator.speech.v1.CancelRenderSubtitlesJobResponse
+	19, // [19:23] is the sub-list for method output_type
+	15, // [15:19] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_dictator_speech_v1_subtitle_proto_init() }
@@ -1056,6 +1077,7 @@ func file_dictator_speech_v1_subtitle_proto_init() {
 	if File_dictator_speech_v1_subtitle_proto != nil {
 		return
 	}
+	file_dictator_speech_v1_common_proto_init()
 	file_dictator_speech_v1_subtitle_proto_msgTypes[1].OneofWrappers = []any{
 		(*RenderSubtitlesRequest_SourceText)(nil),
 		(*RenderSubtitlesRequest_SourceTextArtifactId)(nil),

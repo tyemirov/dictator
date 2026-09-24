@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import grpc
 from google.protobuf import struct_pb2
 
+from dictator.audio.usage import InputAudioUsage
 from dictator.client import (
     AlignmentClient,
     DiarizationClient,
@@ -230,7 +231,7 @@ class ClientJobHelpersTests(unittest.TestCase):
                         started_at_unix_seconds=0.0,
                         finished_at_unix_seconds=0.0,
                     ),
-                    types.SimpleNamespace(
+                    transcription_pb2.GetTranscribeJobResponse(
                         job_id="tx-1",
                         state=transcription_pb2.TRANSCRIPTION_JOB_STATE_SUCCEEDED,
                         error_code="",
@@ -238,12 +239,13 @@ class ClientJobHelpersTests(unittest.TestCase):
                         text="hello world",
                         language_code="en",
                         words=[
-                            types.SimpleNamespace(content="hello", start_seconds=0.0, end_seconds=0.5),
-                            types.SimpleNamespace(content="world", start_seconds=0.5, end_seconds=1.0),
+                            dict(content="hello", start_seconds=0.0, end_seconds=0.5),
+                            dict(content="world", start_seconds=0.5, end_seconds=1.0),
                         ],
                         created_at_unix_seconds=1.0,
                         started_at_unix_seconds=2.0,
                         finished_at_unix_seconds=3.0,
+                        input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
                     ),
                 ]
             ),
@@ -299,7 +301,8 @@ class ClientJobHelpersTests(unittest.TestCase):
                 )
             ),
             GetDiarizeAudioJob=MagicMock(
-                return_value=types.SimpleNamespace(
+                return_value=transcription_pb2.GetDiarizeAudioJobResponse(
+                    input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
                     job_id="dia-1",
                     state=transcription_pb2.DIARIZATION_JOB_STATE_SUCCEEDED,
                     error_code="",
@@ -335,7 +338,8 @@ class ClientJobHelpersTests(unittest.TestCase):
                 )
             ),
             GetRenderSubtitlesJob=MagicMock(
-                return_value=types.SimpleNamespace(
+                return_value=subtitle_pb2.GetRenderSubtitlesJobResponse(
+                    input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
                     job_id="sub-1",
                     state=subtitle_pb2.SUBTITLE_JOB_STATE_SUCCEEDED,
                     error_code="",
@@ -345,7 +349,7 @@ class ClientJobHelpersTests(unittest.TestCase):
                     output_format=subtitle_pb2.SUBTITLE_FORMAT_SRT,
                     granularity=subtitle_pb2.SUBTITLE_GRANULARITY_SENTENCES,
                     group_size=2,
-                    cues=[types.SimpleNamespace(content="hello world", start_seconds=0.0, end_seconds=0.5, item_count=2)],
+                    cues=[dict(content="hello world", start_seconds=0.0, end_seconds=0.5, item_count=2)],
                     srt_text="1\n00:00:00,000 --> 00:00:00,500\nhello world\n",
                     srt_artifact_id="srt-1",
                     created_at_unix_seconds=1.0,
@@ -381,12 +385,13 @@ class ClientJobHelpersTests(unittest.TestCase):
                 )
             ),
             GetExtractReferenceSampleJob=MagicMock(
-                return_value=types.SimpleNamespace(
+                return_value=voice_pb2.GetExtractReferenceSampleJobResponse(
+                    input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
                     job_id="ref-1",
                     state=voice_pb2.EXTRACT_REFERENCE_SAMPLE_JOB_STATE_SUCCEEDED,
                     error_code="",
                     error_message="",
-                    sample_artifact=types.SimpleNamespace(artifact_id="sample-1"),
+                    sample_artifact=dict(artifact_id="sample-1"),
                     trim_start_seconds=1.0,
                     trim_end_seconds=3.0,
                     window_start_seconds=0.5,
@@ -419,12 +424,13 @@ class ClientJobHelpersTests(unittest.TestCase):
                 )
             ),
             GetExtractReferenceSampleJob=MagicMock(
-                return_value=types.SimpleNamespace(
+                return_value=voice_pb2.GetExtractReferenceSampleJobResponse(
+                    input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
                     job_id="ref-2",
                     state=voice_pb2.EXTRACT_REFERENCE_SAMPLE_JOB_STATE_SUCCEEDED,
                     error_code="",
                     error_message="",
-                    sample_artifact=types.SimpleNamespace(artifact_id="sample-2"),
+                    sample_artifact=dict(artifact_id="sample-2"),
                     trim_start_seconds=2.0,
                     trim_end_seconds=4.0,
                     window_start_seconds=1.0,
@@ -446,6 +452,7 @@ class ClientJobHelpersTests(unittest.TestCase):
         self.assertEqual(
             result,
             ReferenceSampleResult(
+                input_audio_usage=InputAudioUsage(16000, 16000),
                 sample_artifact_id="sample-2",
                 trim_start_seconds=2.0,
                 trim_end_seconds=4.0,
@@ -577,10 +584,11 @@ class ClientJobHelpersTests(unittest.TestCase):
                 )
             ),
             Transcribe=MagicMock(
-                return_value=types.SimpleNamespace(
+                return_value=transcription_pb2.TranscribeResponse(
                     text="fallback",
                     language_code="en",
-                    words=[types.SimpleNamespace(content="fallback", start_seconds=0.0, end_seconds=0.4)],
+                    words=[dict(content="fallback", start_seconds=0.0, end_seconds=0.4)],
+                    input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
                 )
             ),
         )
@@ -663,11 +671,12 @@ class ClientJobHelpersTests(unittest.TestCase):
                 )
             ),
             RenderSubtitles=MagicMock(
-                return_value=types.SimpleNamespace(
+                return_value=subtitle_pb2.RenderSubtitlesResponse(
+                    input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
                     language_code="en",
                     mode=subtitle_pb2.SUBTITLE_MODE_FORCED_ALIGNMENT,
                     group_size=1,
-                    cues=[types.SimpleNamespace(content="fallback", start_seconds=0.0, end_seconds=0.4, item_count=1)],
+                    cues=[dict(content="fallback", start_seconds=0.0, end_seconds=0.4, item_count=1)],
                     srt_text="1\n00:00:00,000 --> 00:00:00,400\nfallback\n",
                     srt_artifact_id="srt-sync",
                 )

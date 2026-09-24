@@ -341,7 +341,9 @@ class AlignmentWhisperXBackendTests(unittest.TestCase):
             patch("dictator.alignment.whisperx_backend.load_cached_alignment_model", return_value=("model", {"meta": True})),
         ):
             words = backend.WhisperXAlignmentBackend().align(Path("audio.wav"), "hello", "en")
-        self.assertEqual(words[0].text, "hello")
+        self.assertEqual(words.words[0].text, "hello")
+        self.assertEqual(words.input_audio_usage.sample_count, 4)
+        self.assertEqual(words.input_audio_usage.sample_rate_hz, 2)
         self.assertEqual(alignment_module.align_calls[0][0][0]["end"], 2.0)
 
         broken_alignment_module = FakeAlignmentModule()

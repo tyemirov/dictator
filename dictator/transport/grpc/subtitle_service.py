@@ -13,6 +13,7 @@ from dictator.runtime.jobs import (
 )
 from dictator.speech.v1 import subtitle_pb2, subtitle_pb2_grpc
 
+from .usage import input_audio_usage_message
 from .base import BaseServicer, DEFAULT_MODEL_SIZE
 
 
@@ -90,6 +91,7 @@ class SubtitleServiceServicer(BaseServicer, subtitle_pb2_grpc.SubtitleServiceSer
         if record.output_format == "srt":
             output_format = subtitle_pb2.SUBTITLE_FORMAT_SRT
         response = subtitle_pb2.GetRenderSubtitlesJobResponse(
+            input_audio_usage=input_audio_usage_message(record.input_audio_usage),
             job_id=record.job_id,
             state=self._subtitle_job_state_value(record.state),
             error_code=record.error_code or "",
@@ -146,6 +148,7 @@ class SubtitleServiceServicer(BaseServicer, subtitle_pb2_grpc.SubtitleServiceSer
             if result.mode == "forced_alignment":
                 mode = subtitle_pb2.SUBTITLE_MODE_FORCED_ALIGNMENT
             response = subtitle_pb2.RenderSubtitlesResponse(
+                input_audio_usage=input_audio_usage_message(result.input_audio_usage),
                 language_code=result.language,
                 mode=mode,
                 output_format=subtitle_pb2.SUBTITLE_FORMAT_SRT,

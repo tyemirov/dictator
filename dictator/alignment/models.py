@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from dictator.audio.usage import InputAudioUsage
+
 SUPPORTED_ALIGNMENT_LANGUAGES = (
     ("en", "English"),
     ("fr", "French"),
@@ -72,6 +74,14 @@ class AlignedWord:
 
 
 @dataclass(frozen=True)
+class AlignmentOutput:
+    """Native aligned words and the exact audio submitted to alignment."""
+
+    words: tuple[AlignedWord, ...]
+    input_audio_usage: InputAudioUsage
+
+
+@dataclass(frozen=True)
 class AlignTranscriptRequest:
     """Inputs for transcript-to-audio forced alignment."""
 
@@ -92,4 +102,5 @@ class AlignTranscriptResult:
     language: str
     words: tuple[AlignedWord, ...]
     srt_text: str
+    input_audio_usage: InputAudioUsage
     output_srt_path: Path | None = None

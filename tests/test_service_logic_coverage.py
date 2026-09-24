@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
+from dictator.audio.usage import InputAudioUsage
 from dictator.alignment.models import AlignedWord
 from dictator.diarization.models import (
     DiarizeAudioRequest,
@@ -33,14 +34,14 @@ from dictator.transcription.models import TranscriptionResult, WordSegment
 
 class FakeTranscriptionService:
     def __init__(self, result: TranscriptionResult | None = None):
-        self.result = result or TranscriptionResult(language="en", words=())
+        self.result = result or TranscriptionResult(language="en", words=(), input_audio_usage=InputAudioUsage(16000, 16000))
         self.calls = []
 
     def transcribe(self, audio, language=None, model_size="base", model=None, progress_cb=None):
         self.calls.append((audio, language, model_size, model))
         if language is None:
             return self.result
-        return TranscriptionResult(language=language, words=self.result.words)
+        return TranscriptionResult(language=language, words=self.result.words, input_audio_usage=self.result.input_audio_usage)
 
 
 class FakeAlignmentService:
@@ -840,7 +841,7 @@ class ServiceLogicCoverageTests(unittest.TestCase):
             )
 
         fake_transcription = FakeTranscriptionService(
-            TranscriptionResult(language="en", words=(WordSegment("hello", 0.0, 0.4),))
+            TranscriptionResult(language="en", words=(WordSegment("hello", 0.0, 0.4),), input_audio_usage=InputAudioUsage(16000, 16000))
         )
         with patch("dictator.diarization.service.run_diarization", return_value=(SpeakerSegment("S1", 0.0, 1.0),)):
             result = diarization_module.DiarizationService(transcription_service=fake_transcription).diarize(

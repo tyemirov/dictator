@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import grpc
 
+from dictator.audio.usage import InputAudioUsage
 from dictator.runtime import InflightLimiter, MetricsRegistry
 from dictator.speech.v1 import alignment_pb2, subtitle_pb2, transcription_pb2, voice_pb2
 from dictator.storage import LocalArtifactStore
@@ -164,6 +165,7 @@ class AsyncJobCoverageTests(unittest.TestCase):
                 (
                     LocalAlignmentJobStore(root / "alignment"),
                     AlignmentJobRecord(
+                        input_audio_usage=InputAudioUsage(16000, 16000),
                         job_id=uuid.uuid4().hex,
                         state=AlignmentJobState.SUCCEEDED,
                         audio_artifact_id="audio-1",
@@ -179,11 +181,13 @@ class AsyncJobCoverageTests(unittest.TestCase):
                         audio_artifact_id="audio-1",
                         include_word_segments=True,
                         created_at_unix_seconds=1.0,
+                        input_audio_usage=InputAudioUsage(16000, 16000),
                     ),
                 ),
                 (
                     LocalDiarizationJobStore(root / "diarization"),
                     DiarizationJobRecord(
+                        input_audio_usage=InputAudioUsage(16000, 16000),
                         job_id=uuid.uuid4().hex,
                         state=DiarizationJobState.SUCCEEDED,
                         audio_artifact_id="audio-1",
@@ -198,6 +202,7 @@ class AsyncJobCoverageTests(unittest.TestCase):
                 (
                     LocalSubtitleJobStore(root / "subtitle"),
                     SubtitleJobRecord(
+                        input_audio_usage=InputAudioUsage(16000, 16000),
                         job_id=uuid.uuid4().hex,
                         state=SubtitleJobState.SUCCEEDED,
                         audio_artifact_id="audio-1",
@@ -208,6 +213,7 @@ class AsyncJobCoverageTests(unittest.TestCase):
                 (
                     LocalExtractReferenceSampleJobStore(root / "extract"),
                     ExtractReferenceSampleJobRecord(
+                        input_audio_usage=InputAudioUsage(16000, 16000),
                         job_id=uuid.uuid4().hex,
                         state=ExtractReferenceSampleJobState.SUCCEEDED,
                         source_artifact_id="audio-1",
@@ -235,6 +241,7 @@ class AsyncJobCoverageTests(unittest.TestCase):
                         value.parent.mkdir(parents=True, exist_ok=True)
                         value.write_text("1\n00:00:00,000 --> 00:00:00,400\nhello\n", encoding="utf-8")
                 return types.SimpleNamespace(
+                    input_audio_usage=InputAudioUsage(16000, 16000),
                     language="en",
                     mode="transcription",
                     output_format="srt",

@@ -15,6 +15,7 @@ CONSUMER_PATH = REPOSITORY_ROOT / "tests/fixtures/go_sdk_consumer/main.go"
 EXPECTED_FIELDS = {
     "preset_speaker": "baya",
     "text_format": "SYNTHESIS_TEXT_FORMAT_SSML",
+    "input_audio_usage": {"sample_count": 32001, "sample_rate_hz": 16000, "response_count": 9},
 }
 
 

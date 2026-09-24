@@ -8,6 +8,7 @@ import numpy as np
 
 sys.modules.setdefault("torch", types.SimpleNamespace(cuda=types.SimpleNamespace(is_available=lambda: False)))
 
+from dictator.audio.usage import InputAudioUsage
 from dictator.transcription.models import TranscriptionResult, WordSegment
 from dictator.transcription.service import (
     TranscriptionService,
@@ -32,6 +33,11 @@ class _FakeModel:
 
 
 class TranscriptionServiceCoverageTests(unittest.TestCase):
+    def setUp(self):
+        decoder = patch("dictator.transcription.service.decode_pcm", return_value=np.zeros(16000, dtype=np.int16))
+        decoder.start()
+        self.addCleanup(decoder.stop)
+
     def test_load_whisper_model_uses_device_and_cache_dir(self):
         whisper_module = types.SimpleNamespace(load_model=lambda *args, **kwargs: (args, kwargs))
         with (
@@ -44,7 +50,7 @@ class TranscriptionServiceCoverageTests(unittest.TestCase):
         self.assertEqual(kwargs["download_root"], "/tmp/cache")
 
     def test_coerce_audio_input_handles_path_array_and_empty_array(self):
-        self.assertEqual(_coerce_audio_input(Path("sample.wav")), "sample.wav")
+        self.assertEqual(_coerce_audio_input(Path("sample.wav")).shape, (16000,))
         audio = np.array([0, 32767], dtype=np.int16)
         coerced = _coerce_audio_input(audio)
         self.assertEqual(coerced.dtype, np.float32)
@@ -52,6 +58,8 @@ class TranscriptionServiceCoverageTests(unittest.TestCase):
         self.assertAlmostEqual(coerced[1], 32767.0 / 32768.0)
         with self.assertRaisesRegex(ValueError, "audio array is empty"):
             _coerce_audio_input(np.array([], dtype=np.int16))
+        with self.assertRaisesRegex(ValueError, "mono samples"):
+            transcribe(np.zeros((3, 2), dtype=np.int16), model=_FakeModel({}))
 
     def test_transcribe_detects_language_invokes_progress_and_overrides_language(self):
         result = {
@@ -97,7 +105,7 @@ class TranscriptionServiceCoverageTests(unittest.TestCase):
 
         service = TranscriptionService(model_loader=loader)
         result = service.transcribe(Path("audio.wav"), model_size="tiny")
-        self.assertEqual(result, TranscriptionResult(language="en", words=()))
+        self.assertEqual(result, TranscriptionResult(language="en", words=(), input_audio_usage=InputAudioUsage(16000, 16000)))
         words = service.transcribe_word_segments(Path("audio.wav"), model_size="tiny")
         self.assertEqual(words, [])
         self.assertEqual(service.transcribe_words(Path("audio.wav"), model_size="tiny"), [])
@@ -113,7 +121,7 @@ class TranscriptionServiceCoverageTests(unittest.TestCase):
                 {"content": "world", "start": None, "end": None},
             ],
         )
-        with patch("dictator.transcription.service.transcribe", return_value=TranscriptionResult("en", tuple(words))):
+        with patch("dictator.transcription.service.transcribe", return_value=TranscriptionResult("en", tuple(words), input_audio_usage=InputAudioUsage(16000, 16000))):
             self.assertEqual(transcribe_word_segments(Path("a.wav")), words)
             self.assertEqual(transcribe_words(Path("a.wav"))[0]["content"], "hello")
             self.assertEqual(transcribe_text(Path("a.wav")), "hello world")
