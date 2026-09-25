@@ -9,8 +9,10 @@ from typing import Any, Sequence
 import grpc
 from google.protobuf.json_format import MessageToDict
 
+from dictator.audio.usage import InputAudioUsage
 from dictator.speech.v1 import artifacts_pb2_grpc, transcription_pb2, transcription_pb2_grpc
 
+from ._usage import input_audio_usage_from_response
 from ._jobs import wait_for_job
 from ._uploads import DEFAULT_CHUNK_BYTES, DEFAULT_MEDIA_TYPE, upload_audio_artifact
 from .dictation import DictationClient
@@ -22,6 +24,7 @@ class DiarizationResult:
     language_code: str
     source_artifact_id: str
     diarization: dict[str, Any]
+    input_audio_usage: InputAudioUsage
     diarization_artifact_id: str = ""
 
 
@@ -151,6 +154,7 @@ class DiarizationClient:
             or submitted.source_artifact_id
         )
         return DiarizationResult(
+            input_audio_usage=finished.result.input_audio_usage,
             text=finished.result.text,
             language_code=finished.result.language_code,
             source_artifact_id=source_artifact_id,
@@ -246,6 +250,7 @@ class DiarizationClient:
         result = None
         if response.state == transcription_pb2.DIARIZATION_JOB_STATE_SUCCEEDED:
             result = DiarizationResult(
+                input_audio_usage=input_audio_usage_from_response(response),
                 text=response.text,
                 language_code=response.language_code,
                 source_artifact_id=source_artifact_id,

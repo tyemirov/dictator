@@ -201,6 +201,7 @@ class SubtitleService:
             words = words_from_alignment(alignment.words)
             mode = "forced_alignment"
             resolved_language = alignment.language
+            input_audio_usage = alignment.input_audio_usage
         else:
             transcription = self.transcription_service.transcribe(
                 request.audio_path,
@@ -211,6 +212,7 @@ class SubtitleService:
             words = words_from_transcription(transcription.words)
             mode = "transcription"
             resolved_language = transcription.language or request.language or "en"
+            input_audio_usage = transcription.input_audio_usage
 
         units = words if request.granularity == "words" else sentence_units(words)
         cues = grouped_cues(units, request.group_size)
@@ -225,5 +227,6 @@ class SubtitleService:
             group_size=request.group_size,
             cues=cues,
             srt_text=srt_text,
+            input_audio_usage=input_audio_usage,
             output_srt_path=request.output_srt_path,
         )

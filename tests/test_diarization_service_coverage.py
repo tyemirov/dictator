@@ -12,6 +12,7 @@ import numpy as np
 
 sys.modules.setdefault("ffmpeg", types.SimpleNamespace())
 
+from dictator.audio.usage import InputAudioUsage
 from dictator.diarization.models import (
     DiarizeAudioRequest,
     DiarizedUtterance,
@@ -155,6 +156,7 @@ class DiarizationServiceCoverageTests(unittest.TestCase):
         fake_transcription_result = TranscriptionResult(
             language="en",
             words=(WordSegment("hello", 0.0, 0.4), WordSegment("world", 0.5, 0.9)),
+            input_audio_usage=InputAudioUsage(16000, 16000),
         )
         fake_transcription = _FakeTranscriptionService(fake_transcription_result)
         service = DiarizationService(

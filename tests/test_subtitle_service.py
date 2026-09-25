@@ -2,6 +2,7 @@ import tempfile
 from pathlib import Path
 import unittest
 
+from dictator.audio.usage import InputAudioUsage
 from dictator.alignment.models import AlignTranscriptResult, AlignedWord
 from dictator.runtime import ValidationError
 from dictator.subtitles.models import RenderSubtitlesRequest
@@ -23,7 +24,7 @@ class FakeTranscriptionService:
                 "model": model,
             }
         )
-        return self.result if language is None else TranscriptionResult(language=language, words=self.result.words)
+        return self.result if language is None else TranscriptionResult(language=language, words=self.result.words, input_audio_usage=self.result.input_audio_usage)
 
 
 class FakeAlignmentService:
@@ -34,6 +35,7 @@ class FakeAlignmentService:
     def align(self, request):
         self.calls.append(request)
         return AlignTranscriptResult(
+            input_audio_usage=InputAudioUsage(16000, 16000),
             audio_path=request.audio_path,
             language=request.language,
             words=self.words,
@@ -52,6 +54,7 @@ class SubtitleServiceTests(unittest.TestCase):
                     WordSegment("world", 0.4, 0.9),
                     WordSegment("again", 1.0, 1.4),
                 ),
+                input_audio_usage=InputAudioUsage(16000, 16000),
             )
         )
         service = SubtitleService(
@@ -89,6 +92,7 @@ class SubtitleServiceTests(unittest.TestCase):
                     WordSegment("you?", 0.8, 1.0),
                     WordSegment("Thanks.", 1.1, 1.3),
                 ),
+                input_audio_usage=InputAudioUsage(16000, 16000),
             )
         )
         service = SubtitleService(
@@ -115,6 +119,7 @@ class SubtitleServiceTests(unittest.TestCase):
             TranscriptionResult(
                 language="fr",
                 words=(WordSegment("bonjour", 0.0, 0.4),),
+                input_audio_usage=InputAudioUsage(16000, 16000),
             )
         )
         alignment = FakeAlignmentService(
@@ -152,7 +157,7 @@ class SubtitleServiceTests(unittest.TestCase):
     def test_render_rejects_invalid_group_size(self):
         service = SubtitleService(
             transcription_service=FakeTranscriptionService(
-                TranscriptionResult(language="en", words=())
+                TranscriptionResult(language="en", words=(), input_audio_usage=InputAudioUsage(16000, 16000))
             ),
             alignment_service=FakeAlignmentService(()),
         )

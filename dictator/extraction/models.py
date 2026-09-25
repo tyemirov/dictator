@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from dictator.audio.usage import InputAudioUsage
 
 
 @dataclass(frozen=True)
@@ -31,3 +32,4 @@ class ReferenceExtractionResult:
     trim_start_seconds: float
     trim_end_seconds: float
     output_path: Path | None
+    input_audio_usage: InputAudioUsage

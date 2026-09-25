@@ -3,7 +3,8 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from dictator.alignment.models import AlignedWord, AlignTranscriptRequest
+from dictator.alignment.models import AlignedWord, AlignTranscriptRequest, AlignmentOutput
+from dictator.audio.usage import InputAudioUsage
 from dictator.alignment.service import AlignmentService, align_transcript
 from dictator.alignment import text as alignment_text
 from dictator.runtime import ValidationError
@@ -16,7 +17,7 @@ class FakeAlignmentBackend:
 
     def align(self, **kwargs):
         self.calls.append(kwargs)
-        return self.words
+        return AlignmentOutput(words=self.words, input_audio_usage=InputAudioUsage(16000, 16000))
 
 
 class AlignmentTextServiceTests(unittest.TestCase):

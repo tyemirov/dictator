@@ -43,7 +43,8 @@ class ClientConfigServerCoverageTests(unittest.TestCase):
             DictationClient._resolve_autodetect(language_code="en", autodetect_language=True)
 
     def test_diarization_client_file_and_gap_field_paths(self):
-        response = types.SimpleNamespace(
+        response = transcription_pb2.GetDiarizeAudioJobResponse(
+            input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
             job_id="dia-1",
             state=transcription_pb2.DIARIZATION_JOB_STATE_SUCCEEDED,
             error_code="",

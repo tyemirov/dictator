@@ -13,6 +13,7 @@ import grpc
 sys.modules.setdefault("ffmpeg", types.SimpleNamespace())
 sys.modules.setdefault("librosa", types.SimpleNamespace())
 
+from dictator.audio.usage import InputAudioUsage
 from dictator.alignment.models import AlignTranscriptResult, AlignedWord
 from dictator.diarization.models import (
     DiarizeAudioResult,
@@ -81,6 +82,7 @@ class FakeTranscriptionService:
         return TranscriptionResult(
             language=language or "en",
             words=(WordSegment("hello", 0.0, 0.4),),
+            input_audio_usage=InputAudioUsage(16000, 16000),
         )
 
 
@@ -95,6 +97,7 @@ class FakeDiarizationService:
         speakers = (SpeakerSummary("S1", 1, 1, 1.0),)
         segments = (SpeakerSegment("S1", 0.0, 1.0, raw_label="speaker_a"),)
         return DiarizeAudioResult(
+            input_audio_usage=InputAudioUsage(16000, 16000),
             language=request.language or "en",
             text="hello",
             words=words,
@@ -114,6 +117,7 @@ class FakeAlignmentService:
         if request.output_srt_path is not None:
             request.output_srt_path.write_text(srt_text, encoding="utf-8")
         return AlignTranscriptResult(
+            input_audio_usage=InputAudioUsage(16000, 16000),
             audio_path=request.audio_path,
             language=request.language or "en",
             words=(AlignedWord("hello", 0.0, 0.4),),
@@ -132,6 +136,7 @@ class FakeSubtitleService:
         if request.output_srt_path is not None:
             request.output_srt_path.write_text(srt_text, encoding="utf-8")
         return RenderSubtitlesResult(
+            input_audio_usage=InputAudioUsage(16000, 16000),
             language=request.language or "en",
             mode="forced_alignment" if request.source_text else "transcription",
             output_format=request.output_format,
@@ -151,6 +156,7 @@ class FakeExtractionService:
         self.calls.append((request, model, diarization_pipeline))
         request.output_path.write_bytes(b"wav")
         return ReferenceExtractionResult(
+            input_audio_usage=InputAudioUsage(16000, 16000),
             raw_words=(),
             dominant_speaker_words=({"content": "hello"},),
             window_start_seconds=0.0,

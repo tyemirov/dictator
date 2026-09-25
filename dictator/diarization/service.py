@@ -306,6 +306,7 @@ class DiarizationService:
             utterances=utterances,
             speakers=speakers,
             speaker_segments=speaker_segments,
+            input_audio_usage=transcription.input_audio_usage,
         )
 
     def _load_pipeline(self) -> object:

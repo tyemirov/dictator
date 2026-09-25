@@ -178,6 +178,49 @@ Result:
 - `artifact_id`
 - optional `words`
 
+### Input Audio Measurements
+
+Successful input operations expose `input_audio_usage` in their direct responses and durable job responses.
+The supported operations are transcription, alignment, diarization, subtitles, and reference extraction.
+Diarization uses only its asynchronous job API.
+The maintained Python result types expose the same typed value.
+Generated Go responses retain the protobuf message and its presence.
+
+`sample_count` is the exact count of decoded mono samples submitted for processing.
+`sample_rate_hz` is the sample rate of those samples.
+The exact duration in seconds is `sample_count / sample_rate_hz`.
+The measurement describes one input, independent of repeated model passes.
+Word timestamps, artifact metadata, selected clips, and output text do not supply this measurement.
+
+Transcription measures the actual 16000 Hz array passed to Whisper.
+Alignment measures the array loaded by WhisperX before alignment.
+Diarization preserves the measurement from its transcription pass over the same input.
+Subtitle transcription and forced alignment preserve their respective native measurements.
+Language detection does not multiply the input duration.
+Reference extraction records the full decoded input, independent of the selected reference clip.
+
+The measurement remains available when callers omit optional word, subtitle, or speaker output.
+Queued, running, canceled, and failed jobs without a completed result omit the measurement.
+Absence does not mean zero usage or establish a charge policy.
+Successful job records retain the quantities across a server restart.
+Python clients reject successful responses with absent measurements or invalid quantities.
+
+Each current input-job schema requires the `input_audio_usage` key.
+Incomplete records contain JSON `null`. Successful records contain both exact integer fields.
+The reader rejects missing keys, invalid integer quantities, and successful records with null usage.
+It does not infer measurements for older records.
+Operators must account for this storage contract before a separately authorized production activation.
+
+SDK `v1.12.0` declares these fields for publication.
+Source validation does not establish SDK publication or production availability.
+
+### Queued Job Cancellation
+
+The job manager removes the queued future under its lock, then invokes cancellation outside the lock.
+This permits the future's completion callback to acquire the manager lock.
+A successful queued cancellation releases one queue slot.
+Repeated cancellation preserves the terminal state and cannot release another slot.
+
 ### Diarization
 
 Client:

@@ -8,8 +8,10 @@ from typing import Sequence
 
 import grpc
 
+from dictator.audio.usage import InputAudioUsage
 from dictator.speech.v1 import artifacts_pb2_grpc, common_pb2, voice_pb2, voice_pb2_grpc
 
+from ._usage import input_audio_usage_from_response
 from ._jobs import wait_for_job
 from ._uploads import DEFAULT_CHUNK_BYTES, DEFAULT_MEDIA_TYPE, upload_audio_artifact
 
@@ -66,6 +68,7 @@ class ReferenceSampleResult:
     window_start_seconds: float
     window_end_seconds: float
     dominant_speaker_word_count: int
+    input_audio_usage: InputAudioUsage
 
 
 @dataclass(frozen=True)
@@ -426,6 +429,7 @@ class ReferenceSampleClient:
         result = None
         if response.state == voice_pb2.EXTRACT_REFERENCE_SAMPLE_JOB_STATE_SUCCEEDED:
             result = ReferenceSampleResult(
+                input_audio_usage=input_audio_usage_from_response(response),
                 sample_artifact_id=response.sample_artifact.artifact_id,
                 trim_start_seconds=response.trim_start_seconds,
                 trim_end_seconds=response.trim_end_seconds,

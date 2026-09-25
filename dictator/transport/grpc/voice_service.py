@@ -29,6 +29,7 @@ from dictator.synthesis.workflow import (
     prepare_synthesis_request,
 )
 
+from .usage import input_audio_usage_message
 from .base import BaseServicer
 
 
@@ -254,6 +255,7 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
 
     def _reference_extraction_job_response(self, record: ExtractReferenceSampleJobRecord):
         response = voice_pb2.GetExtractReferenceSampleJobResponse(
+            input_audio_usage=input_audio_usage_message(record.input_audio_usage),
             job_id=record.job_id,
             state=self._reference_extraction_job_state_value(record.state),
             error_code=record.error_code or "",
@@ -311,6 +313,7 @@ class VoiceServiceServicer(BaseServicer, voice_pb2_grpc.VoiceServiceServicer):
                 ),
             )
             return voice_pb2.ExtractReferenceSampleResponse(
+                input_audio_usage=input_audio_usage_message(result.input_audio_usage),
                 sample_artifact=self._artifact_ref(sample_record),
                 trim_start_seconds=result.trim_start_seconds,
                 trim_end_seconds=result.trim_end_seconds,

@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 sys.modules.setdefault("ffmpeg", types.SimpleNamespace())
 sys.modules.setdefault("torch", types.SimpleNamespace(cuda=types.SimpleNamespace(is_available=lambda: False)))
 
+from dictator.audio.usage import InputAudioUsage
 from dictator.client import DiarizationClient, DictationClient, SubtitleClient, SubtitleResult
 from dictator.diarization.models import DiarizeAudioResult, DiarizedUtterance, DiarizedWord, SpeakerSegment, SpeakerSummary
 from dictator.runtime import ProcessingError, ValidationError
@@ -81,7 +82,7 @@ class _FakeTranscriptionService:
         self.result = result
 
     def transcribe(self, audio, language=None, model_size="base", model=None):
-        return self.result if language is None else TranscriptionResult(language, self.result.words)
+        return self.result if language is None else TranscriptionResult(language, self.result.words, input_audio_usage=self.result.input_audio_usage)
 
 
 class _FakeAlignmentService:
@@ -103,17 +104,18 @@ class _FakeBackend:
 
 class ClientsSubtitlesSynthesisCoverageTests(unittest.TestCase):
     def test_client_helpers_cover_file_path_and_edge_flags(self):
-        dictation_response = types.SimpleNamespace(
+        dictation_response = transcription_pb2.GetTranscribeJobResponse(
             job_id="tx-1",
             state=transcription_pb2.TRANSCRIPTION_JOB_STATE_SUCCEEDED,
             error_code="",
             error_message="",
             text="hello",
             language_code="en",
-            words=[types.SimpleNamespace(content="hello", start_seconds=0.0, end_seconds=0.4)],
+            words=[dict(content="hello", start_seconds=0.0, end_seconds=0.4)],
             created_at_unix_seconds=1.0,
             started_at_unix_seconds=2.0,
             finished_at_unix_seconds=3.0,
+            input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
         )
         dictation_stub = _TranscriptionStub(transcribe_response=dictation_response)
         with patch("dictator.client.dictation.artifacts_pb2_grpc.ArtifactServiceStub", return_value=_ArtifactStub()), patch(
@@ -133,8 +135,9 @@ class ClientsSubtitlesSynthesisCoverageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "cannot both be set"):
             DictationClient._resolve_autodetect(language_code="en", autodetect_language=True)
 
-        diarization_struct = types.SimpleNamespace()
-        diarization_response = types.SimpleNamespace(
+        diarization_struct = {"text": "hello"}
+        diarization_response = transcription_pb2.GetDiarizeAudioJobResponse(
+            input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
             job_id="dia-1",
             state=transcription_pb2.DIARIZATION_JOB_STATE_SUCCEEDED,
             error_code="",
@@ -164,7 +167,8 @@ class ClientsSubtitlesSynthesisCoverageTests(unittest.TestCase):
         self.assertEqual(diarization_stub.calls[0][0].utterance_gap_seconds, 0.25)
         self.assertEqual(result.diarization_artifact_id, "json-1")
 
-        subtitle_response = types.SimpleNamespace(
+        subtitle_response = subtitle_pb2.GetRenderSubtitlesJobResponse(
+            input_audio_usage=dict(sample_count=16000, sample_rate_hz=16000),
             job_id="sub-1",
             state=subtitle_pb2.SUBTITLE_JOB_STATE_SUCCEEDED,
             error_code="",
@@ -175,7 +179,7 @@ class ClientsSubtitlesSynthesisCoverageTests(unittest.TestCase):
             group_size=2,
             srt_artifact_id="srt-1",
             srt_text="1\n00:00:00,000 --> 00:00:00,400\nhello world\n",
-            cues=[types.SimpleNamespace(content="hello world", start_seconds=0.0, end_seconds=0.4, item_count=2)],
+            cues=[dict(content="hello world", start_seconds=0.0, end_seconds=0.4, item_count=2)],
             created_at_unix_seconds=1.0,
             started_at_unix_seconds=2.0,
             finished_at_unix_seconds=3.0,
@@ -205,6 +209,7 @@ class ClientsSubtitlesSynthesisCoverageTests(unittest.TestCase):
         self.assertEqual(
             result,
             SubtitleResult(
+                input_audio_usage=InputAudioUsage(16000, 16000),
                 language_code="en",
                 mode="forced_alignment",
                 granularity="sentences",
@@ -280,6 +285,7 @@ class ClientsSubtitlesSynthesisCoverageTests(unittest.TestCase):
         word = DiarizedWord("hello", 0.0, 0.4, "S1")
         utterance = DiarizedUtterance("S1", 0.0, 0.4, "hello", (word,))
         result = DiarizeAudioResult(
+            input_audio_usage=InputAudioUsage(16000, 16000),
             language="en",
             text="hello",
             words=(word,),
@@ -308,7 +314,7 @@ class ClientsSubtitlesSynthesisCoverageTests(unittest.TestCase):
 
         service = SubtitleService(
             transcription_service=_FakeTranscriptionService(
-                TranscriptionResult(language="en", words=(WordSegment("hello", 0.0, 0.4),))
+                TranscriptionResult(language="en", words=(WordSegment("hello", 0.0, 0.4),), input_audio_usage=InputAudioUsage(16000, 16000))
             ),
             alignment_service=_FakeAlignmentService((types.SimpleNamespace(text="hello", start_seconds=0.0, end_seconds=0.4),)),
         )

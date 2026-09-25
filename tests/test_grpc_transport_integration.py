@@ -6,6 +6,7 @@ import unittest
 
 import grpc
 
+from dictator.audio.usage import InputAudioUsage
 from dictator.alignment.models import AlignTranscriptResult, AlignedWord
 from dictator.alignment.srt import build_srt
 from dictator.client import AlignmentClient, DiarizationClient, DictationClient, SubtitleClient
@@ -59,6 +60,7 @@ class FakeTranscriptionService:
         return TranscriptionResult(
             language=language or "en",
             words=words,
+            input_audio_usage=InputAudioUsage(16000, 16000),
         )
 
     def transcribe_word_segments(
@@ -89,6 +91,7 @@ class FakeAlignmentService:
         if request.output_srt_path is not None:
             request.output_srt_path.write_text(srt_text, encoding="utf-8")
         return AlignTranscriptResult(
+            input_audio_usage=InputAudioUsage(16000, 16000),
             audio_path=request.audio_path,
             language=request.language or "en",
             words=words,
@@ -117,6 +120,7 @@ class FakeDiarizationService:
             SpeakerSummary("S2", word_count=1, utterance_count=1, total_duration_seconds=1.0),
         )
         return DiarizeAudioResult(
+            input_audio_usage=InputAudioUsage(16000, 16000),
             language=request.language or "en",
             text="hello again world",
             words=words,

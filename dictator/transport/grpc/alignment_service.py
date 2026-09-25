@@ -13,6 +13,7 @@ from dictator.runtime.jobs import (
 )
 from dictator.speech.v1 import alignment_pb2, alignment_pb2_grpc, common_pb2
 
+from .usage import input_audio_usage_message
 from .base import BaseServicer
 
 
@@ -47,6 +48,7 @@ class AlignmentServiceServicer(BaseServicer, alignment_pb2_grpc.AlignmentService
 
     def _job_response(self, record: AlignmentJobRecord):
         response = alignment_pb2.GetAlignTranscriptJobResponse(
+            input_audio_usage=input_audio_usage_message(record.input_audio_usage),
             job_id=record.job_id,
             state=self._job_state_value(record.state),
             error_code=record.error_code or "",
@@ -93,6 +95,7 @@ class AlignmentServiceServicer(BaseServicer, alignment_pb2_grpc.AlignmentService
             )
             srt_record = self.service_context.artifact_store.finalize_artifact(srt_reservation)
             response = alignment_pb2.AlignTranscriptResponse(
+                input_audio_usage=input_audio_usage_message(result.input_audio_usage),
                 language_code=result.language,
                 srt_artifact_id=srt_record.artifact_id,
             )

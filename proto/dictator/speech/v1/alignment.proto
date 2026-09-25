@@ -41,6 +41,7 @@ message AlignTranscriptResponse {
   repeated WordSegment words = 2;
   string srt_text = 3;
   string srt_artifact_id = 4;
+  InputAudioUsage input_audio_usage = 5;
 }
 
 message SubmitAlignTranscriptJobResponse {
@@ -65,6 +66,7 @@ message GetAlignTranscriptJobResponse {
   double started_at_unix_seconds = 10;
   double finished_at_unix_seconds = 11;
   string source_artifact_id = 12;
+  InputAudioUsage input_audio_usage = 13;
 }
 
 message CancelAlignTranscriptJobRequest {

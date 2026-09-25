@@ -4,6 +4,7 @@ import importlib
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+import numpy as np
 
 
 class DummyModel:
@@ -47,7 +48,7 @@ class TranscribeWordsTests(unittest.TestCase):
             ]
         }
         model = DummyModel(dummy_result)
-        segments = self.ws.transcribe_words(Path('dummy.wav'), 'en', model=model)
+        segments = self.ws.transcribe_words(np.zeros(16000, dtype=np.int16), 'en', model=model)
         self.assertEqual(
             segments,
             [

@@ -14,8 +14,9 @@ from types import ModuleType
 from typing import Iterable, cast
 
 from dictator.runtime.errors import DependencyError, ProcessingError, ValidationError
+from dictator.audio.usage import InputAudioUsage
 
-from .models import AlignedWord, SUPPORTED_LANGUAGE_CODES
+from .models import AlignedWord, AlignmentOutput, SUPPORTED_LANGUAGE_CODES
 from .text import is_punctuation_token, strip_punctuation_from_token
 
 LOGGER = logging.getLogger(__name__)
@@ -427,10 +428,11 @@ class WhisperXAlignmentBackend:
         language: str,
         device: str = "auto",
         remove_punctuation: bool = False,
-    ) -> tuple[AlignedWord, ...]:
+    ) -> AlignmentOutput:
         alignment_module, audio_module = load_whisperx_alignment_modules()
         resolved_device = resolve_device(device)
         audio = audio_module.load_audio(str(audio_path))
+        input_audio_usage = InputAudioUsage(sample_count=len(audio), sample_rate_hz=audio_module.SAMPLE_RATE)
         audio_duration = float(len(audio)) / float(audio_module.SAMPLE_RATE)
         segments = [{"start": 0.0, "end": audio_duration, "text": transcript_text}]
 
@@ -453,7 +455,7 @@ class WhisperXAlignmentBackend:
             error_code = ALIGNMENT_TIMESTAMP_CODE if "missing timestamps" in error_message else ALIGNMENT_CODE
             raise ProcessingError(error_code, f"alignment failed: {error_message}") from exc
 
-        return extract_aligned_words(
-            result.get("segments", []),
-            remove_punctuation=remove_punctuation,
+        return AlignmentOutput(
+            words=extract_aligned_words(result.get("segments", []), remove_punctuation=remove_punctuation),
+            input_audio_usage=input_audio_usage,
         )

@@ -9,6 +9,7 @@ import unittest
 
 import grpc
 
+from dictator.audio.usage import InputAudioUsage
 from dictator.diarization.models import (
     DiarizeAudioResult,
     DiarizedUtterance,
@@ -146,6 +147,7 @@ class AsyncJobEndpointTests(unittest.TestCase):
                     WordSegment(text="hello", start_seconds=0.0, end_seconds=0.5),
                     WordSegment(text="world", start_seconds=0.5, end_seconds=1.0),
                 ),
+                input_audio_usage=InputAudioUsage(16000, 16000),
             )
         )
         context = ServiceContext(
@@ -185,6 +187,7 @@ class AsyncJobEndpointTests(unittest.TestCase):
             words=(diarized_word,),
         )
         payload = DiarizeAudioResult(
+            input_audio_usage=InputAudioUsage(16000, 16000),
             language="en",
             text="hello",
             words=(diarized_word,),
@@ -199,6 +202,7 @@ class AsyncJobEndpointTests(unittest.TestCase):
         )
         manager = _FakeJobManager(
             DiarizationJobRecord(
+                input_audio_usage=InputAudioUsage(16000, 16000),
                 job_id="dia-1",
                 state=DiarizationJobState.SUCCEEDED,
                 audio_artifact_id=self.audio_record.artifact_id,
@@ -261,6 +265,7 @@ class AsyncJobEndpointTests(unittest.TestCase):
     def test_subtitle_job_submit_and_lookup(self):
         manager = _FakeJobManager(
             SubtitleJobRecord(
+                input_audio_usage=InputAudioUsage(16000, 16000),
                 job_id="sub-1",
                 state=SubtitleJobState.SUCCEEDED,
                 audio_artifact_id=self.audio_record.artifact_id,
@@ -316,6 +321,7 @@ class AsyncJobEndpointTests(unittest.TestCase):
         )
         manager = _FakeJobManager(
             ExtractReferenceSampleJobRecord(
+                input_audio_usage=InputAudioUsage(16000, 16000),
                 job_id="ref-1",
                 state=ExtractReferenceSampleJobState.SUCCEEDED,
                 source_artifact_id=self.audio_record.artifact_id,

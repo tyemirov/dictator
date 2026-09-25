@@ -8,8 +8,10 @@ from typing import Sequence
 
 import grpc
 
+from dictator.audio.usage import InputAudioUsage
 from dictator.speech.v1 import alignment_pb2, alignment_pb2_grpc, artifacts_pb2_grpc
 
+from ._usage import input_audio_usage_from_response
 from ._jobs import wait_for_job
 from ._uploads import DEFAULT_CHUNK_BYTES, DEFAULT_MEDIA_TYPE, upload_audio_artifact
 
@@ -21,6 +23,7 @@ class AlignmentResult:
     srt_artifact_id: str
     srt_text: str
     words: tuple[dict[str, float | str], ...]
+    input_audio_usage: InputAudioUsage
 
 
 @dataclass(frozen=True)
@@ -140,6 +143,7 @@ class AlignmentClient:
                 or submitted.source_artifact_id
             )
             return AlignmentResult(
+                input_audio_usage=finished.result.input_audio_usage,
                 language_code=finished.result.language_code,
                 source_artifact_id=source_artifact_id,
                 srt_artifact_id=finished.result.srt_artifact_id,
@@ -155,6 +159,7 @@ class AlignmentClient:
             metadata=self._metadata,
         )
         return AlignmentResult(
+            input_audio_usage=input_audio_usage_from_response(response),
             language_code=response.language_code,
             source_artifact_id=artifact.artifact_id,
             srt_artifact_id=response.srt_artifact_id,
@@ -241,6 +246,7 @@ class AlignmentClient:
         result = None
         if response.state == alignment_pb2.ALIGNMENT_JOB_STATE_SUCCEEDED:
             result = AlignmentResult(
+                input_audio_usage=input_audio_usage_from_response(response),
                 language_code=response.language_code,
                 source_artifact_id=source_artifact_id,
                 srt_artifact_id=response.srt_artifact_id,

@@ -9,12 +9,14 @@ The SDK version is independent of the application version.
 | --- | --- |
 | Source | `sdk/go/dictatorspeechv1` |
 | Module | `github.com/tyemirov/dictator/sdk/go/dictatorspeechv1` |
-| Declared version | `v1.11.0` |
-| Module tag | `sdk/go/dictatorspeechv1/v1.11.0` |
+| Declared version | `v1.12.0` |
+| Module tag | `sdk/go/dictatorspeechv1/v1.12.0` |
 
-Version `v1.11.0` adds the generated `preset_speaker` and `text_format` fields required by LLM Proxy F042.
-The previous published SDK version is `v1.10.0`.
-The declaration selects `v1.11.0` for publication. It does not prove that publication occurred.
+Version `v1.12.0` adds native input measurements for LLM Proxy F070.
+The previous published SDK version is `v1.11.0`.
+Nine response messages retain exact sample count, sample rate, and measurement presence.
+The SDK also retains the synthesis fields required by F042.
+The declaration selects `v1.12.0` for publication. It does not prove that publication occurred.
 
 ## Lifecycle
 
@@ -45,7 +47,8 @@ make test-sdk-publication
 ```
 
 This target tests the Go SDK and builds a separate consumer from the local SDK source.
-The consumer verifies both required fields through protobuf serialization.
+The consumer verifies all nine input-usage responses through protobuf serialization.
+It also verifies the existing synthesis fields.
 The target then runs the sibling Gateway module tests through the public lifecycle.
 Those tests cover initial publication, exact retry, unchanged-source reuse, changed-source rejection, module identity, and release evidence.
 Gateway owns those generic test scenarios. Their local results are separate from Dictator publication evidence.
@@ -56,7 +59,7 @@ Run the repository checks before publication:
 make ci
 ```
 
-Go stub generation requires the declared generators: `protoc-gen-go@v1.36.11` and `protoc-gen-go-grpc@v1.5.1`.
+Go stub generation requires the declared generators: `protoc-gen-go@v1.36.11` and `protoc-gen-go-grpc@v1.6.2`.
 
 After publication, verify the released SDK:
 
@@ -66,12 +69,12 @@ make verify-released-sdk
 
 This command reads the declared module and version from the application manifest.
 It uses a new Go module cache to retrieve that version through the Go package manager.
-It builds the separate consumer against the released dependency and verifies both fields.
+It builds the separate consumer against the released dependency and verifies the input quantities and synthesis fields.
 The JSON result contains the module, version, Go download evidence, and field values.
 
 ## Publication evidence
 
-Record these results for LLM Proxy F042 after publication:
+Record these results for LLM Proxy F070 after publication:
 
 - The accepted application and Gateway commits.
 - The release receipt path and digest.

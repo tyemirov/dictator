@@ -46,6 +46,14 @@ message WordSegment {
   double end_seconds = 3;
 }
 
+// Exact mono input samples submitted to processing. Duration in seconds is
+// sample_count / sample_rate_hz. Count one input, not repeated model passes.
+// Presence means measured usage; absence must not be interpreted as zero.
+message InputAudioUsage {
+  uint64 sample_count = 1;
+  uint32 sample_rate_hz = 2;
+}
+
 message TimelineSegment {
   string content = 1;
   double start_seconds = 2;

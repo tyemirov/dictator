@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import grpc
 
+from dictator.audio.usage import InputAudioUsage
 from dictator.diarization.models import DiarizeAudioResult, DiarizedUtterance, DiarizedWord, SpeakerSummary, SpeakerSegment
 from dictator.runtime.jobs import SynthesisJobRecord, SynthesisJobState
 from dictator.runtime import DependencyError, InflightLimiter, MetricsRegistry, ProcessingError, ServiceRequestError, ValidationError
@@ -74,6 +75,7 @@ class FakeTranscriptionService:
         return TranscriptionResult(
             language=language or "en",
             words=(WordSegment("hello", 0.0, 0.4), WordSegment("world", 0.4, 0.8)),
+            input_audio_usage=InputAudioUsage(16000, 16000),
         )
 
 
@@ -88,6 +90,7 @@ class FakeDiarizationService:
         speakers = (SpeakerSummary("S1", 1, 1, 0.4),)
         segments = (SpeakerSegment("S1", 0.0, 0.5, raw_label="speaker_a"),)
         return DiarizeAudioResult(
+            input_audio_usage=InputAudioUsage(16000, 16000),
             language=request.language or "en",
             text="hello",
             words=words,
@@ -105,6 +108,7 @@ class FakeAlignmentService:
         self.calls.append(request)
         request.output_srt_path.write_text("srt", encoding="utf-8")
         return types.SimpleNamespace(
+            input_audio_usage=InputAudioUsage(16000, 16000),
             language=request.language or "en",
             words=(types.SimpleNamespace(text="hello", start_seconds=0.0, end_seconds=0.4),),
             srt_text="srt",
@@ -121,6 +125,7 @@ class FakeSubtitleService:
         if request.output_srt_path is not None:
             request.output_srt_path.write_text("1\n00:00:00,000 --> 00:00:00,400\nhello\n", encoding="utf-8")
         return types.SimpleNamespace(
+            input_audio_usage=InputAudioUsage(16000, 16000),
             language=request.language or "en",
             mode=self.mode,
             group_size=request.group_size,
@@ -133,6 +138,7 @@ class FakeExtractionService:
     def extract(self, request, model=None, diarization_pipeline=None):
         request.output_path.write_bytes(b"wav")
         return types.SimpleNamespace(
+            input_audio_usage=InputAudioUsage(16000, 16000),
             trim_start_seconds=0.1,
             trim_end_seconds=0.5,
             window_start_seconds=0.0,
@@ -852,6 +858,7 @@ class AlignmentJobGrpcServiceTests(unittest.TestCase):
 
         service, _ = self._make_service(
             record=AlignmentJobRecord(
+                input_audio_usage=InputAudioUsage(16000, 16000),
                 job_id="align-2",
                 state=AlignmentJobState.SUCCEEDED,
                 audio_artifact_id="audio-1",

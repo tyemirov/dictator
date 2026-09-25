@@ -11,6 +11,56 @@ Format: `- [ ] [B042] (P1) {I007} Title`
 
 ## BugFixes
 
+- [x] [B003] (P1) Install FFmpeg for real audio acceptance in hosted CI.
+  Goal:
+  Supply the audio decoder required by the canonical public gRPC tests.
+
+  Evidence:
+  - GitHub run `36073226020`, job `107878659991`, failed at commit `df25dd9ba5faebfef22399083a3a4579d8c562ce`.
+  - The runner reported `[Errno 2] No such file or directory: 'ffmpeg'`.
+  - The new F004 acceptance uses real decoding. The workflow installed only Python dependencies and Go tools.
+
+  Requirements:
+  - Install FFmpeg through the existing Ubuntu workflow before tests run.
+  - Preserve real decoding, configured coverage, and all public acceptance cases.
+
+  Validation:
+  - Run `make ci` locally.
+  - Verify the exact correction commit through GitHub CI.
+
+  Resolution:
+  - The workflow now installs FFmpeg before the canonical suite.
+  - Local CI passed 266 Python tests, 100% configured coverage, and Go SDK tests.
+  - Hosted run `36073692639` passed at correction commit `44640dc279033ab1cad3d68f1140b1604db73a1b`.
+  - The source retains real decoding and every acceptance case.
+
+- [x] [B002] (P1) Release the job manager lock before queued cancellation callbacks.
+  Goal:
+  Make queued cancellation return through the public gRPC API without a deadlock.
+
+  Evidence:
+  - A real queued future invoked its completion callback inside `Future.cancel()`.
+  - The manager held its lock while the callback attempted to acquire that same lock.
+  - The public `CancelTranscribeJob` call and active worker could not finish.
+  - `/tmp/dictator-b002-cancel-before.log` contains the thread trace from the failed acceptance test.
+
+  Requirements:
+  - Transfer ownership of the queued future under the manager lock.
+  - Invoke cancellation outside that lock.
+  - Release queue capacity once and preserve terminal cancellation across repeat requests.
+
+  Validation:
+  - Cancel queued work through authenticated gRPC while another job occupies the worker.
+  - Verify that the request returns and the active worker can finish.
+  - Run `make ci`.
+
+  Resolution:
+  - The manager now removes the future under its lock and invokes cancellation outside the lock.
+  - Public gRPC checks verify request completion, repeated cancellation, exact queue capacity, and active worker completion.
+  - `make ci` passed 263 Python tests, 100% configured coverage, and Go SDK tests.
+  - Evidence: `/tmp/dictator-b002-cancel-after.log` and `/tmp/dictator-f004-transcription-ci.log`.
+  - The source change remains local. Release and production activation are separate.
+
 - [x] [B001] (P0) The hosted diarization route must return valid gRPC results.
   Goal:
   A valid authenticated `DiarizeAudio` request reached
@@ -280,6 +330,37 @@ Format: `- [ ] [B042] (P1) {I007} Title`
 ## Maintenance
 
 ## Features
+
+- [x] [F004] (P1) Report exact processed input audio quantities.
+  Goal:
+  Supply native input measurements for LLM Proxy F070 through the current public gRPC contract.
+
+  Requirements:
+  - Measure decoded samples and their sample rate at the actual processing boundary.
+  - Cover transcription, alignment, diarization, subtitles, and reference extraction.
+  - Preserve exact quantities through results, durable jobs, Python clients, and the generated Go SDK.
+  - Keep absent measurements distinct from measured zero values.
+  - Do not infer input duration from word timestamps, artifact metadata, or selected output clips.
+  - Keep charge policy, SDK publication, and production activation separate from this source change.
+
+  Validation:
+  - Exercise authenticated artifact upload and public gRPC operations with real audio and controlled models.
+  - Verify exact quantities after storage restart and with word output disabled.
+  - Verify absent usage for queued, failed, and canceled work without a completed measurement.
+  - Run `make ci` and generated SDK serialization checks.
+
+  Resolution:
+  - All five input operations now retain exact decoded sample count and sample rate through the public API.
+  - Direct responses, saved jobs, Python clients, and generated Go messages use one typed measurement contract.
+  - Public gRPC checks verify resampling, output independence, both subtitle modes, language detection, restart, and corrupt retained records.
+  - Unknown usage remains absent for queued, running, canceled, and failed jobs without a completed result.
+  - Initial acceptance failed in all eleven added media route cases because native usage was absent.
+  - Acceptance also exposed B002, which is resolved in the same local source.
+  - Final `make ci` passed 266 Python tests, 100% configured coverage, and Go SDK tests.
+  - The separate Go consumer verifies all nine response messages and the existing synthesis fields.
+  - SDK version `v1.12.0` is declared. Publication and LLM Proxy acceptance remain separate work.
+  - Evidence: `/tmp/dictator-f004-final-ci.log` and `/tmp/dictator-f004-media-acceptance.log`.
+  - No release or production activation occurred.
 
 - [!] [F002] (P1) Publish the current Go SDK through the application lifecycle.
   Goal:

@@ -4,6 +4,8 @@ package dictator.speech.v1;
 
 option go_package = "github.com/tyemirov/dictator/sdk/go/dictatorspeechv1;dictatorspeechv1";
 
+import "dictator/speech/v1/common.proto";
+
 service SubtitleService {
   rpc RenderSubtitles(RenderSubtitlesRequest) returns (RenderSubtitlesResponse);
   rpc SubmitRenderSubtitlesJob(RenderSubtitlesRequest)
@@ -72,6 +74,7 @@ message RenderSubtitlesResponse {
   repeated SubtitleCue cues = 6;
   string srt_text = 7;
   string srt_artifact_id = 8;
+  InputAudioUsage input_audio_usage = 9;
 }
 
 message SubmitRenderSubtitlesJobResponse {
@@ -100,6 +103,7 @@ message GetRenderSubtitlesJobResponse {
   double started_at_unix_seconds = 14;
   double finished_at_unix_seconds = 15;
   string source_artifact_id = 16;
+  InputAudioUsage input_audio_usage = 17;
 }
 
 message CancelRenderSubtitlesJobRequest {

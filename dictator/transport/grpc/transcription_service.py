@@ -19,6 +19,7 @@ from dictator.runtime.jobs import (
 from dictator.speech.v1 import common_pb2, transcription_pb2, transcription_pb2_grpc
 
 from .base import BaseServicer, DEFAULT_MODEL_SIZE
+from .usage import input_audio_usage_message
 
 DIARIZATION_JOB_REQUIRED_ERROR_CODE = "dictator.grpc.diarization.job_required"
 DIARIZATION_JOB_REQUIRED_MESSAGE = "use SubmitDiarizeAudioJob for diarization requests"
@@ -101,6 +102,7 @@ class TranscriptionServiceServicer(BaseServicer, transcription_pb2_grpc.Transcri
             started_at_unix_seconds=record.started_at_unix_seconds or 0.0,
             finished_at_unix_seconds=record.finished_at_unix_seconds or 0.0,
             source_artifact_id=record.audio_artifact_id,
+            input_audio_usage=input_audio_usage_message(record.input_audio_usage),
         )
         response.words.extend(
             common_pb2.WordSegment(
@@ -114,6 +116,7 @@ class TranscriptionServiceServicer(BaseServicer, transcription_pb2_grpc.Transcri
 
     def _diarization_job_response(self, record: DiarizationJobRecord):
         response = transcription_pb2.GetDiarizeAudioJobResponse(
+            input_audio_usage=input_audio_usage_message(record.input_audio_usage),
             job_id=record.job_id,
             state=self._diarization_job_state_value(record.state),
             error_code=record.error_code or "",
@@ -144,6 +147,7 @@ class TranscriptionServiceServicer(BaseServicer, transcription_pb2_grpc.Transcri
             response = transcription_pb2.TranscribeResponse(
                 text=transcription.text,
                 language_code=transcription.language or "",
+                input_audio_usage=input_audio_usage_message(transcription.input_audio_usage),
             )
             if prepared.include_word_segments:
                 response.words.extend(

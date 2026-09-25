@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from dictator.audio.usage import InputAudioUsage
+
 
 @dataclass(frozen=True)
 class WordSegment:
@@ -27,6 +29,7 @@ class TranscriptionResult:
 
     language: str | None
     words: tuple[WordSegment, ...]
+    input_audio_usage: InputAudioUsage
 
     @property
     def text(self) -> str:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from dictator.audio.usage import InputAudioUsage
 from pathlib import Path
 
 
@@ -113,6 +114,7 @@ class DiarizeAudioResult:
     utterances: tuple[DiarizedUtterance, ...]
     speakers: tuple[SpeakerSummary, ...]
     speaker_segments: tuple[SpeakerSegment, ...]
+    input_audio_usage: InputAudioUsage
 
     def to_json_dict(
         self,

@@ -16,6 +16,7 @@ import torch
 
 from dictator.audio.constants import PCM_SAMPLE_RATE, TARGET_SAMPLE_RATE
 from dictator.audio.ffmpeg_ops import decode_pcm, trim_and_normalise
+from dictator.audio.usage import InputAudioUsage
 from dictator.diarization import (
     assign_words_to_speakers,
     dominant_speaker_label,
@@ -266,4 +267,5 @@ class ReferenceExtractionService:
             trim_start_seconds=trim_start,
             trim_end_seconds=trim_end,
             output_path=request.output_path,
+            input_audio_usage=InputAudioUsage(sample_count=len(pcm), sample_rate_hz=SAMPLE_RATE),
         )

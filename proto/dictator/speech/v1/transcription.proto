@@ -54,6 +54,7 @@ message TranscribeResponse {
   string text = 1;
   string language_code = 2;
   repeated WordSegment words = 3;
+  InputAudioUsage input_audio_usage = 4;
 }
 
 message SubmitTranscribeJobResponse {
@@ -77,6 +78,7 @@ message GetTranscribeJobResponse {
   double started_at_unix_seconds = 9;
   double finished_at_unix_seconds = 10;
   string source_artifact_id = 11;
+  InputAudioUsage input_audio_usage = 12;
 }
 
 message CancelTranscribeJobRequest {
@@ -133,6 +135,7 @@ message GetDiarizeAudioJobResponse {
   double started_at_unix_seconds = 10;
   double finished_at_unix_seconds = 11;
   string source_artifact_id = 12;
+  InputAudioUsage input_audio_usage = 13;
 }
 
 message CancelDiarizeAudioJobRequest {

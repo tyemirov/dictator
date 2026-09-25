@@ -8,8 +8,10 @@ from typing import Sequence
 
 import grpc
 
+from dictator.audio.usage import InputAudioUsage
 from dictator.speech.v1 import artifacts_pb2_grpc, subtitle_pb2, subtitle_pb2_grpc
 
+from ._usage import input_audio_usage_from_response
 from ._jobs import wait_for_job
 from ._uploads import DEFAULT_CHUNK_BYTES, DEFAULT_MEDIA_TYPE, upload_audio_artifact
 from .dictation import DictationClient
@@ -25,6 +27,7 @@ class SubtitleResult:
     srt_artifact_id: str
     srt_text: str
     cues: tuple[dict[str, float | int | str], ...]
+    input_audio_usage: InputAudioUsage
 
 
 @dataclass(frozen=True)
@@ -155,6 +158,7 @@ class SubtitleClient:
                 or submitted.source_artifact_id
             )
             return SubtitleResult(
+                input_audio_usage=finished.result.input_audio_usage,
                 language_code=finished.result.language_code,
                 mode=finished.result.mode,
                 granularity=finished.result.granularity,
@@ -173,6 +177,7 @@ class SubtitleClient:
             metadata=self._metadata,
         )
         return SubtitleResult(
+            input_audio_usage=input_audio_usage_from_response(response),
             language_code=response.language_code,
             mode=self._resolve_mode(response.mode),
             granularity=granularity,
@@ -281,6 +286,7 @@ class SubtitleClient:
         result = None
         if response.state == subtitle_pb2.SUBTITLE_JOB_STATE_SUCCEEDED:
             result = SubtitleResult(
+                input_audio_usage=input_audio_usage_from_response(response),
                 language_code=response.language_code,
                 mode=self._resolve_mode(response.mode),
                 granularity=self._resolve_granularity_name(response.granularity),
