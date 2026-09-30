@@ -35,7 +35,7 @@ def run(command: list[str], directory: Path, environment: dict[str, str]) -> str
 def verify(source: str) -> dict[str, object]:
     manifest = yaml.safe_load(MANIFEST_PATH.read_text(encoding="utf-8"))
     resources = [
-        resource for resource in manifest["mprlab_resources"]["resources"]
+        resource for resource in manifest["mprlab_resources"]["resources"].values()
         if resource["kind"] == "go_module"
     ]
     if len(resources) != 1:
