@@ -1,8 +1,57 @@
 ---
 mprlab_resources:
   owner: dictator
+  hosts:
+    tutosh:
+      ansible_become_password: DEPLOY_SUDO_PASSWORD_TUTOSH
   release:
     scheme: semver
+  environment_file: .mprlab/deploy/.env
+  inputs:
+    DICTATOR_GRPC_AUTH_TOKEN: ${DICTATOR_GRPC_AUTH_TOKEN}
+    HF_TOKEN: ${HF_TOKEN}
+    DEPLOY_SUDO_PASSWORD_TUTOSH: ${DEPLOY_SUDO_PASSWORD_TUTOSH}
+  ci:
+    enabled: true
+    command:
+      "0": make
+      "1": ci
+  defaults:
+    timeouts:
+      startup: 2m
+      completion: 30m
+      readiness: 5m
+      request: 30s
+      shutdown: 30s
+  operations:
+    ci:
+      timeouts:
+        completion: 30m
+    app_lifecycle.repository_read:
+      polling: &lifecycle-polling
+        initial: 2s
+        maximum: 15s
+        increment: 2s
+        multiplier: 2
+        attempt_limit: 60
+    app-plan-release: &plan-policy
+      timeouts:
+        completion: 2m
+      polling: *lifecycle-polling
+    app-plan-publish: *plan-policy
+    app-plan-deploy: *plan-policy
+    app-release:
+      timeouts:
+        completion: 2h
+      polling: *lifecycle-polling
+    app-publish:
+      timeouts:
+        completion: 4h
+      polling: *lifecycle-polling
+    app-deploy:
+      timeouts:
+        completion: 20m
+      polling: *lifecycle-polling
   resources:
     go-sdk:
       kind: go_module
