@@ -16,7 +16,7 @@ Version `v1.12.0` adds native input measurements for LLM Proxy F070.
 The previous published SDK version is `v1.11.0`.
 Nine response messages retain exact sample count, sample rate, and measurement presence.
 The SDK also retains the synthesis fields required by F042.
-The declaration selects `v1.12.0` for publication. It does not prove that publication occurred.
+Version `v1.12.0` is published. The separate released consumer passed on September 25, 2026.
 
 ## Lifecycle
 
@@ -35,8 +35,7 @@ Production deployment remains an operator action.
 Use the [application lifecycle procedure](../README.md#gpu-release-flow) for the complete operation.
 
 Before publication, merge the declaration into the application default branch.
-Record the accepted Gateway revision after F011 and B540 validation.
-Use the exact committed application and Gateway sources for publication.
+Use the installed Gateway runtime and a clean application checkout on synchronized `master`.
 
 ## Validation
 
@@ -74,16 +73,26 @@ The JSON result contains the module, version, Go download evidence, and field va
 
 ## Publication evidence
 
-Record these results for LLM Proxy F070 after publication:
-
-- The accepted application and Gateway commits.
-- The release receipt path and digest.
-- The SDK artifact fields: `source`, `source_object`, `module`, `version`, `tag`, and `git_commit`.
-- The publication receipt path and digest.
-- The output from `make verify-released-sdk`.
+F002 completed publication on September 25, 2026, with installed Gateway v4.6.3.
+The approved repository commands released and published application v2.0.4.
+The release includes SDK v1.12.0 and GPU image `ghcr.io/tyemirov/dictator:2.0.4`.
+Gateway verified the published SDK source files, image version, and current container tag.
+Service deployment remains a separate operator action.
 
 The application Git directory contains lifecycle records under `mprlab-lifecycle`.
 Locate that directory with `git rev-parse --path-format=absolute --git-path mprlab-lifecycle`.
-Release receipts use `releases/<application-commit>/receipt.json` beneath that directory.
+Release receipts use `releases/<version>/receipt.json` beneath that directory.
+Gateway retains the publication outcome in `deployment.json` after it removes redundant publication records.
+The file name does not establish service deployment.
 
-F002 remains open until the publication receipt and released consumer check succeed.
+`make verify-released-sdk` retrieved v1.12.0 through a fresh Go module cache and compiled the separate consumer.
+All nine responses retained 32001 samples at 16000 Hz. The synthesis fields also passed.
+Release CI passed 266 Python tests, 100% configured coverage, and Go SDK checks.
+
+Local execution logs:
+
+- Release: `/tmp/dictator-f070-v463-release.log`.
+- Publication: `/tmp/dictator-f070-v463-publish.log`.
+- Released consumer: `/tmp/dictator-f070-v112-released-sdk.log`.
+
+LLM Proxy F070 owns consumer integration and financial acceptance.

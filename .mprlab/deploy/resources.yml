@@ -1,43 +1,91 @@
 ---
 mprlab_resources:
   owner: dictator
+  hosts:
+    tutosh:
+      ansible_become_password: DEPLOY_SUDO_PASSWORD_TUTOSH
   release:
     scheme: semver
+  environment_file: .mprlab/deploy/.env
+  inputs:
+    DICTATOR_GRPC_AUTH_TOKEN: ${DICTATOR_GRPC_AUTH_TOKEN}
+    HF_TOKEN: ${HF_TOKEN}
+    DEPLOY_SUDO_PASSWORD_TUTOSH: ${DEPLOY_SUDO_PASSWORD_TUTOSH}
+  ci:
+    enabled: true
+    command:
+      "0": make
+      "1": ci
+  defaults:
+    timeouts:
+      startup: 2m
+      completion: 30m
+      readiness: 5m
+      request: 30s
+      shutdown: 30s
+  operations:
+    ci:
+      timeouts:
+        completion: 30m
+    app_lifecycle.repository_read:
+      polling: &lifecycle-polling
+        initial: 2s
+        maximum: 15s
+        increment: 2s
+        multiplier: 2
+        attempt_limit: 60
+    app-plan-release: &plan-policy
+      timeouts:
+        completion: 2m
+      polling: *lifecycle-polling
+    app-plan-publish: *plan-policy
+    app-plan-deploy: *plan-policy
+    app-release:
+      timeouts:
+        completion: 2h
+      polling: *lifecycle-polling
+    app-publish:
+      timeouts:
+        completion: 4h
+      polling: *lifecycle-polling
+    app-deploy:
+      timeouts:
+        completion: 20m
+      polling: *lifecycle-polling
   resources:
-    - kind: go_module
-      id: go-sdk
+    go-sdk:
+      kind: go_module
       source: sdk/go/dictatorspeechv1
       module: github.com/tyemirov/dictator/sdk/go/dictatorspeechv1
       version: v1.12.0
-    - kind: private_values
-      id: private
+    private:
+      kind: private_values
       bindings:
         grpc-auth-token: DICTATOR_GRPC_AUTH_TOKEN
         huggingface-token: HF_TOKEN
-    - kind: compose_project
-      id: computercat-runtime
+    computercat-runtime:
+      kind: compose_project
       retired_services:
-        - project: mprlab-gateway
-          service: dictator
+        mprlab-gateway/dictator: {}
       images:
-        - id: backend-image
+        backend-image:
           repository: ghcr.io/tyemirov/dictator
           build:
             context: .
             dockerfile: Dockerfile.gpu
             platforms:
-              - linux/amd64
+            - linux/amd64
       services:
-        - id: dictator
+        dictator:
           image: backend-image
           placement:
             group: computercat
             cardinality: one
           command:
-            - python
-            - serve.py
-            - --config
-            - /app/config.yml
+            '0': python
+            '1': serve.py
+            '2': --config
+            '3': /app/config.yml
           environment:
             DICTATOR_GRPC_AUTH_TOKEN:
               resource: private
@@ -50,38 +98,38 @@ mprlab_resources:
             NVIDIA_VISIBLE_DEVICES:
               value: all
           mounts:
-            - volume: artifacts
-              target: /app/.dictator-artifacts
+            /app/.dictator-artifacts:
+              volume: artifacts
               read_only: false
-            - volume: huggingface-cache
-              target: /home/app/.cache/huggingface
+            /home/app/.cache/huggingface:
+              volume: huggingface-cache
               read_only: false
-            - volume: whisper-cache
-              target: /home/app/.cache/whisper
+            /home/app/.cache/whisper:
+              volume: whisper-cache
               read_only: false
-            - volume: torch-cache
-              target: /home/app/.cache/torch
+            /home/app/.cache/torch:
+              volume: torch-cache
               read_only: false
           ports:
-            - container_port: 50051
+            '50051':
               host_port: 50002
               scope: private_lan
           gpu: true
       volumes:
-        - id: artifacts
+        artifacts:
           name: dictator_dictator-artifacts
           retention: retain
-        - id: huggingface-cache
+        huggingface-cache:
           name: dictator_huggingface-cache
           retention: retain
-        - id: whisper-cache
+        whisper-cache:
           name: dictator_whisper-cache
           retention: retain
-        - id: torch-cache
+        torch-cache:
           name: dictator_torch-cache
           retention: retain
-    - kind: runtime_capability
-      id: grpc
+    grpc:
+      kind: runtime_capability
       name: dictator.grpc
       version: 1
       project: computercat-runtime
@@ -92,12 +140,12 @@ mprlab_resources:
         port: 50002
       health:
         protocol: tcp
-    - kind: caddy_route
-      id: public-grpc
+    public-grpc:
+      kind: caddy_route
       hostname: dictator.mprlab.com
       listener: https
       handlers:
-        - id: default
+        default:
           path_prefix: /
           upstream: dictator.grpc
           transport:

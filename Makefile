@@ -1,3 +1,4 @@
+MPRLAB_GATEWAY_EXECUTABLE ?= mprlab-gateway
 ifneq ("$(wildcard .venv/bin/python)","")
 PYTHON ?= .venv/bin/python
 else ifneq ("$(shell command -v python3.11 2>/dev/null)","")
@@ -82,11 +83,4 @@ proto-check:
 
 release publish deploy:
 	@application_root="$$(git rev-parse --show-toplevel)"; \
-	gateway_root="$$(dirname "$${application_root}")/mprlab-gateway"; \
-	if [ ! -d "$${gateway_root}" ]; then \
-		printf "required sibling gateway is missing: %s; clone mprlab-gateway at exactly %s\n" \
-			"$${gateway_root}" "$${gateway_root}" >&2; \
-		exit 2; \
-	fi; \
-	$(MAKE) --no-print-directory -C "$${gateway_root}" "app-$@" \
-		MPRLAB_APP_ROOT="$${application_root}"
+	"$(MPRLAB_GATEWAY_EXECUTABLE)" "app-$@" --app-root "$${application_root}"

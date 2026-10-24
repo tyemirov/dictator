@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -105,49 +106,48 @@ class ReleaseContractTests(unittest.TestCase):
         "scripts/release",
     )
 
-    def test_lifecycle_targets_delegate_to_physical_sibling_gateway(self):
-        makefile_source = (self.repository_root / "Makefile").read_text(encoding="utf-8")
-        self.assertIn('gateway_root="$$(dirname "$${application_root}")/mprlab-gateway"', makefile_source)
-        self.assertIn('"app-$@"', makefile_source)
-        self.assertIn('MPRLAB_APP_ROOT="$${application_root}"', makefile_source)
-        self.assertNotIn("GATEWAY_DIR", makefile_source)
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            workspace_root = Path(temp_dir)
-            application_root = workspace_root / "dictator"
-            gateway_root = workspace_root / "mprlab-gateway"
+    def test_lifecycle_targets_invoke_selected_installed_gateway(self):
+        with tempfile.TemporaryDirectory(prefix="dictator lifecycle ") as temporary_root:
+            workspace_root = Path(temporary_root)
+            application_root = workspace_root / "application checkout"
             application_root.mkdir()
-            gateway_root.mkdir()
-            subprocess.run(
-                ("git", "init", "--quiet"),
-                cwd=application_root,
-                check=True,
-            )
-            (gateway_root / "Makefile").write_text(
-                ".PHONY: app-release app-publish app-deploy\n"
-                "app-release app-publish app-deploy:\n"
-                "\t@:\n",
+            subprocess.run(["git", "init", "--quiet"], cwd=application_root, check=True)
+            probe_source = workspace_root / "probe.go"
+            probe_executable = workspace_root / "Gateway probe"
+            probe_source.write_text(
+                'package main\n'
+                'import ("encoding/json"; "os"; "strconv")\n'
+                'func main() {\n'
+                '  json.NewEncoder(os.Stdout).Encode(os.Args[1:])\n'
+                '  status, err := strconv.Atoi(os.Getenv("PROBE_STATUS"))\n'
+                '  if err != nil { panic(err) }\n'
+                '  os.Exit(status)\n'
+                '}\n',
                 encoding="utf-8",
             )
-
+            subprocess.run(
+                ["go", "build", "-o", str(probe_executable), str(probe_source)],
+                cwd=workspace_root, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            )
             for target in ("release", "publish", "deploy"):
-                completed = subprocess.run(
-                    (
-                        "make",
-                        "--dry-run",
-                        "--file",
-                        str(self.repository_root / "Makefile"),
-                        target,
-                    ),
-                    cwd=application_root,
-                    check=False,
-                    text=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                )
-                self.assertEqual(completed.returncode, 0, completed.stdout)
-                self.assertIn(f'"app-{target}"', completed.stdout)
-                self.assertIn('MPRLAB_APP_ROOT="${application_root}"', completed.stdout)
+                for status in (0, 17):
+                    with self.subTest(target=target, status=status):
+                        completed = subprocess.run(
+                            ["make", "--no-print-directory", "--file",
+                             str(self.repository_root / "Makefile"), target,
+                             f"MPRLAB_GATEWAY_EXECUTABLE={probe_executable}"],
+                            cwd=application_root,
+                            env={**os.environ, "PROBE_STATUS": str(status)},
+                            stdin=subprocess.DEVNULL, check=False, text=True,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                        )
+                        self.assertEqual(completed.returncode == 0, status == 0, completed.stdout)
+                        self.assertEqual(
+                            json.loads(completed.stdout.splitlines()[0]),
+                            [f"app-{target}", "--app-root", str(application_root.resolve())],
+                        )
+                        if status:
+                            self.assertIn("Error 17", completed.stdout)
 
     def test_obsolete_application_lifecycle_is_absent(self):
         for relative_path in self.obsolete_lifecycle_paths:

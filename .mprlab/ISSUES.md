@@ -360,9 +360,44 @@ Format: `- [ ] [B042] (P1) {I007} Title`
   - The separate Go consumer verifies all nine response messages and the existing synthesis fields.
   - SDK version `v1.12.0` is declared. Publication and LLM Proxy acceptance remain separate work.
   - Evidence: `/tmp/dictator-f004-final-ci.log` and `/tmp/dictator-f004-media-acceptance.log`.
-  - No release or production activation occurred.
+  - Source acceptance did not include release or production activation.
+  - F002 subsequently published SDK v1.12.0 and verified the released consumer on September 25, 2026.
 
-- [!] [F002] (P1) Publish the current Go SDK through the application lifecycle.
+- [ ] [F003] (P1) Add qualified Bulgarian forced alignment for supplied transcripts.
+  Goal:
+  Align accepted Bulgarian audio against an exact supplied transcript through the public alignment API.
+  Evidence (2026-09-23):
+  - LLM Proxy operation `mop_d70826f8327790380bcbbf2dab6d31f2` maps to native job `4e4cd4a7b0b448fd898d04d2a4bc2d17`.
+  - Its retained record contains `dictator.alignment.input.invalid_language` and `unsupported language: 'bg'`.
+  - The native job failed before model loading. Audio quality and transcript correctness were not evaluated by alignment.
+  - Deployed `SUPPORTED_ALIGNMENT_LANGUAGES` omits `bg`.
+  - Installed WhisperX `DEFAULT_ALIGN_MODELS_TORCH` and `DEFAULT_ALIGN_MODELS_HF` both omit a Bulgarian model.
+  - Adding the language identifier alone cannot supply a working model.
+  Requirements:
+  - Select and qualify an explicit Bulgarian alignment model and its character vocabulary.
+  - Verify its license, artifact revision, tokenizer, audio requirements, and deployment dependencies before activation.
+  - Define explicit language-to-model routing and model preparation for Bulgarian.
+  - Add `bg` to public alignment discovery only after its model contract passes acceptance.
+  - Preserve the exact supplied transcript and accepted audio bytes.
+  - Produce ordered spoken words, observed timestamps, and aligned SRT through the existing result contract.
+  - Reject unsupported languages before job admission with a typed validation error.
+  - Preserve the failed operation and its native record as diagnostic evidence.
+  Deliverables:
+  - Qualified model configuration, runtime integration, public discovery, tests, and operator preparation instructions.
+  Validation:
+  - Exercise the public alignment API with licensed Bulgarian fixtures and exact source transcripts.
+  - Prove Cyrillic handling, punctuation behavior, word order, timestamp coverage, and SRT output.
+  - Prove unsupported-language rejection and explicit failure for absent model artifacts.
+  - Qualify the LLM Proxy route separately before a later authorized Creative Director acceptance request.
+  Cross-repository coordination:
+  - LLM Proxy B258 owns capability validation and safe failure reporting at the gateway.
+  - Creative Director B073 and Kamu F001 retain ownership of accepted content and further execution authority.
+  Scope:
+  - This is a new alignment language capability. Existing Bulgarian diarization does not provide forced alignment.
+  - This issue record authorizes no new provider request, release, or deployment during diagnosis.
+
+
+- [x] [F002] (P1) Publish the current Go SDK through the application lifecycle.
   Goal:
   Publish the current Dictator Go SDK through the canonical automated lifecycle.
   LLM Proxy F042 requires the released `preset_speaker` and `text_format` fields.
@@ -413,11 +448,17 @@ Format: `- [ ] [B042] (P1) {I007} Title`
   - The language checker found no issue in the changed prose. Existing README findings remain outside this change.
   - `make verify-released-sdk` failed with `unknown revision sdk/go/dictatorspeechv1/v1.11.0`.
 
-  Blocked:
-  - Gateway F011 remains open for validation under B540. Record its accepted revision before publication.
-  - The Dictator declaration must reach the default branch before the production lifecycle can use it.
-  - The Governor check reports existing managed-document differences and a missing Pages declaration for detected browser content.
-  - The automated publication receipt and released consumer result remain absent.
+  Resolution (2026-09-25):
+  - Approved `make release` and `make publish` passed with installed Gateway v4.6.3 on synchronized `master`.
+  - Application release v2.0.4 includes SDK v1.12.0 and the declared GPU image at `ghcr.io/tyemirov/dictator:2.0.4`.
+  - Gateway published the SDK tag and verified its source files. It also verified the image and current container tag.
+  - The release record is `.git/mprlab-lifecycle/releases/v2.0.4/receipt.json`.
+  - Durable publication evidence is `.git/mprlab-lifecycle/deployment.json`. This publication does not deploy the service.
+  - `make verify-released-sdk` passed with a fresh Go module cache and all nine input-usage response messages.
+  - The consumer retained 32001 samples at 16000 Hz and verified the existing synthesis fields.
+  - Release CI passed 266 Python tests, 100% configured coverage, and Go SDK checks.
+  - Logs: `/tmp/dictator-f070-v463-release.log`, `/tmp/dictator-f070-v463-publish.log`, and `/tmp/dictator-f070-v112-released-sdk.log`.
+  - The existing Governor findings remain unchanged. F003 is restored with its original patch.
 
 - [ ] [F001] (P2) {I005,P003} Add explicit Higgs expressive speech controls
   Goal:
