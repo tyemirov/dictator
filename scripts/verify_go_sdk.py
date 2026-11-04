@@ -34,22 +34,27 @@ def run(command: list[str], directory: Path, environment: dict[str, str]) -> str
 
 def verify(source: str) -> dict[str, object]:
     manifest = yaml.safe_load(MANIFEST_PATH.read_text(encoding="utf-8"))
-    resources = [
-        resource for resource in manifest["mprlab_resources"]["resources"].values()
-        if resource["kind"] == "go_module"
-    ]
-    if len(resources) != 1:
-        raise ValueError(f"SDK verification requires one go_module resource, found {len(resources)}")
-    resource = resources[0]
-    module = resource["module"]
-    version = resource["version"]
+    selected = manifest["mprlab_resources"]
+    artifacts = selected["artifacts"]["go_modules"]
+    publications = selected["publications"]["git"]["modules"]
+    if len(artifacts) != 1 or len(publications) != 1:
+        raise ValueError(
+            "SDK verification requires one Go module artifact and one Git module publication, "
+            f"found {len(artifacts)} artifacts and {len(publications)} publications"
+        )
+    artifact = artifacts[0]
+    publication = publications[0]
+    if publication["artifact"] != artifact["id"]:
+        raise ValueError("SDK Git publication must reference the declared Go module artifact")
+    module = artifact["module"]
+    version = artifact["version"]
     environment = {**os.environ, "GOWORK": "off", "GOFLAGS": ""}
     with tempfile.TemporaryDirectory(prefix="dictator-sdk-consumer-") as temporary:
         directory = Path(temporary)
         run(["go", "mod", "init", "example.com/dictator-sdk-consumer"], directory, environment)
         run(["go", "mod", "edit", f"-require={module}@{version}"], directory, environment)
         if source == "local":
-            module_root = REPOSITORY_ROOT / resource["source"]
+            module_root = REPOSITORY_ROOT / artifact["source"]
             local_module = json.loads(run(["go", "list", "-m", "-json"], module_root, environment))
             if local_module["Path"] != module:
                 raise ValueError(f"SDK source declares another module: {local_module['Path']!r}")
