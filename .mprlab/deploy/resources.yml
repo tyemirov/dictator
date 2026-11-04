@@ -14,6 +14,8 @@ mprlab_resources:
               version: v1.12.0
     environment:
         private_inputs:
+            - id: deploy-sudo-password-computercat
+              variable: DEPLOY_SUDO_PASSWORD_COMPUTERCAT
             - id: deploy-sudo-password-tutosh
               variable: DEPLOY_SUDO_PASSWORD_TUTOSH
             - id: dictator-grpc-auth-token
@@ -117,6 +119,9 @@ mprlab_resources:
     targets:
         access:
             hosts:
+                - elevation_password:
+                    input: deploy-sudo-password-computercat
+                  host: computercat-host
                 - elevation_password:
                     input: deploy-sudo-password-tutosh
                   host: tutosh
