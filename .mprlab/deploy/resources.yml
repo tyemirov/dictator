@@ -1,157 +1,207 @@
----
 mprlab_resources:
-  owner: dictator
-  hosts:
-    tutosh:
-      ansible_become_password: DEPLOY_SUDO_PASSWORD_TUTOSH
-  release:
-    scheme: semver
-  environment_file: .mprlab/deploy/.env
-  inputs:
-    DICTATOR_GRPC_AUTH_TOKEN: ${DICTATOR_GRPC_AUTH_TOKEN}
-    HF_TOKEN: ${HF_TOKEN}
-    DEPLOY_SUDO_PASSWORD_TUTOSH: ${DEPLOY_SUDO_PASSWORD_TUTOSH}
-  ci:
-    enabled: true
-    command:
-      "0": make
-      "1": ci
-  defaults:
-    timeouts:
-      startup: 2m
-      completion: 30m
-      readiness: 5m
-      request: 30s
-      shutdown: 30s
-  operations:
-    ci:
-      timeouts:
-        completion: 30m
-    app_lifecycle.repository_read:
-      polling: &lifecycle-polling
-        initial: 2s
-        maximum: 15s
-        increment: 2s
-        multiplier: 2
-        attempt_limit: 60
-    app-plan-release: &plan-policy
-      timeouts:
-        completion: 2m
-      polling: *lifecycle-polling
-    app-plan-publish: *plan-policy
-    app-plan-deploy: *plan-policy
-    app-release:
-      timeouts:
-        completion: 2h
-      polling: *lifecycle-polling
-    app-publish:
-      timeouts:
-        completion: 4h
-      polling: *lifecycle-polling
-    app-deploy:
-      timeouts:
-        completion: 20m
-      polling: *lifecycle-polling
-  resources:
-    go-sdk:
-      kind: go_module
-      source: sdk/go/dictatorspeechv1
-      module: github.com/tyemirov/dictator/sdk/go/dictatorspeechv1
-      version: v1.12.0
-    private:
-      kind: private_values
-      bindings:
-        grpc-auth-token: DICTATOR_GRPC_AUTH_TOKEN
-        huggingface-token: HF_TOKEN
-    computercat-runtime:
-      kind: compose_project
-      retired_services:
-        mprlab-gateway/dictator: {}
-      images:
-        backend-image:
-          repository: ghcr.io/tyemirov/dictator
-          build:
-            context: .
-            dockerfile: Dockerfile.gpu
-            platforms:
-            - linux/amd64
-      services:
-        dictator:
-          image: backend-image
-          placement:
-            group: computercat
-            cardinality: one
-          command:
-            '0': python
-            '1': serve.py
-            '2': --config
-            '3': /app/config.yml
-          environment:
-            DICTATOR_GRPC_AUTH_TOKEN:
-              resource: private
-              output: grpc-auth-token
-            HF_TOKEN:
-              resource: private
-              output: huggingface-token
-            NVIDIA_DRIVER_CAPABILITIES:
-              value: compute,utility
-            NVIDIA_VISIBLE_DEVICES:
-              value: all
-          mounts:
-            /app/.dictator-artifacts:
-              volume: artifacts
-              read_only: false
-            /home/app/.cache/huggingface:
-              volume: huggingface-cache
-              read_only: false
-            /home/app/.cache/whisper:
-              volume: whisper-cache
-              read_only: false
-            /home/app/.cache/torch:
-              volume: torch-cache
-              read_only: false
-          ports:
-            '50051':
-              host_port: 50002
-              scope: private_lan
-          gpu: true
-      volumes:
-        artifacts:
-          name: dictator_dictator-artifacts
-          retention: retain
-        huggingface-cache:
-          name: dictator_huggingface-cache
-          retention: retain
-        whisper-cache:
-          name: dictator_whisper-cache
-          retention: retain
-        torch-cache:
-          name: dictator_torch-cache
-          retention: retain
-    grpc:
-      kind: runtime_capability
-      name: dictator.grpc
-      version: 1
-      project: computercat-runtime
-      service: dictator
-      endpoint:
-        scope: private_lan
-        scheme: grpc
-        port: 50002
-      health:
-        protocol: tcp
-    public-grpc:
-      kind: caddy_route
-      hostname: dictator.mprlab.com
-      listener: https
-      handlers:
-        default:
-          path_prefix: /
-          upstream: dictator.grpc
-          transport:
-            protocol: h2c
-            dial_timeout_seconds: 10
-            response_header_timeout_seconds: 30
-            read_timeout_seconds: 600
-      tls:
-        mode: automatic
+    artifacts:
+        container_images:
+            - build:
+                context: .
+                dockerfile: Dockerfile.gpu
+                platforms:
+                    - linux/amd64
+              id: backend-image
+        go_modules:
+            - id: go-sdk
+              module: github.com/tyemirov/dictator/sdk/go/dictatorspeechv1
+              source: sdk/go/dictatorspeechv1
+              version: v1.12.0
+    environment:
+        private_inputs:
+            - id: deploy-sudo-password-tutosh
+              variable: DEPLOY_SUDO_PASSWORD_TUTOSH
+            - id: dictator-grpc-auth-token
+              variable: DICTATOR_GRPC_AUTH_TOKEN
+            - id: hf-token
+              variable: HF_TOKEN
+        source: .mprlab/deploy/.env
+    lifecycle:
+        ci:
+            command:
+                - make
+                - ci
+            enabled: true
+        defaults:
+            timeouts:
+                completion: 30m
+                readiness: 5m
+                request: 30s
+                shutdown: 30s
+                startup: 2m
+        operations:
+            - name: app-deploy
+              polling:
+                attempt_limit: 60
+                increment: 2s
+                initial: 2s
+                maximum: 15s
+                multiplier: 2
+              timeouts:
+                completion: 20m
+            - name: app-plan-deploy
+              polling:
+                attempt_limit: 60
+                increment: 2s
+                initial: 2s
+                maximum: 15s
+                multiplier: 2
+              timeouts:
+                completion: 2m
+            - name: app-plan-publish
+              polling:
+                attempt_limit: 60
+                increment: 2s
+                initial: 2s
+                maximum: 15s
+                multiplier: 2
+              timeouts:
+                completion: 2m
+            - name: app-plan-release
+              polling:
+                attempt_limit: 60
+                increment: 2s
+                initial: 2s
+                maximum: 15s
+                multiplier: 2
+              timeouts:
+                completion: 2m
+            - name: app-publish
+              polling:
+                attempt_limit: 60
+                increment: 2s
+                initial: 2s
+                maximum: 15s
+                multiplier: 2
+              timeouts:
+                completion: 4h
+            - name: app-release
+              polling:
+                attempt_limit: 60
+                increment: 2s
+                initial: 2s
+                maximum: 15s
+                multiplier: 2
+              timeouts:
+                completion: 2h
+            - name: app_lifecycle.repository_read
+              polling:
+                attempt_limit: 60
+                increment: 2s
+                initial: 2s
+                maximum: 15s
+                multiplier: 2
+            - name: ci
+              timeouts:
+                completion: 30m
+        private_inputs:
+            operations: []
+    owner: dictator
+    publications:
+        ghcr:
+            images:
+                - artifact: backend-image
+                  id: backend-image
+                  repository: ghcr.io/tyemirov/dictator
+        git:
+            modules:
+                - artifact: go-sdk
+                  id: go-sdk
+    release:
+        scheme: semver
+    targets:
+        access:
+            hosts:
+                - elevation_password:
+                    input: deploy-sudo-password-tutosh
+                  host: tutosh
+        docker_compose:
+            projects:
+                - id: computercat-runtime
+                  retired_services:
+                    - project: mprlab-gateway
+                      service: dictator
+                  services:
+                    - command:
+                        - python
+                        - serve.py
+                        - --config
+                        - /app/config.yml
+                      endpoints:
+                        - endpoint:
+                            port: 50002
+                            scheme: grpc
+                            scope: private_lan
+                          health:
+                            protocol: tcp
+                          id: grpc
+                          name: dictator.grpc
+                          version: 1
+                      environment:
+                        - input: dictator-grpc-auth-token
+                          name: DICTATOR_GRPC_AUTH_TOKEN
+                        - input: hf-token
+                          name: HF_TOKEN
+                        - name: NVIDIA_DRIVER_CAPABILITIES
+                          value: compute,utility
+                        - name: NVIDIA_VISIBLE_DEVICES
+                          value: all
+                      gpu: true
+                      id: dictator
+                      image:
+                        publication: backend-image
+                      mounts:
+                        - read_only: false
+                          target: /app/.dictator-artifacts
+                          volume: artifacts
+                        - read_only: false
+                          target: /home/app/.cache/huggingface
+                          volume: huggingface-cache
+                        - read_only: false
+                          target: /home/app/.cache/torch
+                          volume: torch-cache
+                        - read_only: false
+                          target: /home/app/.cache/whisper
+                          volume: whisper-cache
+                      placement:
+                        cardinality: one
+                        group: computercat
+                      ports:
+                        - container_port: 50051
+                          host_port: 50002
+                          scope: private_lan
+                  volumes:
+                    - id: artifacts
+                      name: dictator_dictator-artifacts
+                      retention: retain
+                    - id: huggingface-cache
+                      name: dictator_huggingface-cache
+                      retention: retain
+                    - id: torch-cache
+                      name: dictator_torch-cache
+                      retention: retain
+                    - id: whisper-cache
+                      name: dictator_whisper-cache
+                      retention: retain
+        ingress:
+            caddy:
+                routes:
+                    - handlers:
+                        - id: default
+                          path_prefix: /
+                          transport:
+                            dial_timeout_seconds: 10
+                            protocol: h2c
+                            read_timeout_seconds: 600
+                            response_header_timeout_seconds: 30
+                          upstream: dictator.grpc
+                      hostname: dictator.mprlab.com
+                      id: public-grpc
+                      listener: https
+                      tls:
+                        mode: automatic
